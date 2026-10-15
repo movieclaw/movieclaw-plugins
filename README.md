@@ -12,7 +12,7 @@
 ├── README.md
 ├── index.json                 索引源文件，给人审、给 PR 看 diff
 ├── index.schema.json          索引 schema，版本 1
-├── plugins/                   正式插件。现在是空的
+├── plugins/                   正式插件
 │   └── <id>/
 │       ├── movieclaw-plugin.toml
 │       ├── store.json         作者、主页、许可证、图标。不能写进清单

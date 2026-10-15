@@ -1,0 +1,12 @@
+{
+  "author": "MovieClaw",
+  "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/openlist-direct-link",
+  "license": "见仓库许可证",
+  "origin": "official",
+  "icon": null,
+  "screenshots": [],
+  "summary": "挂载路径的 strm 借 OpenList 换出网盘直链，播放器 302 直连网盘，视频流量不经服务器。",
+  "min_app": "0.39.0",
+  "max_app": null,
+  "app": null
+}
