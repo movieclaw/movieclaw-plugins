@@ -5,17 +5,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
+import zipfile
 from pathlib import Path
 
 import generate_index
 import pack
 import pluginlib
-from ci_dirs import select
+from ci_dirs import lock_files, select
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "example" / "hello-note"
@@ -204,6 +206,62 @@ class CiDirsTest(unittest.TestCase):
             run, dirs = select(["example/GUIDE.md"], root)
             self.assertTrue(run)
             self.assertEqual(dirs, ["example/hello-note", "example/weixin-channel"])
+
+
+class DependencyLockTest(unittest.TestCase):
+    def plugin(self, tmp: str, table: str, *, lock: str | None = "requirements.lock") -> Path:
+        directory = Path(tmp) / "plugins" / "hello-note"
+        shutil.copytree(EXAMPLE, directory)
+        manifest = directory / "movieclaw-plugin.toml"
+        manifest.write_text(manifest.read_text(encoding="utf-8") + table, encoding="utf-8")
+        if lock is not None:
+            (directory / lock).parent.mkdir(parents=True, exist_ok=True)
+            (directory / lock).write_text("# python: 3.12\n", encoding="utf-8")
+        return directory
+
+    def test_without_dependencies_there_is_no_lock(self) -> None:
+        self.assertIsNone(pluginlib.dependency_lock(EXAMPLE))
+
+    def test_lock_file_is_packed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = self.plugin(tmp, '\n[dependencies]\nlock = "requirements.lock"\n')
+            self.assertEqual(
+                pluginlib.dependency_lock(directory), (directory / "requirements.lock").resolve()
+            )
+            output = Path(tmp) / "out.mcplugin"
+            pack.pack(directory, output)
+            with zipfile.ZipFile(output) as archive:
+                self.assertIn("requirements.lock", archive.namelist())
+            self.assertEqual(lock_files(["plugins/hello-note"], Path(tmp)), [
+                "plugins/hello-note/requirements.lock"
+            ])
+
+    def test_rejected_locks(self) -> None:
+        cases = {
+            "missing": ('\n[dependencies]\nlock = "requirements.lock"\n', None),
+            "outside": ('\n[dependencies]\nlock = "../requirements.lock"\n', None),
+            "skipped by pack": ('\n[dependencies]\nlock = ".deps/requirements.lock"\n',
+                                ".deps/requirements.lock"),
+            "not a path": ("\n[dependencies]\nlock = 1\n", "requirements.lock"),
+        }
+        for label, (table, lock) in cases.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+                directory = self.plugin(tmp, table, lock=lock)
+                with self.assertRaises(pluginlib.PluginError):
+                    pluginlib.dependency_lock(directory)
+                with self.assertRaises(pluginlib.PluginError):
+                    pack.pack(directory, Path(tmp) / "out.mcplugin")
+
+    def test_only_process_plugins_take_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = self.plugin(tmp, '\n[dependencies]\nlock = "requirements.lock"\n')
+            manifest = directory / "movieclaw-plugin.toml"
+            text = manifest.read_text(encoding="utf-8").replace(
+                'runtime = "process"', 'runtime = "inline"'
+            )
+            manifest.write_text(text, encoding="utf-8")
+            with self.assertRaisesRegex(pluginlib.PluginError, "process"):
+                pluginlib.dependency_lock(directory)
 
 
 if __name__ == "__main__":

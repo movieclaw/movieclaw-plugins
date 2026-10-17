@@ -6,6 +6,15 @@
 # in the tree — they do not run standalone — so the unittest step below
 # sees no tests/ directory and skips them. A README-only change skips the
 # MovieClaw install.
+#
+# Plugins with a [dependencies] lock file also go through MovieClaw's lock
+# checker (pinned, exact versions, hashes, wheels only, no clash with the
+# packages the server ships) and a real hash-checked pip install inside the
+# server image's base (python:3.12-slim-bookworm) on linux/amd64 and
+# linux/arm64, so both architectures are known to have wheels. The v0.37.0
+# Manifest rejects the [dependencies] table, so those plugins get the full
+# check_plugin.py run from MOVIECLAW_DEPS_REF in the lock-check job instead
+# of the validate job.
 
 name: ci
 
@@ -22,6 +31,12 @@ permissions:
 env:
   # MovieClaw v0.37.0. Do not float this to a branch tip.
   MOVIECLAW_REF: e229717c43b2d48986f8f51c19b86348a527cb5a
+  # The lock checker (movieclaw_sdk.deps) is newer than any server release.
+  # Pinned main commit with #887/#891; fold into MOVIECLAW_REF once a release
+  # ships it.
+  MOVIECLAW_DEPS_REF: 6df51e356841ee2ec4bbacb6d3e1b39aecbf2c0f
+  # Shipped with every server release from the one after v0.39.0.
+  HOST_CONSTRAINTS_URL: https://github.com/movieclaw/MovieClaw/releases/latest/download/host-constraints.txt
 
 jobs:
   catalog:
@@ -47,6 +62,7 @@ jobs:
     outputs:
       run: ${{ steps.pick.outputs.run }}
       dirs: ${{ steps.pick.outputs.dirs }}
+      locks: ${{ steps.pick.outputs.locks }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,6 +102,7 @@ jobs:
       - name: Manifest, check_compat, and plugin tests
         env:
           DIRS: ${{ needs.changes.outputs.dirs }}
+          LOCKS: ${{ needs.changes.outputs.locks }}
         run: |
           set -euo pipefail
           if [ -z "$DIRS" ]; then
@@ -95,6 +112,10 @@ jobs:
           read -r -a dirs <<< "$DIRS"
           checker=".movieclaw/src/movieclaw_agent/builtin-skills/movieclaw-plugin-dev/scripts/check_plugin.py"
           for dir in "${dirs[@]}"; do
+            if [[ " $LOCKS " == *" ${dir}/"* ]]; then
+              echo "${dir} 声明了 [dependencies]，由 dependencies (lock check) 用新版检查器校验"
+              continue
+            fi
             echo "::group::${dir}"
             python3 "$checker" "$dir"
             # Reference copies under example/<id>/ (UPSTREAM.json) have no
@@ -102,5 +123,94 @@ jobs:
             if [ -d "${dir}/tests" ]; then
               python3 -m unittest discover -s "${dir}/tests" -t "$dir" -v
             fi
+            echo "::endgroup::"
+          done
+
+  dependencies:
+    name: dependencies (lock check)
+    needs: changes
+    if: needs.changes.outputs.locks != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout MovieClaw
+        uses: actions/checkout@v4
+        with:
+          repository: movieclaw/MovieClaw
+          ref: ${{ env.MOVIECLAW_DEPS_REF }}
+          path: .movieclaw
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .movieclaw/pyproject.toml
+
+      - name: Install MovieClaw (lock checker)
+        run: python3 -m pip install -e .movieclaw
+
+      - name: Fetch host-constraints.txt from the latest server release
+        run: |
+          set -euo pipefail
+          if ! curl -fsSL "$HOST_CONSTRAINTS_URL" -o host-constraints.txt; then
+            echo "::warning::最新服务器 Release 还没有 host-constraints.txt，改用 MOVIECLAW_DEPS_REF 环境里的包"
+            python3 -m movieclaw_sdk.deps constraints > host-constraints.txt
+          fi
+          grep -q '^httpx==' host-constraints.txt
+
+      - name: Lock files, Manifest, check_compat, and plugin tests
+        env:
+          LOCKS: ${{ needs.changes.outputs.locks }}
+        run: |
+          set -euo pipefail
+          read -r -a locks <<< "$LOCKS"
+          checker=".movieclaw/src/movieclaw_agent/builtin-skills/movieclaw-plugin-dev/scripts/check_plugin.py"
+          for lock in "${locks[@]}"; do
+            dir="$(dirname "$lock")"
+            echo "::group::${dir}"
+            python3 -m movieclaw_sdk.deps check "$dir" --constraints host-constraints.txt
+            python3 "$checker" "$dir"
+            if [ -d "${dir}/tests" ]; then
+              python3 -m unittest discover -s "${dir}/tests" -t "$dir" -v
+            fi
+            echo "::endgroup::"
+          done
+
+  dependencies-install:
+    name: dependencies (${{ matrix.platform }})
+    needs: changes
+    if: needs.changes.outputs.locks != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    # Same Python and glibc as the server image, so pip picks what users get.
+    container: python:3.12-slim-bookworm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install every lock file with pip, hash-checked, wheels only
+        shell: bash
+        env:
+          LOCKS: ${{ needs.changes.outputs.locks }}
+        run: |
+          set -euo pipefail
+          uname -m
+          read -r -a locks <<< "$LOCKS"
+          for lock in "${locks[@]}"; do
+            echo "::group::${lock}"
+            target="$(mktemp -d)"
+            python3 -m pip install --disable-pip-version-check --no-cache-dir --root-user-action=ignore \
+              --target "$target" --require-hashes --only-binary=:all: --no-deps \
+              -r "$lock"
+            rm -rf "$target"
             echo "::endgroup::"
           done

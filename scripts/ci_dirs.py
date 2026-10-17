@@ -18,8 +18,11 @@ it. Do not glob ``example/*`` instead of this list. If a later sync fails
 the pinned checker, stop emitting that id and say why here — leave the
 upstream source unchanged.
 
-Reads ``BASE_SHA`` and writes ``run`` and ``dirs`` to ``$GITHUB_OUTPUT``
-when that variable is set. ``dirs`` is a space-separated list.
+Reads ``BASE_SHA`` and writes ``run``, ``dirs`` and ``locks`` to
+``$GITHUB_OUTPUT`` when that variable is set. ``dirs`` is a space-separated
+list; ``locks`` lists the ``[dependencies]`` lock files of those directories
+(repo-relative), which the dependency jobs check and install on both Linux
+architectures.
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pluginlib import ID_RE
+from pluginlib import ID_RE, PluginError, dependency_lock
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = "example/hello-note"
@@ -103,6 +106,19 @@ def select(changed: list[str], root: Path = ROOT) -> tuple[bool, list[str]]:
     return True, dirs
 
 
+def lock_files(dirs: list[str], root: Path = ROOT) -> list[str]:
+    """Repo-relative lock files of the selected plugins that declare ``[dependencies]``."""
+    locks: list[str] = []
+    for item in dirs:
+        try:
+            lock = dependency_lock(root / item)
+        except PluginError as exc:
+            raise PluginError(f"{item}: {exc}") from exc
+        if lock is not None:
+            locks.append(lock.relative_to(root.resolve()).as_posix())
+    return locks
+
+
 def changed_files(base: str) -> list[str]:
     proc = subprocess.run(
         ["git", "diff", "--name-only", base, "HEAD"],
@@ -128,8 +144,14 @@ def main() -> int:
         print("error: BASE_SHA is required", file=sys.stderr)
         return 1
     run, dirs = select(changed_files(base))
+    try:
+        locks = lock_files(dirs)
+    except PluginError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     emit("run", "true" if run else "false")
     emit("dirs", " ".join(dirs))
+    emit("locks", " ".join(locks))
     return 0
 
 

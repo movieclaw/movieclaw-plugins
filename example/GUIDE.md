@@ -251,6 +251,35 @@ issued = await callbacks.issue(ctx, "push")
 
 日志用 `ctx.logger`，带上关键 id。按英文短词匹配发布名时用词边界，避免 `ts` 命中 `Hits`。
 
+## 第三方依赖
+
+v0.37.0 的服务器只认 `vendor/`。从 v0.39.0 之后的下一个服务器版本起，`runtime = "process"` 的插件可以声明 PyPI 依赖，由服务器在用户批准时下载安装（`inline` / `exec` 插件不行）：
+
+1. 插件目录放 `requirements.in`，每行一个直接依赖，例如 `p115cipher[full]`。
+2. 清单加：
+
+   ```toml
+   [dependencies]
+   lock = "requirements.lock"
+   ```
+
+3. 生成锁文件（需要 MovieClaw 源码，提交 `6df51e35` 或更新，那里才有 `movieclaw_sdk.deps`）：
+
+   ```bash
+   PYTHONPATH=<MovieClaw>/src python3 scripts/pack.py plugins/<id> --lock
+   ```
+
+   它调用 `python -m movieclaw_sdk.deps lock <目录>`，按最新服务器 Release 附带的 `host-constraints.txt`（主程序自带的包和版本，`--constraints` 可换成本地文件）解析依赖闭包：每个包 `==` 钉死、带 `--hash=sha256`，上方的 `#> 文件名 字节数 sha256:…` 行列出它在各平台、各 Python 版本的轮子。不要手改锁文件，要换版本就改 `requirements.in` 重新生成，锁文件和 `requirements.in` 都提交。
+
+规则：
+
+- 只接受轮子，用户机器上不编译。本机代码（如 `lz4`、`pycryptodome`）可以，但 `linux/amd64` 和 `linux/arm64` 都得有轮子。
+- 不能和主程序自带的包重名（`httpx`、`pydantic`、`cryptography` 等直接 import）。生成时它们自动排除；手写进锁文件会被拒绝。
+- 锁文件必须在插件目录里、不在点开头的目录下，`scripts/pack.py` 会核对并把它和 `requirements.in` 一起打进包。安装时服务器才联网下载，包里不带轮子。
+- 批准页列出依赖包数、大小、哪些含本机代码；授权按锁文件内容的哈希记录，锁文件变了升级时会再问一次。依赖目录排在 `sys.path` 最后，`.pth` 不执行。
+
+CI 对带 `[dependencies]` 的插件额外做两件事：用 `python -m movieclaw_sdk.deps check` 按最新服务器 Release 的 `host-constraints.txt` 校验锁文件（钉死、哈希、只轮子、不与主程序重名）；再在 `python:3.12-slim-bookworm`（服务器镜像的底）里，`linux/amd64` 和 `linux/arm64` 各执行一次 `pip install --require-hashes --only-binary=:all: --no-deps -r <锁文件>`，真下载一遍。
+
 ## 打包
 
 本地可以用 `mclaw plugin pack <目录>`，得到 `<id>-<版本>.mcplugin`。它跳过 `__pycache__`、`.git`、`.venv`、`node_modules`、点开头的目录、`*.pyc`、`*.mcplugin`、`.DS_Store`，拒绝软链接，并保留可执行位。上限：压缩包 50 MB，解压 200 MB，5000 个文件。清单必须在 zip 根上。Python 插件必须有 `<entry>.py` 或 `<entry>/__init__.py`。

@@ -104,6 +104,31 @@ def plugin_table(directory: Path) -> dict:
     return table
 
 
+def dependency_lock(directory: Path) -> Path | None:
+    """The lock file named by ``[dependencies] lock``, or None when there is no such table.
+
+    It must sit inside the plugin directory and survive the pack skip rules, or the
+    server would see a manifest pointing at a file the archive does not carry.
+    """
+    data = load_toml(directory)
+    deps = data.get("dependencies")
+    if deps is None:
+        return None
+    if not isinstance(deps, dict) or not isinstance(deps.get("lock"), str) or not deps["lock"]:
+        raise PluginError('[dependencies] 须写成 lock = "requirements.lock"')
+    if data["plugin"].get("runtime", "process") != "process":
+        raise PluginError('第三方依赖只给 runtime = "process" 的插件')
+    root = directory.resolve()
+    path = (root / deps["lock"]).resolve()
+    if root not in path.parents:
+        raise PluginError(f"锁文件 {deps['lock']!r} 须在插件目录里")
+    if not path.is_file():
+        raise PluginError(f"清单写了锁文件 {deps['lock']!r}，但插件目录里没有这个文件")
+    if path not in package_files(directory):
+        raise PluginError(f"锁文件 {deps['lock']!r} 会被打包规则跳过（点开头的文件或目录）")
+    return path
+
+
 def load_store(directory: Path) -> dict:
     path = directory / STORE
     if not path.is_file():
