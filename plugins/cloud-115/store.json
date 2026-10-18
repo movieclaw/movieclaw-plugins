@@ -1,0 +1,12 @@
+{
+  "author": "MovieClaw",
+  "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/cloud-115",
+  "license": "GPL-3.0-or-later",
+  "origin": "official",
+  "icon": null,
+  "screenshots": [],
+  "summary": "把 115 网盘接进媒体库：网盘里已有的片子直接看，新片自动上传、本地自动腾空。",
+  "min_app": null,
+  "max_app": null,
+  "app": null
+}

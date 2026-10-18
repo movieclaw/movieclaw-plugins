@@ -31,10 +31,10 @@ permissions:
 env:
   # MovieClaw v0.37.0. Do not float this to a branch tip.
   MOVIECLAW_REF: e229717c43b2d48986f8f51c19b86348a527cb5a
-  # The lock checker (movieclaw_sdk.deps) is newer than any server release.
-  # Pinned main commit with #887/#891; fold into MOVIECLAW_REF once a release
-  # ships it.
-  MOVIECLAW_DEPS_REF: 6df51e356841ee2ec4bbacb6d3e1b39aecbf2c0f
+  # The lock checker (movieclaw_sdk.deps, #887/#891) and the drive-backends 1.4
+  # contract (cloud-115) are newer than any server release. Pinned main
+  # commit; fold into MOVIECLAW_REF once a release ships both.
+  MOVIECLAW_DEPS_REF: 6251128f0aef40ecfc75fede8a75579bf51d66f3
   # Shipped with every server release from the one after v0.39.0.
   HOST_CONSTRAINTS_URL: https://github.com/movieclaw/MovieClaw/releases/latest/download/host-constraints.txt
 
@@ -173,7 +173,12 @@ jobs:
             python3 -m movieclaw_sdk.deps check "$dir" --constraints host-constraints.txt
             python3 "$checker" "$dir"
             if [ -d "${dir}/tests" ]; then
-              python3 -m unittest discover -s "${dir}/tests" -t "$dir" -v
+              # The plugin's locked packages, for its own tests only. Keep them
+              # off the checker's path: it would count them as host packages.
+              deps_dir="$(mktemp -d)"
+              python3 -m pip install --disable-pip-version-check --quiet --target "$deps_dir" \
+                --require-hashes --only-binary=:all: --no-deps -r "$lock"
+              PYTHONPATH="$deps_dir" python3 -m unittest discover -s "${dir}/tests" -t "$dir" -v
             fi
             echo "::endgroup::"
           done

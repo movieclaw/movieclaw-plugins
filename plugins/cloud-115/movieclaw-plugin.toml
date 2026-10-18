@@ -1,0 +1,17 @@
+[plugin]
+id = "cloud-115"
+title = "115 网盘"
+version = "0.1.0"
+entry = "cloud_115"
+runtime = "process"
+sdk = "^1.0"
+description = "把 115 网盘接进媒体库：扫码或浏览器 Cookie 登录，纳管已有文件夹、秒传与分片续传上传、取直链播放"
+
+[requires]
+"drive-backends" = "^1.4"
+
+[permissions]
+operations = []
+
+[dependencies]
+lock = "requirements.lock"
