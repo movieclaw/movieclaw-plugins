@@ -7,8 +7,8 @@ is always included when anything relevant changed. Script or schema changes
 also validate every plugin that is already in ``plugins/``.
 
 Reference copies listed in ``example/UPSTREAM.json`` are included too.
-``check_plugin.py`` against the MovieClaw pin in ``ci.yml`` (v0.37.0,
-``e229717c43b2d48986f8f51c19b86348a527cb5a``) accepts all eight copied from
+``check_plugin.py`` against the MovieClaw pin in ``ci.yml`` (v0.40.0,
+``ae0015a8381f6f9c3b340462412cce1644b2401d``) accepts all eight copied from
 MovieClaw ``779712c4d8d2c2c320021ab0e31cde95821dd493``: exit code 0, warnings
 only (``watch-presence`` is inline; bundled ids warn that a package replaces
 the copy shipped with the app; ``strm-prefetch`` uses contracts it does not

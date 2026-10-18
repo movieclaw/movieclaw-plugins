@@ -65,7 +65,7 @@ python3 scripts/sync_examples.py 779712c4d8d2c2c320021ab0e31cde95821dd493
 
 1. 把 `example/hello-note/` 复制到 `plugins/<id>/`，改掉 id、标题、版本和代码。不要从参考插件开副本。id 是小写字母开头，只用小写字母、数字和连字符，3～40 位，不能有点。
 2. 清单只写服务器认识的字段。作者、主页、许可证、图标写在同目录的 `store.json`。
-3. 开 PR。CI 用钉死的 MovieClaw 版本（v0.37.0，提交 `e229717c43b2d48986f8f51c19b86348a527cb5a`）跑 `Manifest` / `check_compat`，并跑该目录自己的测试。改了哪个 `plugins/<id>/` 就查哪个。`example/` 有改动时会再查 `hello-note`，并按 `example/UPSTREAM.json` 再查参考副本（只跑 `check_plugin.py`；参考副本没有带上不能单独跑的测试）。
+3. 开 PR。CI 用钉死的 MovieClaw 版本（v0.40.0，提交 `ae0015a8381f6f9c3b340462412cce1644b2401d`）跑 `Manifest` / `check_compat`，并跑该目录自己的测试。改了哪个 `plugins/<id>/` 就查哪个。`example/` 有改动时会再查 `hello-note`，并按 `example/UPSTREAM.json` 再查参考副本（只跑 `check_plugin.py`；参考副本没有带上不能单独跑的测试）。
 4. 合并之后打 tag：`<id>-v<版本>`，例如 `watch-presence-v1.0.0`。tag 里的版本必须和清单 `version` 逐字相同。
 
 ## 版本、tag 和 Release

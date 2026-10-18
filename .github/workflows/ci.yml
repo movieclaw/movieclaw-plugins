@@ -11,10 +11,9 @@
 # checker (pinned, exact versions, hashes, wheels only, no clash with the
 # packages the server ships) and a real hash-checked pip install inside the
 # server image's base (python:3.12-slim-bookworm) on linux/amd64 and
-# linux/arm64, so both architectures are known to have wheels. The v0.37.0
-# Manifest rejects the [dependencies] table, so those plugins get the full
-# check_plugin.py run from MOVIECLAW_DEPS_REF in the lock-check job instead
-# of the validate job.
+# linux/arm64, so both architectures are known to have wheels. Those plugins
+# get the full check_plugin.py run in the lock-check job instead of the
+# validate job, because their tests need the locked packages installed.
 
 name: ci
 
@@ -29,12 +28,10 @@ permissions:
   contents: read
 
 env:
-  # MovieClaw v0.37.0. Do not float this to a branch tip.
-  MOVIECLAW_REF: e229717c43b2d48986f8f51c19b86348a527cb5a
-  # The lock checker (movieclaw_sdk.deps, #887/#891) and the drive-backends 1.4
-  # contract (cloud-115) are newer than any server release. Pinned main
-  # commit; fold into MOVIECLAW_REF once a release ships both.
-  MOVIECLAW_DEPS_REF: 6251128f0aef40ecfc75fede8a75579bf51d66f3
+  # MovieClaw v0.40.0: the first release with the lock checker
+  # (movieclaw_sdk.deps) and the drive-backends 1.4 contract (cloud-115).
+  # Do not float this to a branch tip.
+  MOVIECLAW_REF: ae0015a8381f6f9c3b340462412cce1644b2401d
   # Shipped with every server release from the one after v0.39.0.
   HOST_CONSTRAINTS_URL: https://github.com/movieclaw/MovieClaw/releases/latest/download/host-constraints.txt
 
@@ -139,7 +136,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: movieclaw/MovieClaw
-          ref: ${{ env.MOVIECLAW_DEPS_REF }}
+          ref: ${{ env.MOVIECLAW_REF }}
           path: .movieclaw
 
       - uses: actions/setup-python@v5
@@ -155,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! curl -fsSL "$HOST_CONSTRAINTS_URL" -o host-constraints.txt; then
-            echo "::warning::最新服务器 Release 还没有 host-constraints.txt，改用 MOVIECLAW_DEPS_REF 环境里的包"
+            echo "::warning::最新服务器 Release 还没有 host-constraints.txt，改用 MOVIECLAW_REF 环境里的包"
             python3 -m movieclaw_sdk.deps constraints > host-constraints.txt
           fi
           grep -q '^httpx==' host-constraints.txt

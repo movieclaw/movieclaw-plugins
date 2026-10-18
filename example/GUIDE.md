@@ -253,7 +253,7 @@ issued = await callbacks.issue(ctx, "push")
 
 ## 第三方依赖
 
-v0.37.0 的服务器只认 `vendor/`。从 v0.39.0 之后的下一个服务器版本起，`runtime = "process"` 的插件可以声明 PyPI 依赖，由服务器在用户批准时下载安装（`inline` / `exec` 插件不行）：
+v0.37.0 的服务器只认 `vendor/`。从服务器 v0.40.0 起，`runtime = "process"` 的插件可以声明 PyPI 依赖，由服务器在用户批准时下载安装（`inline` / `exec` 插件不行）：
 
 1. 插件目录放 `requirements.in`，每行一个直接依赖，例如 `p115cipher[full]`。
 2. 清单加：
@@ -383,7 +383,7 @@ python3 -m unittest discover -s example/hello-note/tests -t example/hello-note -
 python3 scripts/pack.py example/hello-note --output /tmp/hello-note-0.1.0.mcplugin
 ```
 
-本仓库 CI 对 PR 做的就是前两步，MovieClaw 钉在 v0.37.0。
+本仓库 CI 对 PR 做的就是前两步，MovieClaw 钉在 v0.40.0。
 
 ## 装不上时
 
