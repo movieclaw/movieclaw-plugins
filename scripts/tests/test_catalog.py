@@ -70,18 +70,22 @@ class TagTest(unittest.TestCase):
 
 
 class IndexTest(unittest.TestCase):
-    def test_empty_tree_matches_committed_index(self) -> None:
+    def test_tree_reproduces_committed_index(self) -> None:
+        # The committed index carries the published versions; regenerating it
+        # from the plugin tree with itself as --previous must give it back.
+        committed = (ROOT / "index.json").read_text(encoding="utf-8")
+        previous = json.loads(committed)
         document = generate_index.build_index(
             plugins_dir=ROOT / "plugins",
             repo=pluginlib.REPO,
-            generated_at="2026-10-13T00:00:00Z",
-            previous=None,
+            generated_at=previous["generated_at"],
+            previous=previous,
             releases=[],
-            signed=False,
-            key_id=None,
+            signed=previous["signed"],
+            key_id=previous["key_id"],
         )
         text = json.dumps(document, ensure_ascii=False, indent=2) + "\n"
-        self.assertEqual(text, (ROOT / "index.json").read_text(encoding="utf-8"))
+        self.assertEqual(text, committed)
         generate_index.check_index(ROOT / "index.json")
 
     def test_release_record_fills_download_fields(self) -> None:
