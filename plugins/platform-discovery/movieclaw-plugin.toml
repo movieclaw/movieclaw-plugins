@@ -1,0 +1,18 @@
+[plugin]
+id = "platform-discovery"
+title = "平台放映厅"
+version = "0.9.2"
+entry = "platform_discovery"
+runtime = "inline"
+sdk = "^1.0"
+description = "按 MovieClaw 账号同步口味测试、稍后看、不感兴趣、已看过、喜欢与避重历史；官方进程内插件模式，自动合并旧浏览器档案。国家／年代／题材多选、筛选方案、探索程度、安全撤销与浏览历史均按账号同步。海报墙支持尺寸自适应、首屏优先与有限预加载，以及悬停快捷标记与手机操作入口，默认首页，全屏无缝拼贴、重测片味、跨重启恢复。详情内直接订阅：剧集可选季，明确确认后由当前登录账号创建，沿用现有订阅策略与入库路由。保留 Netflix 官网周榜和自动更新、平台热榜、随心看剧。入口 /api/v1/plugins/platform-discovery/panel。"
+
+[requires]
+host-ops = "^1.0"
+plugin-routes = "^1.0"
+plugin-data = "^1.0"
+
+[permissions]
+operations = ["discover.get-title-details", "discover.filter-titles"]
+paths = []
+network = true

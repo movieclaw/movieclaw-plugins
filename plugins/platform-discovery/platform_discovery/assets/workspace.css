@@ -1,0 +1,227 @@
+/* Shared geometry for every view. Fullscreen is the only deliberate breakout. */
+html{scrollbar-gutter:stable;scroll-behavior:auto}
+body.workspace-ready{--workspace-width:100%;--workspace-gutter:clamp(24px,3vw,48px);--wall-gutter:var(--workspace-gutter)}
+body.workspace-ready .shell{width:100%;max-width:var(--workspace-width);padding-inline:var(--workspace-gutter);margin-inline:auto}
+body.workspace-ready .app-header{height:66px;padding-inline:max(var(--workspace-gutter),calc((100% - var(--workspace-width))/2 + var(--workspace-gutter)))}
+body.workspace-ready .discovery-modes{padding:0;height:78px;gap:24px;scroll-margin-top:0}
+body.workspace-ready .discovery-modes button{min-height:0;padding:14px 0;gap:4px}
+body.workspace-ready .discovery-modes button::after{bottom:-1px}
+.workspace-heading{height:140px;position:relative}
+.workspace-heading>div,.workspace-heading>section{height:100%;padding:20px 0!important;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:24px;margin:0}
+.workspace-heading .wall-wordmark{display:none}
+.workspace-heading h1,.workspace-heading h2{font-size:32px;line-height:1.3;letter-spacing:-.7px;font-weight:600;margin:4px 0 8px}
+.workspace-heading .eyebrow{display:block;margin:0 0 6px;font-size:10px;line-height:15px}
+.workspace-heading p:not(.eyebrow){display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);font-size:12px;line-height:20px;margin:0;max-width:800px}
+.workspace-heading .wall-actions{display:flex;flex-direction:row;gap:8px;margin:0}
+.workspace-heading .button{min-height:42px;font-size:12px}
+.workspace-toolbar{height:146px;padding:14px 0 12px;border-bottom:1px solid var(--line);display:grid;grid-template-rows:54px 34px 20px;gap:6px;margin-bottom:20px;min-width:0}
+.workspace-primary{display:flex;align-items:center;gap:16px;min-width:0}
+.workspace-view-controls{flex:1;min-width:0}
+.workspace-more{flex:none;min-height:42px}
+.workspace-secondary,.workspace-status{min-width:0;overflow:hidden}
+.workspace-view-secondary{height:34px;min-width:0;display:flex;align-items:center;gap:12px;overflow-x:auto;scrollbar-width:none}
+.workspace-view-secondary::-webkit-scrollbar{display:none}
+.workspace-view-status{height:20px;font-size:11px;line-height:20px;color:var(--muted);overflow:hidden}
+.workspace-view-status>*{margin:0!important;min-height:0!important;font-size:11px!important;line-height:20px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.workspace-secondary-hint,.workspace-control-hint{font-size:11px;color:var(--faint);white-space:nowrap}
+.workspace-view-secondary:has(.wall-preset-shortcuts:not([hidden]))>.workspace-secondary-hint{display:none}
+.workspace-primary .wall-filters,.workspace-primary .theater-toolbar,.workspace-primary .filter-line{margin:0;padding:0;border:0;gap:12px;display:flex;align-items:center;flex-wrap:nowrap;min-width:0}
+.workspace-primary .wall-filters label{min-width:0;white-space:nowrap}
+.workspace-primary .wall-filter-field{min-width:0;flex:1}
+.workspace-primary .wall-filter-picker{max-width:180px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.workspace-primary .theater-toolbar label{min-width:0;flex:1;gap:3px;font-size:10px}
+.workspace-primary .theater-toolbar select{width:100%;min-width:0;height:38px;padding-block:7px}
+.workspace-primary .theater-toolbar>.button{flex:none}
+.workspace-primary .filter-line{justify-content:flex-start}
+.workspace-secondary .platform-index,.workspace-secondary .recommendation-tabs{padding:0;margin:0;border:0;display:flex;flex-wrap:nowrap;gap:12px;overflow:visible}
+.workspace-secondary .recommendation-tabs button{min-height:32px;padding:4px 14px;white-space:nowrap}
+.workspace-secondary .platform-index button{min-height:32px}
+.workspace-secondary .wall-preset-shortcuts{padding:0;margin:0;min-height:32px;min-width:0;flex:1}
+.workspace-secondary .preset-shortcut-list{min-height:32px}
+.workspace-secondary .preset-shortcut{min-height:30px}
+.workspace-settings{width:min(620px,calc(100% - 32px));max-height:85dvh;padding:24px}
+.workspace-settings .shelf-heading{position:sticky;top:-24px;padding:10px 0;background:var(--panel);z-index:3}
+.workspace-view-extra{display:flex;flex-direction:column;gap:20px;padding-top:12px}
+.workspace-settings .wall-toolbar{display:block;border:0;padding:0}
+.workspace-settings .wall-profile-tags{margin-bottom:18px}
+.workspace-settings .wall-utilities{justify-content:flex-start;gap:10px}
+.workspace-settings .wall-learning{display:flex;flex-wrap:wrap;gap:10px}
+.workspace-settings .wall-learning>span{flex-basis:100%;font-size:12px;line-height:1.8}
+.workspace-settings .wall-learning .button,.workspace-settings .wall-utilities .button,.workspace-settings .wall-layout-control{min-height:44px;font-size:12px}
+.workspace-settings .taste-history{margin:0}
+.workspace-tool-buttons{display:flex;flex-wrap:wrap;gap:10px}
+.workspace-settings .theater-cache-tools{justify-content:flex-start;max-width:none;margin:0}
+.workspace-settings .intro-note{display:flex;flex-wrap:wrap;padding:0;margin:0}
+.workspace-settings .proxy-tools{flex-basis:100%}
+.workspace-phone-controls:empty{display:none}
+.workspace-settings #wall-filter-sync{font-size:11px;color:var(--muted)}
+/* Posters keep their native 2:3 tile; a moving column creates no row seams. */
+body.workspace-ready[data-wall-layout="seamless"] .poster-wall{margin:0;gap:0;padding:0;overflow:hidden;border-radius:6px;height:var(--wall-height);min-height:0;grid-template-rows:minmax(0,1fr);align-items:start;isolation:isolate}
+.wall-column{min-width:0;height:100%;overflow:visible}
+.wall-column-track{width:100%;margin-top:-4px;display:flex;flex-direction:column;gap:0;animation:wall-column-drift var(--column-duration,8s) ease-in-out var(--column-delay,0s) infinite;will-change:transform}
+body.workspace-ready[data-wall-layout="seamless"] .wall-column .wall-tile{width:100%;height:auto;aspect-ratio:2/3;flex:none;animation:none!important;transform:none!important;top:0;overflow:hidden}
+body.workspace-ready[data-wall-layout="seamless"] .wall-column .wall-poster{width:100%;height:100%;aspect-ratio:2/3;border:0;border-radius:0!important;box-shadow:none}
+body.workspace-ready[data-wall-layout="seamless"] .wall-column .wall-poster>img{width:100%;height:100%;object-fit:cover;transform:none!important;animation:none}
+body.workspace-ready[data-wall-layout="cards"] .wall-tile{top:0}
+body.workspace-ready .wall-poster:hover>img{transform:none!important}
+body.workspace-ready[data-wall-layout="seamless"] .poster-wall:has(.wall-tile[data-quick-open="true"]) .wall-column-track,
+body.wall-still .wall-column-track,body.page-hidden .wall-column-track,body.detail-open .wall-column-track,body.taste-open .wall-column-track,body.shelf-open .wall-column-track,body.filter-open .wall-column-track,body:not([data-mode="personal"]) .wall-column-track{animation-play-state:paused}
+@keyframes wall-column-drift{0%,100%{transform:translateY(-3px)}50%{transform:translateY(3px)}}
+@media(prefers-reduced-motion:reduce){.wall-column-track{animation:none;transform:none;will-change:auto}}
+/* A continuous film-sign rail sits entirely inside each poster. */
+body.workspace-ready .wall-quick{inset:50% 6px auto auto;transform:translateY(-45%);width:42px;display:flex;flex-direction:column;gap:0;padding:4px 2px;border:1px solid #ffffff30;border-radius:12px;background:#101114db;box-shadow:0 6px 20px #0005;overflow:visible}
+body.workspace-ready .wall-tile[data-quick-open="true"] .wall-quick{transform:translateY(-50%)}
+body.workspace-ready .wall-quick .button{position:relative;flex:none;width:36px;height:36px;min-height:36px;padding:0;border:0;border-radius:7px;font-size:0;line-height:1;background:transparent;color:#fff;overflow:visible}
+body.workspace-ready .wall-quick .button+.button{border-top:1px solid #ffffff14}
+body.workspace-ready .wall-quick .button::before{content:attr(data-symbol);font:22px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body.workspace-ready .wall-quick .button::after{content:attr(data-caption);position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);padding:6px 8px;max-width:min(84px,calc(var(--tile-width,150px) - 66px));border:1px solid #ffffff20;border-radius:6px;background:#151518ed;color:#fff;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .15s}
+body.workspace-ready .wall-quick .button:hover,body.workspace-ready .wall-quick .button:focus-visible{background:#ffffff20}
+body.workspace-ready .wall-quick .button:hover::after,body.workspace-ready .wall-quick .button:focus-visible::after{opacity:1}
+body.workspace-ready .wall-quick .button[aria-pressed="true"]{background:#fff;color:#111}
+body.workspace-ready .wall-quick-toggle{top:6px;left:6px;right:auto;min-width:32px;width:32px;height:32px;border-radius:50%;background:#101114b8;z-index:7}
+body.workspace-ready .wall-tile[data-quick-open="true"] .wall-quick-toggle{visibility:visible;pointer-events:auto}
+body.workspace-ready .wall-tile[data-quick-open="true"] .wall-tile-copy{top:auto;bottom:10px;left:9px;right:58px;opacity:1;transform:none}
+body.workspace-ready .wall-tile[data-quick-open="true"] .wall-tile-copy h3{font-size:11px;-webkit-line-clamp:2;margin:0 0 4px}
+body.workspace-ready .wall-tile[data-quick-open="true"] .wall-tile-copy>p{display:block;font-size:9px}
+body.workspace-ready .wall-tile[data-quick-open="true"] .wall-poster::after{inset:0;background:linear-gradient(0deg,#000c,transparent 50%),linear-gradient(90deg,transparent 30%,#0005)}
+body.workspace-ready.wall-immersive .workspace-heading,body.workspace-ready.wall-immersive .workspace-toolbar{display:none!important}
+body.workspace-ready.wall-immersive .shell{max-width:none;padding:0;margin:0}
+body.workspace-ready.wall-immersive[data-wall-layout="seamless"] #poster-wall{border-radius:0;height:100dvh}
+@media(max-width:767px){
+ body.workspace-ready{--workspace-gutter:16px;--wall-gutter:16px}
+ body.workspace-ready .app-header{height:58px;padding-inline:16px}
+ body.workspace-ready .discovery-modes{height:78px;gap:8px}
+ body.workspace-ready .discovery-modes button{padding:10px 0;gap:4px}
+ body.workspace-ready .discovery-modes .mode-description{min-height:30px}
+ .workspace-heading{height:160px}
+ .workspace-heading>div,.workspace-heading>section{padding:14px 0!important;grid-template-columns:minmax(0,1fr);grid-template-rows:88px 44px;gap:0;align-content:start;align-items:start}
+ .workspace-heading h1,.workspace-heading h2{font-size:24px;line-height:1.2;margin:0 0 6px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+ .workspace-heading .eyebrow{font-size:8px;line-height:12px;letter-spacing:1.7px;margin:0 0 5px}
+ .workspace-heading p:not(.eyebrow){font-size:11px;line-height:16px;-webkit-line-clamp:2}
+ .workspace-heading .button{min-height:44px;font-size:12px;justify-self:start}
+ .workspace-heading .wall-actions{margin:0;gap:8px;align-items:start}
+ .workspace-heading .wall-actions .button{padding:8px 12px;min-height:44px}
+ .workspace-toolbar{height:132px;grid-template-rows:48px 32px 18px;padding:10px 0;margin-bottom:16px;gap:6px}
+ .workspace-primary{gap:8px}
+ .workspace-more{width:48px;min-height:44px;font-size:0;padding:0}
+ .workspace-more::before{content:'•••';font-size:17px;letter-spacing:2px}
+ .workspace-primary .wall-filters{gap:8px}
+ .workspace-primary .wall-filter-field{display:none}
+ .workspace-primary .wall-filters label{font-size:0;flex:1}
+ .workspace-primary .wall-filters select{font-size:12px;min-height:44px;width:100%;min-width:0}
+ .workspace-primary #wall-genres{max-width:108px;min-height:44px;flex:1;font-size:11px;padding-inline:9px}
+ .workspace-primary .theater-toolbar{gap:8px}
+ .workspace-primary .theater-toolbar label{min-width:0;flex:1;font-size:10px;gap:2px}
+ .workspace-primary .theater-toolbar select{height:40px;padding-block:6px;font-size:11px;padding-left:10px;padding-right:30px;background-position:right 10px center}
+ .workspace-primary .segmented{width:100%}
+ .workspace-primary .segmented button{flex:1;min-height:38px;padding:6px 8px}
+ .workspace-view-secondary{height:32px;gap:8px}
+ .workspace-view-status,.workspace-view-status>*{height:18px;font-size:10px!important;line-height:18px!important}
+ .workspace-secondary-hint,.workspace-control-hint{font-size:10px;overflow:hidden;text-overflow:ellipsis}
+ .workspace-secondary .preset-shortcut-label{display:none}
+ .workspace-secondary .wall-preset-shortcuts{min-width:0;max-width:100%;gap:6px}
+ .workspace-secondary .preset-shortcut-list{overflow-x:auto;min-width:0}
+ .workspace-secondary .recommendation-tabs button{font-size:11px;min-height:32px;padding-inline:12px}
+ .workspace-settings{width:100%;max-width:100%;max-height:88dvh;margin:auto 0 0;border-radius:18px 18px 0 0;padding:20px 16px max(24px,env(safe-area-inset-bottom))}
+ .workspace-settings .shelf-heading{top:-20px;padding-block:10px}
+ .workspace-settings .shelf-heading h2{font-size:19px}
+ .workspace-phone-controls{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+ .workspace-phone-controls label{display:flex;flex-direction:column;gap:7px;min-width:0;font-size:12px;color:var(--muted)}
+ .workspace-phone-controls select{width:100%;max-width:100%;height:44px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text)}
+ .workspace-phone-controls .kind-filter{grid-column:1/-1;display:flex;justify-content:space-between;gap:4px}
+ .workspace-phone-controls .kind-filter button{min-height:44px;padding:7px 12px}
+ body.workspace-ready .poster-wall{grid-template-columns:repeat(var(--wall-columns,2),minmax(0,1fr))}
+ body.workspace-ready .wall-quick{width:48px;padding:3px 1px;right:6px}
+ body.workspace-ready .wall-quick .button{width:44px;height:44px;min-height:44px}
+ body.workspace-ready .wall-quick-toggle{width:44px;height:44px;top:3px;left:3px;min-height:44px;background:#101114a8;border:1px solid #ffffff20;border-radius:50%}
+ body.workspace-ready .wall-tile[data-quick-open="true"] .wall-quick .button::after{opacity:1;font-size:10px;max-width:min(84px,calc(var(--tile-width,150px) - 72px))}
+ body.workspace-ready .wall-tile[data-quick-open="true"] .wall-tile-copy{right:9px;bottom:8px}
+}
+
+/* Reserve the same text baseline even with long account-generated headings. */
+.workspace-heading>[data-workspace-view]>div:not(.wall-actions):not(.wall-wordmark){height:96px;min-width:0;align-self:center}
+.workspace-heading h1,.workspace-heading h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.workspace-heading p:not(.eyebrow){-webkit-line-clamp:1}
+.workspace-secondary .preset-shortcut-list .button,.workspace-secondary .wall-preset-shortcuts>button{min-height:30px;font-size:11px}
+.workspace-secondary .preset-shortcut-list{padding-block:1px}
+@media(max-width:767px){.workspace-heading>[data-workspace-view]>div:not(.wall-actions):not(.wall-wordmark){height:88px;align-self:start}.workspace-heading p:not(.eyebrow){-webkit-line-clamp:2}}
+
+@media(max-width:767px){.workspace-primary #wall-genres{font-size:0;max-width:76px}.workspace-primary #wall-genres::before{content:"筛选";font-size:12px}}
+
+.workspace-global-tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
+.workspace-global-tools h3{flex-basis:100%;font-size:12px;font-weight:500;color:var(--muted);margin:0}
+.workspace-global-tools:not(:has(button,a)){display:none}
+@media(max-width:767px){body.workspace-ready .app-header nav .button{min-height:44px;font-size:11px;padding-inline:12px}.workspace-global-tools .button{min-height:44px}}
+/* Phone headings avoid repeating the navigation subtitle; tools stay reachable. */
+@media(max-width:767px){
+ .workspace-heading{height:112px}
+ .workspace-heading>div,.workspace-heading>section{padding:12px 0!important;grid-template-rows:44px 44px}
+ .workspace-heading>[data-workspace-view]>div:not(.wall-actions):not(.wall-wordmark){height:44px}
+ .workspace-heading .eyebrow,.workspace-heading p:not(.eyebrow){display:none!important}
+ .workspace-heading h1,.workspace-heading h2{margin:0;font-size:24px;line-height:32px}
+}
+/* Every view uses the same compact shell in a short browser window, too. */
+@media(max-height:500px) and (min-width:600px){
+ body.workspace-ready .app-header{height:44px}
+ body.workspace-ready .discovery-modes{height:58px}
+ body.workspace-ready .discovery-modes button{padding:5px 0;gap:1px}
+ body.workspace-ready .discovery-modes .mode-title{font-size:14px}
+ body.workspace-ready .discovery-modes .mode-description{font-size:10px;min-height:15px;line-height:15px}
+ .workspace-heading{height:84px}
+ .workspace-heading>div,.workspace-heading>section{padding:12px 0!important;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:60px}
+ .workspace-heading>[data-workspace-view]>div:not(.wall-actions):not(.wall-wordmark){height:60px}
+ .workspace-heading h1,.workspace-heading h2{font-size:22px;line-height:30px;margin:0}
+ .workspace-heading .eyebrow,.workspace-heading p:not(.eyebrow){display:none!important}
+ .workspace-heading .wall-actions{align-self:center}
+ .workspace-heading .button{min-height:36px}
+ .workspace-toolbar{height:110px;padding-block:6px;grid-template-rows:44px 28px 18px;gap:4px;margin-bottom:12px}
+ .workspace-secondary,.workspace-view-secondary{height:28px}
+ .workspace-primary .theater-toolbar label{font-size:0;gap:0}
+ .workspace-primary .theater-toolbar select{height:38px}
+}
+
+/* Small touch posters reserve a separate name line below the four 44px targets. */
+@media(max-width:767px){
+ body.workspace-ready .wall-tile.quick-short[data-quick-open="true"] .wall-quick{inset:6px 6px auto auto;transform:none}
+ body.workspace-ready .wall-tile.quick-short[data-quick-open="true"] .wall-tile-copy{top:auto;bottom:6px;left:9px;right:9px}
+ body.workspace-ready .wall-tile.quick-short[data-quick-open="true"] .wall-tile-copy h3{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;line-height:16px}
+ body.workspace-ready .wall-tile.quick-short[data-quick-open="true"] .wall-tile-copy>p{display:none}
+}
+
+/* Fullscreen breathes toward the viewer. Tile centers never move on screen. */
+body.workspace-ready.wall-immersive .wall-column-track{animation:none!important;transform:none!important;margin-top:0;will-change:auto}
+body.workspace-ready.wall-immersive .wall-tile{perspective:900px;perspective-origin:center;animation:none!important;transform:none!important;overflow:hidden}
+body.workspace-ready.wall-immersive .wall-poster{transform-origin:center;animation:wall-depth-breathe var(--float-duration,7s) ease-in-out var(--float-delay,0s) infinite;transition:opacity .65s ease;will-change:transform}
+@keyframes wall-depth-breathe{0%,100%{transform:translateZ(-12px)}50%{transform:translateZ(0)}}
+body.workspace-ready.wall-immersive.wall-still .wall-poster{animation:none;transform:none;will-change:auto}
+body.workspace-ready.wall-immersive:is(.page-hidden,.detail-open,.taste-open,.shelf-open,.filter-open) .wall-poster,
+body.workspace-ready.wall-immersive .wall-tile[data-quick-open="true"] .wall-poster{animation-play-state:paused}
+body.workspace-ready.wall-immersive .wall-tile.ambient-out{pointer-events:none}
+body.workspace-ready.wall-immersive .ambient-out .wall-poster{opacity:0}
+body.workspace-ready.wall-immersive .ambient-in .wall-poster{animation-name:wall-depth-breathe,wall-poster-arrive;animation-duration:var(--float-duration,7s),.65s;animation-delay:var(--float-delay,0s),0s;animation-iteration-count:infinite,1}
+@keyframes wall-poster-arrive{from{opacity:0}to{opacity:1}}
+body.wall-screen-running .wall-quick-toggle,body.wall-screen-running .wall-tile-copy{opacity:0!important;pointer-events:none}
+.immersive-ambient-status{flex-basis:100%;text-align:center;color:var(--muted);font-size:10px;line-height:18px}
+.immersive-tools{border-radius:20px}
+@media(max-width:767px){
+ .workspace-heading .wall-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;width:100%}
+ .workspace-heading .wall-actions .button{width:100%;padding:8px 4px;font-size:11px;white-space:nowrap}
+ .immersive-tools{width:min(480px,calc(100% - 24px));gap:5px}
+ .immersive-tools .button{min-height:44px;flex:1 1 28%;padding:8px;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){
+ body.workspace-ready.wall-immersive .wall-poster{animation:none!important;transform:none!important;transition:none;will-change:auto}
+}
+
+/* Fit an integer grid inside the actual visual viewport; no clipped last row. */
+body.workspace-ready.wall-immersive[data-wall-layout="seamless"] #poster-wall{grid-template-columns:repeat(var(--wall-columns),var(--wall-fit-width));align-items:center;justify-content:center}
+body.workspace-ready.wall-immersive .wall-column{height:var(--wall-fit-height);align-self:center}
+body.wall-immersive .wall-rating-corner{display:none}
+body:not(.wall-immersive) .wall-rating-corner{z-index:3;border-radius:inherit;min-height:50px;padding:9px 10px}
+body:not(.wall-immersive) .wall-rating-corner .theater-rating{font-size:clamp(22px,2.6vw,36px)}
+body:not(.wall-immersive) .wall-tile[data-quick-open="true"] .wall-rating-corner{opacity:0}
+@media(max-width:767px){body:not(.wall-immersive) .wall-rating-corner{padding:8px;min-height:42px}body:not(.wall-immersive) .wall-rating-corner .theater-rating{font-size:25px}}
+
+body.workspace-ready.wall-immersive .wall-column .wall-poster>img{object-fit:contain}
+.wall-fullscreen-rating{display:none}body.wall-immersive .wall-fullscreen-rating{display:inline}
+body.workspace-ready:not(.wall-immersive) .wall-quick-toggle{left:auto;right:6px}

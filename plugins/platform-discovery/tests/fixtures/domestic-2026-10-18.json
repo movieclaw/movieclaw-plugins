@@ -1,0 +1,368 @@
+{
+  "captured_date": "2026-10-18",
+  "provenance": {
+    "mango_script": "https://static.hitv.com/pc2/pcuicore.ae42b29.js",
+    "bilibili_script": "https://s1.hdslb.com/bfs/static/2233-monorepo/popular/static/js/index.55b42adc.js"
+  },
+  "mango": {
+    "tv": {
+      "url": "https://dc.bz.mgtv.com/dynamic/v1/channel/index/0/9.0.9/10/10000000/space/0/4/4?osType=windows",
+      "response": {
+        "code": 200,
+        "serverTime": 0,
+        "timestamp": 0,
+        "channel": {
+          "title": "电视剧",
+          "vclassId": 4
+        },
+        "data": [
+          {
+            "moduleTitle": "热播剧集",
+            "DSLList": [
+              {
+                "DSLID": "698",
+                "data": {
+                  "items": [
+                    {
+                      "name": "玉簟秋",
+                      "jumpKind": 12,
+                      "jumpId": "802659",
+                      "videoUrl": "https://www.mgtv.com/b/802659/24697722.html",
+                      "durationTopic": 2722,
+                      "imageV": "https://0img.hitv.com/preview/sp_images/2026/10/10/202610101821316902382.jpg",
+                      "imageH": "https://2vimg.hitv.com/100/2610/1809/5611/h1nAOodw3hVO/613310305144274944.gif",
+                      "subName": "强吻！叶平君献身激怒虞昶轩 ",
+                      "updateInfo": "更新至14集",
+                      "sortNo": 0,
+                      "updatetime": 1792296068000
+                    },
+                    {
+                      "name": "此处通往繁星",
+                      "jumpKind": 1,
+                      "jumpId": "895442",
+                      "videoUrl": "https://www.mgtv.com/b/895442/",
+                      "durationTopic": 127,
+                      "imageV": "https://4img.hitv.com/preview/sp_images/2026/10/08/202610082116288851164.jpg",
+                      "imageH": "https://1vimg.hitv.com/100/2610/1810/1542/XqHNaU18/613315216805916672.gif",
+                      "subName": "太真实！郭麒麟演我第一天上班",
+                      "updateInfo": "全10集",
+                      "sortNo": 1,
+                      "updatetime": 1792289753000
+                    },
+                    {
+                      "name": "终极恶女·经典上新",
+                      "jumpKind": 12,
+                      "jumpId": "300125",
+                      "videoUrl": "https://www.mgtv.com/b/300125/3554272.html",
+                      "durationTopic": 0,
+                      "imageV": "",
+                      "imageH": "https://1vimg.hitv.com/100/2609/2414/2326/hOMokbmm4FTC/604680253393469440.jpg",
+                      "subName": "并肩作战！恶女天团守护铜时空",
+                      "updateInfo": "全26集",
+                      "sortNo": 2,
+                      "updatetime": 1790301630000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "movie": {
+      "url": "https://dc.bz.mgtv.com/dynamic/v1/channel/index/0/9.0.9/10/10000000/space/0/4/9?osType=windows",
+      "response": {
+        "code": 200,
+        "serverTime": 0,
+        "timestamp": 0,
+        "channel": {
+          "title": "电影",
+          "vclassId": 9
+        },
+        "data": [
+          {
+            "moduleTitle": "全网热播 · 新片速递",
+            "DSLList": [
+              {
+                "DSLID": "698",
+                "data": {
+                  "items": [
+                    {
+                      "name": "功夫女足⚽️欢乐",
+                      "jumpKind": 12,
+                      "jumpId": "888536",
+                      "videoUrl": "https://www.mgtv.com/b/888536/24684638.html",
+                      "durationTopic": 6368,
+                      "imageV": "https://0img.hitv.com/preview/sp_images/2026/09/30/202609301507074749156.jpg",
+                      "imageH": "https://0vimg.hitv.com/100/2610/0309/5551/25VSUgX9aw/607874405268123648.gif",
+                      "subName": "张小斐迪丽热巴硬核逆袭",
+                      "updateInfo": "",
+                      "sortNo": 0,
+                      "updatetime": 1792055820000
+                    },
+                    {
+                      "name": "给阿嬷的情书💌年度黑马",
+                      "jumpKind": 12,
+                      "jumpId": "872173",
+                      "videoUrl": "https://www.mgtv.com/b/872173/24681132.html",
+                      "durationTopic": 7116,
+                      "imageV": "https://3img.hitv.com/preview/sp_images/2026/09/28/202609281744571981905.jpg",
+                      "imageH": "https://3vimg.hitv.com/100/2609/2411/1948/7tQLVba/604634039138516992.jpg",
+                      "subName": "一封侨批背后的“顶级中式深情”",
+                      "updateInfo": "",
+                      "sortNo": 1,
+                      "updatetime": 1792055820000
+                    },
+                    {
+                      "name": "年会不能停！2🔥逆袭",
+                      "jumpKind": 12,
+                      "jumpId": "875930",
+                      "videoUrl": "https://www.mgtv.com/b/875930/24643308.html",
+                      "durationTopic": 7558,
+                      "imageV": "https://3img.hitv.com/preview/sp_images/2026/09/16/202609161431159504895.jpg",
+                      "imageH": "https://2vimg.hitv.com/100/2609/1809/2809/7tQLVba/602431615013367808.jpg",
+                      "subName": "张若昀白客整顿职场",
+                      "updateInfo": "",
+                      "sortNo": 2,
+                      "updatetime": 1792055820000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "variety": {
+      "url": "https://dc.bz.mgtv.com/dynamic/v1/channel/index/0/9.0.9/10/10000000/space/0/4/6?osType=windows",
+      "response": {
+        "code": 200,
+        "serverTime": 0,
+        "timestamp": 0,
+        "channel": {
+          "title": "综艺",
+          "vclassId": 6
+        },
+        "data": [
+          {
+            "moduleTitle": "王牌节目",
+            "DSLList": [
+              {
+                "DSLID": "698",
+                "data": {
+                  "items": [
+                    {
+                      "name": "我家那闺女2026",
+                      "jumpKind": 12,
+                      "jumpId": "899395",
+                      "videoUrl": "https://www.mgtv.com/b/899395/24722484.html",
+                      "durationTopic": 5584,
+                      "imageV": "https://1img.hitv.com/preview/sp_images/2026/10/18/202610180906409331412.jpg",
+                      "imageH": "https://4img.hitv.com/preview/sp_images/2026/10/18/202610180906343839019.jpg",
+                      "subName": "蔡文静闫佩伦伪装被一眼认出",
+                      "updateInfo": "第8期（上）",
+                      "sortNo": 0,
+                      "updatetime": 1792296198000
+                    },
+                    {
+                      "name": "你好，星期六",
+                      "jumpKind": 12,
+                      "jumpId": "822501",
+                      "videoUrl": "https://www.mgtv.com/b/822501/24720945.html",
+                      "durationTopic": 5263,
+                      "imageV": "https://0img.hitv.com/preview/sp_images/2026/10/17/202610171128119148535.jpg",
+                      "imageH": "https://0vimg.hitv.com/100/2610/1719/0216/8y1v2pxEDgk/613085345467002880.jpg",
+                      "subName": "宁静《花少》名场面“大爆料”！",
+                      "updateInfo": "10-17期",
+                      "sortNo": 1,
+                      "updatetime": 1792240409000
+                    },
+                    {
+                      "name": "披荆斩棘2026",
+                      "jumpKind": 12,
+                      "jumpId": "896231",
+                      "videoUrl": "https://www.mgtv.com/b/896231/24721646.html",
+                      "durationTopic": 5444,
+                      "imageV": "https://0img.hitv.com/preview/sp_images/2026/10/17/202610171953110716415.jpg",
+                      "imageH": "https://2vimg.hitv.com/100/2610/1721/1108/91kKUAb/613117772553973760.jpg",
+                      "subName": "余文乐王以太米卡吟唱声声治愈",
+                      "updateInfo": "第10期（下）",
+                      "sortNo": 2,
+                      "updatetime": 1792243625000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "bilibili": {
+    "tv": {
+      "url": "https://api.bilibili.com/pgc/season/rank/web/list?day=3&season_type=5",
+      "response": {
+        "code": 0,
+        "data": {
+          "note": "『电视剧』投稿在 2026年10月15日 - 2026年10月18日 的数据综合得分，每小时更新一次",
+          "season_type": 5,
+          "list": [
+            {
+              "title": "三国演义",
+              "season_id": 33626,
+              "rank": 1,
+              "rating": "9.9分",
+              "cover": "http://i0.hdslb.com/bfs/bangumi/image/1d2eb8d863e3d0aa9d6557ae5b32764159953d8b.jpg",
+              "ss_horizontal_cover": "http://i0.hdslb.com/bfs/bangumi/image/128ace126acd57d68982fbadee2e18f7ff26e0a6.png",
+              "new_ep": {
+                "cover": "http://i0.hdslb.com/bfs/bangumi/75c77eaf82beea86bb52d8fd930d4df0d96cd014.jpg",
+                "index_show": "全84集"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss33626",
+              "desc": "全84集"
+            },
+            {
+              "title": "西游记",
+              "season_id": 33622,
+              "rank": 2,
+              "rating": "9.9分",
+              "cover": "http://i0.hdslb.com/bfs/bangumi/image/f9b7d89acb62d2ed385381ebcf5ac80b65fadd73.jpg",
+              "ss_horizontal_cover": "http://i0.hdslb.com/bfs/bangumi/image/a2648b374e9f6b7494246101aad587ac6470a826.png",
+              "new_ep": {
+                "cover": "http://i0.hdslb.com/bfs/bangumi/35527b15d47d5fea0e67adba35cadae4230dedee.jpg",
+                "index_show": "全25集"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss33622",
+              "desc": "全25集"
+            },
+            {
+              "title": "雍正王朝",
+              "season_id": 44480,
+              "rank": 3,
+              "rating": "9.9分",
+              "cover": "https://i0.hdslb.com/bfs/bangumi/image/308cb2bb99bbbbf507e2898460918689a514ac26.png",
+              "ss_horizontal_cover": "https://i0.hdslb.com/bfs/bangumi/image/fa92d8510f30f1fa60066a033d33180d494ed02a.png",
+              "new_ep": {
+                "cover": "http://i0.hdslb.com/bfs/archive/9a4b665c4106ad0031d2f4c01ca14e90aae91628.png",
+                "index_show": "全44集"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss44480",
+              "desc": "全44集"
+            }
+          ]
+        }
+      }
+    },
+    "movie": {
+      "url": "https://api.bilibili.com/pgc/season/rank/web/list?day=3&season_type=2",
+      "response": {
+        "code": 0,
+        "data": {
+          "note": "『电影』投稿在 2026年10月15日 - 2026年10月18日 的数据综合得分，每小时更新一次",
+          "season_type": 2,
+          "list": [
+            {
+              "title": "给阿嬷的情书",
+              "season_id": 231879,
+              "rank": 1,
+              "rating": "9.8分",
+              "cover": "https://i0.hdslb.com/bfs/bangumi/image/5c3d651d7f80346436fe5adec53b1901a7304e7b.png",
+              "ss_horizontal_cover": "https://i0.hdslb.com/bfs/bangumi/image/5c51caa2d2d816b5ae27ce6dbce1f2c300c79d7b.png",
+              "new_ep": {
+                "cover": "https://i0.hdslb.com/bfs/bangumi/image/9fefc43d072ffcf0ca6eacbaa53a9c33c72a45f5.png",
+                "index_show": "2026-04-30上映"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss231879?theme=movie",
+              "desc": "2.6万弹幕"
+            },
+            {
+              "title": "功夫女足",
+              "season_id": 261221,
+              "rank": 2,
+              "rating": "4.4分",
+              "cover": "https://i0.hdslb.com/bfs/bangumi/image/6bbcc6a5139c7ea65dce7404a4723acf318445dd.png",
+              "ss_horizontal_cover": "https://i0.hdslb.com/bfs/bangumi/image/f1b5b6a458f9c670d654ea5e254f682881d5cc2b.png",
+              "new_ep": {
+                "cover": "https://i0.hdslb.com/bfs/bangumi/image/8976c3e67586586963d904c46ec56396a031e285.png",
+                "index_show": "2026-07-11上映"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss261221?theme=movie",
+              "desc": "4.4万弹幕"
+            },
+            {
+              "title": "年会不能停！2",
+              "season_id": 307572,
+              "rank": 3,
+              "rating": "8.0分",
+              "cover": "https://i0.hdslb.com/bfs/bangumi/image/7faa77eb26dadb9ba42e48269a24e244502c6f9e.png",
+              "ss_horizontal_cover": "https://i0.hdslb.com/bfs/bangumi/image/43aaa8f0ab9dc7a14a6fed6748edceb1090b58e2.png",
+              "new_ep": {
+                "cover": "https://i0.hdslb.com/bfs/bangumi/image/0ae40515a2ed3b00e3f6a97633054ee4bb146155.png",
+                "index_show": "2026-08-01上映"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss307572?theme=movie",
+              "desc": "2.8万弹幕"
+            }
+          ]
+        }
+      }
+    },
+    "variety": {
+      "url": "https://api.bilibili.com/pgc/season/rank/web/list?day=3&season_type=7",
+      "response": {
+        "code": 0,
+        "data": {
+          "note": "『综艺』投稿在 2026年10月15日 - 2026年10月18日 的数据综合得分，每小时更新一次",
+          "season_type": 7,
+          "list": [
+            {
+              "title": "KPL系列团综：时差五小时3",
+              "season_id": 289370,
+              "rank": 1,
+              "rating": "",
+              "cover": "https://i0.hdslb.com/bfs/bangumi/image/effe2bd7c3c38d9aa895a208e8c7db0a1b2aa419.jpg",
+              "ss_horizontal_cover": "https://i0.hdslb.com/bfs/bangumi/image/71e2bfa689bc0884bab603c68e617cf0e32ebd93.jpg",
+              "new_ep": {
+                "cover": "http://i0.hdslb.com/bfs/archive/704cc1f5d3a48f27f18f7e50560bce983512c982.jpg",
+                "index_show": "更新至第7期（下）"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss289370",
+              "desc": "更新至第7期（下）"
+            },
+            {
+              "title": "梦想改造家 第13季",
+              "season_id": 300163,
+              "rank": 2,
+              "rating": "",
+              "cover": "https://i0.hdslb.com/bfs/bangumi/image/4e2a5113406740ab5931f755bf9f9082d820fdd5.png",
+              "ss_horizontal_cover": "https://i0.hdslb.com/bfs/bangumi/image/31fbfffc7379ec2cb9b7dd598aae991b9e0adb63.png",
+              "new_ep": {
+                "cover": "http://i0.hdslb.com/bfs/archive/fe256646ee0856a5e7c1afdb3e29018b16ac74a6.png",
+                "index_show": "更新至第5期加长版"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss300163",
+              "desc": "更新至第5期加长版"
+            },
+            {
+              "title": "KPL系列团综：时差五小时2",
+              "season_id": 107920,
+              "rank": 3,
+              "rating": "9.8分",
+              "cover": "https://i0.hdslb.com/bfs/bangumi/image/03a0a35d22f96a0416cbcc95857fd3fd96789059.jpg",
+              "ss_horizontal_cover": "https://i0.hdslb.com/bfs/bangumi/image/0980b042aca49c1a99965d6bcc21f2d5575b1d2f.jpg",
+              "new_ep": {
+                "cover": "http://i0.hdslb.com/bfs/archive/3603f8e4822a1f1cbd82dd629ede3d142c56eebf.jpg",
+                "index_show": "全8集"
+              },
+              "url": "https://www.bilibili.com/bangumi/play/ss107920",
+              "desc": "全8集"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

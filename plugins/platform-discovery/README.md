@@ -1,0 +1,117 @@
+# 平台放映厅 · Platform Discovery
+
+MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.9.2**，已在 **MovieClaw Server 0.40.0** 验证。
+
+Platform Discovery adds an account-scoped recommendation wall, a library theater, platform feeds and regional TV discovery to MovieClaw. It runs as an explicitly approved inline plugin. It does not modify the host application. The plugin UI and documentation are currently in Simplified Chinese.
+
+## 四个页面
+
+| 页面 | 功能 |
+| --- | --- |
+| 海报墙 | 口味测试与历次偏好、喜欢／已看过／稍后看／不感兴趣，国家与年代多选、题材包含与排除、探索程度、收藏筛选方案、浏览历史与撤销。 |
+| 录像厅 | 只显示当前账号有权访问的库存；按电影／剧集、媒体库、合集及更多条件筛选，查看季集，并跳转 MovieClaw 原生播放。 |
+| 平台热榜 | Netflix 官方周榜与自动检查；国内平台官方公开片单；HBO Max、Disney+ 等地区片库。每种来源明确标注，不把推荐顺序或地区片库称作播放量榜。 |
+| 随心看剧 | 韩剧、华语剧、日剧、美剧、英剧、泰剧等地区随机推荐，覆盖新旧作品。 |
+
+海报详情可查看简介与参演资料。电影和剧集均可在插件内预检订阅；剧集可选季，只有点击确认后才创建订阅，沿用宿主已有的订阅策略和入库路由。不会因浏览、悬停或预加载而自动订阅。
+
+## 安装与打开
+
+1. 从维护者发布的 Release 下载 `.mcplugin` 文件。在 MovieClaw **设置 → 插件 → 上传插件包** 上传，审阅后批准。
+2. 本插件是 `runtime = "inline"`，**与 MovieClaw 主进程共享系统权限**，不是独立进程沙箱。账号同步、库存访问和直接订阅使用宿主内部模块与登录依赖，需要单独确认 inline 权限。
+3. 进入插件设置按需填写网络及资料来源。直接在已登录的服务器上打开：
+
+   ```text
+   /api/v1/plugins/platform-discovery/panel?view=personal
+   ```
+
+   可在当前 MovieClaw 地址后附加上述路径；不同 IP／域名均跟随当前来源，未登录时先登录并返回插件。源码的 HTML 文件不能脱离服务器直接作为在线页面使用。
+4. 新版宿主如支持标准插件页面入口，可读取 `web/manifest.webmanifest`；旧宿主仍可使用上述同源路径。插件不会注入或改写宿主前端。
+
+管理员 CLI 安装示例（先将 CLI 连接到自己的服务器）：
+
+```sh
+mclaw app plugins packages upload --file platform-discovery-0.9.2.mcplugin
+mclaw app plugins packages approve platform-discovery --version 0.9.2 \
+  --operations-json '["discover.get-title-details","discover.filter-titles"]' \
+  --paths-json '[]' --allow-inline --yes
+mclaw app plugins show platform-discovery
+```
+
+`--allow-inline` 是管理员审阅后明确接受进程内运行的开关；不要把它当成无需审阅的默认安装流程。
+
+## 配置
+
+| 设置 | 说明 |
+| --- | --- |
+| 代理模式 | `host` 跟随宿主；`direct` 直连；`custom` 仅为本插件使用独立代理。 |
+| 普通／认证代理地址 | 地址必须从**服务器或容器内部**可达；`127.0.0.1` 指服务器或容器自身。带认证信息的地址使用秘密字段。 |
+| TMDB Read Access Token | 可选但建议配置，提升独立资料与推荐取片能力；留空使用可用的宿主发现接口兜底。 |
+| Fanart.tv API Key / Personal Key | 可选；未配置时仍使用 TMDB 海报，不保证每个作品都有 Fanart 海报。 |
+| 地区、平台开关 | 控制地区片库和可见平台，数据随来源实际可用性变化。 |
+| 榜单缓存与自动检查 | 默认缓存 60 分钟、每 60 分钟检查。Netflix 按官网实际发布的最新统计周显示，不制造尚未发布的新周。 |
+| 录像厅海报缓存 | 默认上限 2048 MB，仅管理插件自己的服务器缓存；保留宿主全局图片缓存及代理设置。 |
+
+普通代理地址为便于核对会明文显示；含用户名密码的地址应填写到带认证的秘密字段。Token、Fanart 密钥及认证代理都只用于服务器请求，不写进网页或分享包。
+
+## 账号同步与数据边界
+
+- 通过 MovieClaw 已验证的 `Principal` 区分管理员和成员，不信任浏览器传来的用户名来决定数据归属。库权限、分级限制与播放访问仍由宿主核对。
+- 同一服务器同一账号跨设备／局域网／公网同步口味测试、片单、已看过、喜欢、筛选、方案、撤销和历史。不同域名需要各自登录；这是同一台服务器的同步，不是跨服务器云同步。
+- 私人记录使用现有插件数据存储的加密账号作用域；公开片目缓存不含个人答案、向量、历史和推荐理由。旧浏览器档案只在本人登录后进行一次性认领合并。
+- 已看过、不感兴趣、已收藏／已订阅等身份排除在新片单与缓存恢复时继续执行；关闭行为学习也不会取消已看过排除。管理员同步的是宿主允许看到的订阅范围，不声称它只代表管理员本人创建的记录。
+- 动效、全屏、拼贴外观与图片预载是本设备显示选项，保存在浏览器。网络设置、密钥及偏好不包含在安装包中。
+- 推荐是基于问卷与行为的可解释加权规则，不是准确率保证。候选不足时明确标记循环补充，不承诺无限次换面均不重复。
+
+## 海报、屏保与有界缓存
+
+普通墙显示录像厅同款评分角标，支持圆角卡片和可选无缝拼接。全屏默认关闭；一键全屏铺满浏览器可视区，自动选择完整行列，海报保持 2:3，最后一行不被裁掉。比例不能刚好容纳整数张时居中留边。全屏动效是轻微靠近／远离视线的纵深呼吸，不沿屏幕 Y 轴移动，遵循系统减少动态效果。
+
+全屏下静置 5 秒启动屏保，随机位置按 1、2、3 张循环淡出并补入新海报。交互、详情弹窗、切换页面或隐藏页面会暂停。新图准备失败时保留原海报；轮替使用和手动“换一面”相同的有界候选。只有实际显示才确认展示历史，预载不算已展示。
+
+| 数据 | 上限／策略 |
+| --- | --- |
+| 一面海报 | 自适应 3–96 张。 |
+| 待展示候选 | 每页面最多 3 面；每账号最多 4 个页面队列，服务端票据约 5 分钟过期。未消费候选可继续用于换面。 |
+| 浏览器预热 URL | LRU 最多 384 个；后台图片最多 3 个并发，不等待整面图片完成才渲染。节省流量／低速模式会跳过可选预热。 |
+| 避重历史 | 最近 40 面；候选不足时先用较早记录。 |
+| 录像厅海报 | TMDB／Fanart 按作品身份选择、可手动锁定，服务器本地持久缓存；容量不足优先清理未锁定旧图。 |
+
+缓存不是离线影视库；首次速度依赖用户服务器到资料接口与图床的连接。图片不可达时显示片名占位并提供回退。插件不绕过平台付费播放、登录限制或内容授权。
+
+## 兼容性与限制
+
+- 已验证 MovieClaw Server **0.40.0**、SDK／`host-ops`／`plugin-routes`／`plugin-data` **1.0**；其他主程序版本需要重新验证。
+- 清单申请 `discover.get-title-details`、`discover.filter-titles`，路径授权为空，声明联网。**清单中的两个只读操作不等于 inline 插件只有这两项能力**：inline 与宿主共享权限，必须一起审阅库存、账号和订阅路由实现。
+- 国内公开接口可能变更、限流或返回空片单；显示来源状态与缓存时间，不以假榜单替代。TMDB 地区片库不等同于各平台官方热播榜。
+- 手机验证使用浏览器视口模拟，未宣称已覆盖所有手机实机。后台标签页计时会受浏览器节流限制。
+- 本插件不是媒体播放器；库存播放跳到 MovieClaw。宿主资料服务异常时，新订阅仍可能不可用，不修改宿主网络设置来绕过故障。
+
+## 开发与检查
+
+在与仓库 CI 相同的 MovieClaw 0.40.0 环境中运行：
+
+```sh
+python3 /path/to/MovieClaw/src/movieclaw_agent/builtin-skills/movieclaw-plugin-dev/scripts/check_plugin.py plugins/platform-discovery
+python3 -m unittest discover -s plugins/platform-discovery/tests -t plugins/platform-discovery -v
+```
+
+前端行为测试（Node.js，无需真实网络或账号）：
+
+```sh
+for test in plugins/platform-discovery/tests/*.cjs; do node "$test" || exit; done
+```
+
+使用本仓库可重现打包脚本：
+
+```sh
+python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.9.2.mcplugin
+```
+
+测试覆盖账号隔离、版本冲突、缓存与图片失败、预载不计展示、轮替取消、完整视口、选季及显式订阅确认。测试中的凭据、代理和账号均是虚构夹具，不包含运行实例的数据。版本演进见 [CHANGELOG.md](CHANGELOG.md)。
+
+## 许可证与署名
+
+Copyright (C) 2026 sexyfeifan。插件原创代码按 **GNU GPL version 3 only (`GPL-3.0-only`)** 发布，全文见 [LICENSE](LICENSE)。本插件独立贡献，收录与发布由仓库维护者决定。
+
+TMDB、Fanart.tv 与各平台的资料、海报及商标归各自权利人所有，不因插件代码的许可证而转移。TMDB 署名：**This product uses the TMDB API but is not endorsed or certified by TMDB.** MovieClaw 及其依赖继续适用各自许可证。
