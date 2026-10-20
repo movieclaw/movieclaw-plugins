@@ -1,6 +1,6 @@
 # 123 云盘个人账号
 
-版本 `0.1.0-beta.1`。通过 `p123client` 的手机号、密码登录链路访问个人网盘，无需 OpenAPI 开发者权益。插件 ID 为 `cloud-123-personal`，Python 包为 `cloud_123_personal`，网盘类型为 `123-personal`，与 `cloud-123` OpenAPI 插件独立。
+版本 `0.1.0-beta.1`。通过 `p123client` 的手机号、密码登录链路访问个人网盘，使用个人账号接口，无需官方开放平台开发者权益。插件 ID 为 `cloud-123-personal`，Python 包为 `cloud_123_personal`，网盘类型为 `123-personal`。
 
 ## 使用要求
 
