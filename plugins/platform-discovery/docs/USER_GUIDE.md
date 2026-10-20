@@ -1,4 +1,4 @@
-# 平台放映厅 v0.10.0 使用教程
+# 平台放映厅 v0.10.1 使用教程
 
 ## 从 MovieClaw 打开
 
@@ -13,9 +13,9 @@ MovieClaw Server 0.41.0 起正式提供插件网页导航。安装并批准本�
 | 页面 | 相对服务器的原生地址 | 用途 |
 | --- | --- | --- |
 | 海报墙 | `/apps/platform-discovery/` | 根据口味、喜欢与片单探索影片 |
-| 录像厅 | `/apps/platform-discovery/theater/` | 筛选媒体库库存并进入 MovieClaw 播放 |
-| 平台热榜 | `/apps/platform-discovery/platforms/` | 查看平台片单及其来源与统计时间 |
-| 随心看剧 | `/apps/platform-discovery/random/` | 按地区随机探索新旧剧集 |
+| 录像厅 | `/apps/platform-discovery/theater` | 筛选媒体库库存并进入 MovieClaw 播放 |
+| 平台热榜 | `/apps/platform-discovery/platforms` | 查看平台片单及其来源与统计时间 |
+| 随心看剧 | `/apps/platform-discovery/random` | 按地区随机探索新旧剧集 |
 
 切换板块会更新地址；刷新、收藏、分享同源地址及前进／后退可回到对应板块。手机保留紧凑的四项切换条；电脑沿用主程序菜单。入口是否显示由宿主授权和个人导航偏好决定。
 

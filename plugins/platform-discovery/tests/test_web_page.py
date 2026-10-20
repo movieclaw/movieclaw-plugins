@@ -33,5 +33,5 @@ class NativePageTests(unittest.TestCase):
         plugin = plugin_web.WebPlugin(id='platform-discovery', title='平台放映厅', source='package', root=ROOT / 'web', consent=None)
         manifest = plugin_web.read_manifest(plugin)
         self.assertEqual([entry.label for entry in manifest.entries], ['海报墙', '录像厅', '平台热榜', '随心看剧'])
-        self.assertEqual([entry.path for entry in manifest.entries], ['', 'theater/', 'platforms/', 'random/'])
+        self.assertEqual([entry.path for entry in manifest.entries], ['', 'theater', 'platforms', 'random'])
         self.assertTrue(all(entry.monochrome for entry in manifest.entries))

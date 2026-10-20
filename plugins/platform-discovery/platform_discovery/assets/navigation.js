@@ -1,6 +1,6 @@
 "use strict";
 const MC_WEB_BASE="/api/v1/plugins/platform-discovery/web/",MC_APP_BASE="/apps/platform-discovery/";
-const MC_MODES={personal:"",theater:"theater/",platforms:"platforms/",random:"random/"};
+const MC_MODES={personal:"",theater:"theater",platforms:"platforms",random:"random"};
 globalThis.MovieClawNavigation={
   isNative(location=globalThis.location){return !!location&&(location.pathname===MC_WEB_BASE.slice(0,-1)||location.pathname.startsWith(MC_WEB_BASE));},
   isEmbedded(){try{return this.isNative()&&!!globalThis.window&&globalThis.window.top!==globalThis.window;}catch{return false;}},

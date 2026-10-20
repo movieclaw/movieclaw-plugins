@@ -11,7 +11,7 @@ globalThis.MovieClawTransport={
     const base="/api/v1/plugins/platform-discovery/panel",app="/apps/platform-discovery/",web="/api/v1/plugins/platform-discovery/web/";
     const path=location?.pathname||"",prefix=path===app.slice(0,-1)||path.startsWith(app)?app:path===web.slice(0,-1)||path.startsWith(web)?web:null;
     let target=base;
-    if(prefix){const sub=path.slice(prefix.length).replace(/\/$/,"");target=app+(["theater","platforms","random"].includes(sub)?sub+"/":"");}
+    if(prefix){const sub=path.slice(prefix.length).replace(/\/$/,"");target=app+(["theater","platforms","random"].includes(sub)?sub:"");}
     else {const params=new URLSearchParams(location?.search||""),view=params.get("view");if(["personal","random","platforms","theater"].includes(view))target+="?view="+view;if(view==="personal"&&params.get("screen")==="1")target+="&screen=1";}
     return "/login?next="+encodeURIComponent(target);
   },

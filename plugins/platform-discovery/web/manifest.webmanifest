@@ -13,7 +13,7 @@
     {
       "name": "录像厅",
       "short_name": "录像厅",
-      "url": "theater/",
+      "url": "theater",
       "icons": [
         {
           "src": "theater.svg",
@@ -25,7 +25,7 @@
     {
       "name": "平台热榜",
       "short_name": "平台热榜",
-      "url": "platforms/",
+      "url": "platforms",
       "icons": [
         {
           "src": "platforms.svg",
@@ -37,7 +37,7 @@
     {
       "name": "随心看剧",
       "short_name": "随心看剧",
-      "url": "random/",
+      "url": "random",
       "icons": [
         {
           "src": "random.svg",
