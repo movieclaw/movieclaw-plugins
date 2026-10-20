@@ -6,7 +6,7 @@ from movieclaw_sdk.drives import DRIVE_BACKENDS
 from .backend import Personal123
 
 
-@plugin("cloud-123-personal", title="123 云盘个人账号（实验版）", permissions=(), inject=(PLUGIN_DATA,))
+@plugin("cloud-123-personal", title="123 云盘个人账号", permissions=(), inject=(PLUGIN_DATA,))
 async def apply(ctx):
     backend = Personal123(store=ctx.use(PLUGIN_DATA).scoped(ctx))
     ctx.effect(backend.aclose)

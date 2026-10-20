@@ -24,10 +24,10 @@
 | 固定直接依赖和完整闭包 | requirements.in + 官方生成lock；34包版本/轮子哈希，宿主包排除；本轮不改锁 |
 | 双Linux架构wheel安装 | 使用官方同款Python3.12 Debian镜像实际安装；结果见VALIDATION |
 | 许可证事实及归属 | 原创MIT；33项正文保留，urllib3-future-request的MIT声明缺正文待上游补齐；GPL/AGPL实现不打包 |
-| README/CHANGELOG/本目录tests | 自包含开发命令、Unreleased记录、117项离线测试、严格差异门槛 |
+| README/CHANGELOG/本目录tests | 自包含开发命令、beta.1记录、117项离线测试、严格差异门槛 |
 | 官方目录选择/索引/脚本检查 | 测试选择个人插件及其lock；目录自动发现，无需注册新名单；index不手改 |
-| 确定性包/服务器结构校验 | 使用原样pack.py两次比较，再read_archive；临时验证包不覆盖既有alpha.5交付 |
-| 版本/tag/发布 | 当前alpha.5；未发布此次准备变化，下次分发须升版本；本次不推送/tag/建PR |
+| 确定性包/服务器结构校验 | 使用原样pack.py两次比较，再read_archive；交付独立beta.1安装包及SHA256 |
+| 版本/tag/发布 | 当前0.1.0-beta.1；同一Draft PR追加普通提交，无tag、Release或自动安装 |
 | 私密内容与交付排除 | 只提交明确文件范围；无本机路径、真实凭据/账号、HAR、截图、包或本地证据；历史证据另留存 |
 | 严格DriveBackend语义 | **未通过**：递归扫描偏离原生整树；初始化/合并确认丢失窗口安全阻塞；不隐藏差异 |
 | 真实服务 | 维护者反馈alpha.5目录选择复测通过；不外推到扫描、上传恢复、下载/播放或风控 |

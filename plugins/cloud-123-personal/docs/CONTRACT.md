@@ -1,4 +1,4 @@
-# DriveBackend 1.5 契约矩阵 — alpha.5
+# DriveBackend 1.5 契约矩阵 — 0.1.0-beta.1
 
 基线：MovieClaw v0.41.0 / 5b0739f54fc1e22ba2fd9c4037d132d16e85e0c1，SDK1.0，registry1.5。本插件采用逐目录扫描与插件内持久化恢复；这没有改变SDK条文，也不表示上游已接受差异。
 
@@ -33,7 +33,7 @@
 
 错误分类沿用：429→RateLimited，认证401→AuthExpired，验证码/风控→RiskControl，明确缺失→NotFound、空间不足→QuotaExceeded、同名/内容冲突→Conflict，网络5xx→Transient，未知结构/安全边界→ApiChanged。存储签名403为Transient；日志故障不泄露原始异常内容。
 
-## alpha.5 名称边界
+## 名称边界（继承 alpha.5 修复）
 
 远端显示字段校验仅验证非空字符串和无NUL；远端路径段额外拒绝点路径段及正反斜杠，保留其余标点/Unicode；新建名称保留独立的保守规则。宿主目录接口会构造display_path，所以目录选择结果也须是无歧义单段名称。文件名问题不能阻断仅取子目录的选择器，但全量扫描仍不得跳过坏项或静默改名。
 

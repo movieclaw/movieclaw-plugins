@@ -92,6 +92,6 @@ verification_dir="$(mktemp -d)"
 .venv/bin/python scripts/pack.py plugins/cloud-123-personal --output "$verification_dir/check.zip"
 ```
 
-上例只产生临时归档供验证，正式附件应命名为 `<id>-<version>.mcplugin`。alpha.5已有测试分发记录。**不得用相同版本字符串重新发布不同内容**；本轮文档整理记录在Unreleased，下次实际分发必须先递增清单和CHANGELOG版本。本地已有包不要覆盖，旧交付包应移入系统废纸篓，仅保留最新包及校验文件。
+上例只产生临时归档供验证，当前本地交付名为 `cloud-123-personal-0.1.0-beta.1.mcplugin`，并附SHA256校验文件。**不得用相同版本字符串重新发布不同内容**；后续分发变化须递增清单和CHANGELOG版本。旧alpha.5包及校验文件移入系统废纸篓，仅保留最新包，不自动安装到宿主。
 
 提交新增 `plugins/cloud-123-personal/`；现有CI基准差异见 [要求对照](PR_REQUIREMENTS.md)。没有已发布版本时不手填 `index.json`，不伪造下载URL、签名或发布记录。维护者未来处理合入和发布时，tag必须为 `<id>-v<version>`、版本逐字匹配；Release使用 `--latest=false`，预发布不替代同号正式版，索引由官方发布流程生成。本次没有推送、tag、Release或PR。

@@ -73,14 +73,14 @@ def file_from(row):
 
 class Personal123(DriveBackend):
     type = "123-personal"
-    title = "123 云盘个人账号（实验版）"
+    title = "123 云盘个人账号"
     description = "手机号登录；逐目录完整分页扫描，上传日志恢复；与原生整树契约有差异"
     accent_color = "#246BFD"
     capabilities = Capabilities(
         writable=True, rapid_upload_hashes=("md5",), list_hashes=False,
         recycle_bin=True, original_link=True, link_needs_ua=True,
     )
-    login = Login(form=Credentials, hint="逐目录扫描实验版；遇验证码请到官方客户端处理后重试")
+    login = Login(form=Credentials, hint="逐目录分页扫描；遇验证码请到官方客户端处理后重试")
 
     MAX_SCAN_ENTRIES = 200000
     MAX_SCAN_PAGES = 20000
