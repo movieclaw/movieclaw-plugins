@@ -77,9 +77,10 @@ globalThis.MovieClawTheater={
    const card=node("article",null,"theater-card");card.dataset.mediaItemId=item.media_item_id;
    const cover=button("","theater-cover",()=>showDetail(item));cover.setAttribute("aria-label","查看 "+item.title);const placeholder=node("span",item.title,"theater-placeholder");cover.append(placeholder);
    const src=posterUrl(item.poster_url);if(src){const img=makeImage(src,item.title,index<8);img.addEventListener("load",()=>placeholder.hidden=true);img.addEventListener("error",()=>{img.hidden=true;placeholder.hidden=false;});cover.append(img);}
-   const meta=node("div",null,"theater-card-top");if(Number.isFinite(item.rating)&&item.rating>0){const rating=node("span",Number(item.rating).toFixed(1),"theater-rating");rating.append(node("small"," /10"));rating.title="库存评分（TMDB 或本地资料）";meta.append(rating);}if(item.year)meta.append(node("span",item.year,"theater-year"));
+   const meta=node("div",null,"theater-card-top");if(Number.isFinite(item.rating)&&item.rating>0){const rating=node("span",Number(item.rating).toFixed(1),"theater-rating");rating.append(node("small"," /10"));rating.title="库存评分（TMDB 或本地资料）";meta.append(rating);}
    const status=item.kind==="tv"?({ended:"完结",airing:"在播"}[item.air_status]||"剧集"):item.resolutions?.[0]||"电影";
    meta.append(node("span",status,"theater-badge"));cover.append(meta);
+   if(item.year)cover.append(node("span",item.year,"theater-year"));
    if(item.missing_count||item.missing_episode_count)cover.append(node("span",item.missing_count?"部分文件失联":"库存缺集","theater-stock"));
    card.append(cover,node("h3",item.title),node("p",[item.year,item.kind==="tv"?(item.episode_count||0)+" 集":item.resolutions?.join(" / ")].filter(Boolean).join(" · "),"theater-card-note"));
    const actions=node("div",null,"theater-card-actions"),art=button("选海报","button ghost",()=>chooseArt(item));actions.append(art);card.append(actions);return card;
