@@ -39,7 +39,7 @@ globalThis.MovieClawPersonal = {
   create({api,node,button,image,showDetail,compactDate,announce}) {
     const $=id=>document.getElementById(id);
     const state={token:"",profile:null,schema:null,ready:null,loaded:false,loading:false,pendingReload:false,step:0,answers:{},submitting:false,motion:true,seamless:false,observer:null,generation:0,feed:null,layout:null,resizeTimer:null,immersive:false,nativeFullscreen:false,controlsTimer:null,scrollBeforeFullscreen:0,preload:true};
-    let tools=null,ambient=null;state.ambientEnabled=true;state.genres="all";state.excludeGenres="all";state.exploration="balanced";
+    let tools=null,ambient=null,ambientSettings=null;state.ambientEnabled=true;state.ambientTiming={fade_out:2000,fade_in:2600,gap:800,variation:25,overlap:60};state.genres="all";state.excludeGenres="all";state.exploration="balanced";
     state.filtersRevision="";state.filtersReadAt=0;state.filtersPromise=null;state.filtersSaving=false;state.filterEpoch=0;state.filterDraftRevision="";
     state.mediaType="all";state.era="all";state.country="all";state.quickLabels=new Set();state.activeQuick=null;state.feedbackPending=false;state.shelfReadAt=0;state.shelfReadPromise=null;
     state.shelf={saved:[],dismissed:[],watched:[],liked:[]};state.shelfEpoch=0;state.initialized=false;state.account="";state.checking=null;state.feedbackTail=Promise.resolve();state.syncPromise=null;state.syncedAt=0;state.admin=false;state.profileReadAt=0;state.profilePromise=null;state.syncTimer=null;
@@ -222,6 +222,11 @@ globalThis.MovieClawPersonal = {
         $("immersive-trigger").setAttribute("aria-expanded","false");
       },delay);
     }
+    function fullscreenMode(){
+      const native=!!document.fullscreenElement;
+      document.body.dataset.fullscreenMode=state.immersive?(native?"native":"window"):"off";
+      $("immersive-title").textContent=native?"浏览器全屏":"窗口铺满";$("immersive-native").hidden=native||!state.immersive;
+    }
     function immersiveState(enabled){
       state.immersive=enabled;clearTimeout(state.controlsTimer);
       document.body.classList.toggle("wall-immersive",enabled);
@@ -230,24 +235,25 @@ globalThis.MovieClawPersonal = {
       $("wall-fullscreen-launch").setAttribute("aria-pressed",String(enabled));
       $("immersive-trigger").hidden=!enabled;$("immersive-tools").hidden=!enabled;
       $("immersive-trigger").setAttribute("aria-expanded","false");
-      layoutState();
-      if(enabled){scrollTo(0,0);revealControls(3000);}
+      layoutState();fullscreenMode();
+      if(enabled){scrollTo(0,0);revealControls(3000);ambientSettings?.refresh().catch(()=>announce("屏保节奏暂未同步，暂用当前节奏。可在屏保节奏中重试。"));}
       else scrollTo(0,state.scrollBeforeFullscreen);
       resizeWall();ambient?.activity();
     }
     async function enterFullscreen(native=true){
-      if(state.immersive)return;
-      state.scrollBeforeFullscreen=scrollY;immersiveState(true);
+      if(state.immersive&&(!native||document.fullscreenElement))return;
+      if(!state.immersive){state.scrollBeforeFullscreen=scrollY;immersiveState(true);}
       // Fullscreen the document so top-layer detail/questionnaire dialogs remain
       // usable. Browsers without this API still get an edge-to-edge page view.
       try{
+        if(native&&!document.documentElement.requestFullscreen)announce("当前浏览器不支持原生全屏，已铺满窗口。可用浏览器的全屏功能隐藏地址栏。");
         if(native&&document.documentElement.requestFullscreen){
           await document.documentElement.requestFullscreen();
           if(!state.immersive||document.body.dataset.mode!=="personal"){
             if(document.fullscreenElement===document.documentElement)await document.exitFullscreen();
             return;
           }
-          state.nativeFullscreen=!!document.fullscreenElement;
+          state.nativeFullscreen=!!document.fullscreenElement;fullscreenMode();
         }
       }catch{announce("已铺满浏览器窗口。当前浏览器未允许系统全屏，可用顶部按钮退出。");}
     }
@@ -593,6 +599,7 @@ globalThis.MovieClawPersonal = {
     $("wall-shelf").addEventListener("click",openShelf);$("shelf-close").addEventListener("click",()=>$("shelf-dialog").close());$("shelf-dialog").addEventListener("close",()=>document.body.classList.remove("shelf-open"));
     $("wall-fullscreen").addEventListener("click",()=>state.immersive?exitFullscreen():enterFullscreen());
     $("immersive-exit").addEventListener("click",()=>exitFullscreen());
+    $("immersive-native").addEventListener("click",()=>enterFullscreen());
     $("immersive-shuffle").addEventListener("click",()=>loadWall());
     $("immersive-taste").addEventListener("click",startTest);
     $("immersive-shelf").addEventListener("click",openShelf);
@@ -606,14 +613,15 @@ globalThis.MovieClawPersonal = {
     $("immersive-tools").addEventListener("focusout",()=>revealControls(900));
     document.addEventListener("pointerdown",event=>{if(state.activeQuick&&!state.activeQuick.root.contains(event.target))state.activeQuick.close();});
     document.addEventListener("fullscreenchange",()=>{
+      fullscreenMode();
       if(document.fullscreenElement){state.nativeFullscreen=state.immersive;resizeWall();}
-      else if(state.nativeFullscreen){state.nativeFullscreen=false;exitFullscreen();}
+      else if(state.nativeFullscreen){state.nativeFullscreen=false;fullscreenMode();resizeWall();ambient?.wake();}
     });
     document.addEventListener("keydown",event=>{
       if(event.key==="Escape"&&state.immersive&&!document.querySelector("dialog[open]")){event.preventDefault();exitFullscreen();}
     });
     try{state.motion=localStorage.getItem("movieclaw.platform-discovery.motion")!=="off";state.seamless=localStorage.getItem("movieclaw.platform-discovery.wall-layout.v3")==="seamless";}catch{}
-    $("wall-fullscreen-launch").addEventListener("click",()=>enterFullscreen(false));
+    $("wall-fullscreen-launch").addEventListener("click",()=>enterFullscreen());
     $("immersive-motion").addEventListener("click",()=>$("wall-motion").click());
     $("wall-layout").addEventListener("click",()=>{state.seamless=!state.seamless;try{localStorage.setItem("movieclaw.platform-discovery.wall-layout.v3",state.seamless?"seamless":"cards");}catch{}layoutState();resizeWall();});layoutState();
     $("wall-motion").addEventListener("click",()=>{state.motion=!state.motion;try{localStorage.setItem("movieclaw.platform-discovery.motion",state.motion?"on":"off");}catch{}motionState();});
@@ -637,14 +645,19 @@ globalThis.MovieClawPersonal = {
     function randomTake(values,count){const rows=[...values];for(let i=rows.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rows[i],rows[j]]=[rows[j],rows[i]];}return rows.slice(0,count);}
     async function prepareAmbient(count,valid){
       if(!valid())return null;
+      count=Math.min(count,Math.max(0,6-$("poster-wall").querySelectorAll(".ambient-in,.ambient-out").length));if(!count)return null;
       prepareNext();
       const head=state.nextWall,items=state.rendered?.items;
-      if(!head||!items?.length||head.key!==nextKey()||Date.now()-head.at>=240000)return null;
+      if(!head||!items?.length||head.key!==nextKey()||Date.now()-head.at>=240000){$("immersive-ambient-status").textContent="正在准备下一张海报…";return null;}
       const account=state.account,generation=state.generation,refs=new Set(items.map(item=>item.detail_ref));
       const candidates=head.feed.items.filter(item=>!refs.has(item.detail_ref));
-      const slots=items.filter(item=>{const tile=[...$("poster-wall").querySelectorAll(".wall-tile")].find(n=>n.dataset.itemRef===item.detail_ref),r=tile?.getBoundingClientRect();return r&&r.top<innerHeight-40&&r.bottom>40;});
-      const chosen=randomTake(candidates,Math.min(count,slots.length));if(!chosen.length)return null;
-      const ready=await image.prepareSwap(chosen,($("poster-wall").getBoundingClientRect().width||innerWidth)/state.rendered.columns);
+      const slots=items.filter(item=>{const tile=[...$("poster-wall").querySelectorAll(".wall-tile")].find(n=>n.dataset.itemRef===item.detail_ref),r=tile?.getBoundingClientRect();return r&&!tile.classList.contains("ambient-in")&&r.top<innerHeight-40&&r.bottom>40;});
+      const width=($("poster-wall").getBoundingClientRect().width||innerWidth)/state.rendered.columns,warmed=image.readyForSwap?.(candidates,width)||[];
+      const chosen=randomTake(warmed.length?warmed:candidates,Math.min(count,slots.length));if(!chosen.length)return null;
+      $("immersive-ambient-status").textContent="正在准备下一张海报…";
+      let timer,ready;
+      try{ready=await Promise.race([image.prepareSwap(chosen,width),new Promise(resolve=>{timer=setTimeout(()=>resolve([]),2500);})]);}finally{clearTimeout(timer);}
+      if(!ready.length){image.cancelAmbient?.();return null;}
       if(!valid()||account!==state.account||generation!==state.generation||!ready.length)return null;
       const targets=randomTake(slots,ready.length),rotation={ticket:head.feed.prepared_ticket,operation:nonce(),current:items.map(item=>item.detail_ref),replace:Object.fromEntries(targets.map((item,i)=>[item.detail_ref,ready[i].detail_ref]))};
       const result=await request("recommendations/rotate-preview",{method:"POST",body:JSON.stringify({rotation})});
@@ -654,32 +667,50 @@ globalThis.MovieClawPersonal = {
     async function applyAmbient(proposal,valid,wait){
       const wall=$("poster-wall"),tiles=proposal.targets.map(item=>[...wall.querySelectorAll(".wall-tile")].find(n=>n.dataset.itemRef===item.detail_ref));
       if(!valid()||tiles.some(tile=>!tile))return false;
-      state.activeQuick?.close();tiles.forEach(tile=>tile.classList.add("ambient-out"));
-      try{
-        if(!await wait(matchMedia("(prefers-reduced-motion:reduce)").matches?0:650,valid)||proposal.account!==state.account||proposal.generation!==state.generation)return false;
-        proposal.targets.forEach((item,i)=>{
-          const index=proposal.rotation.current.indexOf(item.detail_ref),next=proposal.result.items[index],tile=wallCard(next,index,proposal.result,state.rendered.columns);
-          tile.classList.add("ambient-in");state.observer?.unobserve?.(tiles[i]);tiles[i].dispose?.();tiles[i].replaceWith(tile);state.observer?.observe(tile);
-          tile.classList.toggle("quick-short",tile.getBoundingClientRect().height<240);setTimeout(()=>tile.classList.remove("ambient-in"),700);
-        });
-        state.feed=proposal.result;state.rendered.items=proposal.result.items;wall.dataset.rotationCount=String(proposal.result.rotation.count);wall.dataset.rotationOperation=proposal.rotation.operation;return true;
-      }finally{tiles.forEach(tile=>tile.classList.remove("ambient-out"));}
+      state.activeQuick?.close();
+      const reduced=matchMedia("(prefers-reduced-motion:reduce)").matches;
+      const rows=randomTake(proposal.targets.map((item,i)=>({item,tile:tiles[i],index:proposal.rotation.current.indexOf(item.detail_ref)})),tiles.length);
+      const shown=await globalThis.MovieClawAmbient.transition({rows,reduced,wait,settings:state.ambientTiming,
+        valid:()=>valid()&&proposal.account===state.account&&proposal.generation===state.generation,
+        out(row,timing){row.tile.style?.setProperty("--ambient-out-duration",timing.out+"ms");row.tile.classList.add("ambient-out");},restore:row=>row.tile.classList.remove("ambient-out"),
+        swap(row,timing){
+          const next=proposal.result.items[row.index],tile=wallCard(next,row.index,proposal.result,state.rendered.columns);
+          const oldPoster=row.tile.querySelector?.(".wall-poster"),remaining=Math.round(timing.out*timing.overlap);
+          if(!reduced&&oldPoster&&remaining){
+            const ghost=node("div",null,"ambient-ghost"),copy=oldPoster.cloneNode(true);ghost.setAttribute("aria-hidden","true");ghost.setAttribute("inert","");copy.disabled=true;copy.setAttribute("tabindex","-1");
+            ghost.style.setProperty("--ambient-ghost-opacity",getComputedStyle(oldPoster).opacity);ghost.style.setProperty("--ambient-ghost-duration",remaining+"ms");ghost.append(copy);tile.append(ghost);setTimeout(()=>ghost.remove(),remaining+80);
+          }
+          tile.style?.setProperty("--ambient-in-duration",timing.incoming+"ms");
+          tile.classList.add("ambient-in");state.observer?.unobserve?.(row.tile);row.tile.dispose?.();row.tile.replaceWith(tile);state.observer?.observe(tile);
+          tile.classList.toggle("quick-short",tile.getBoundingClientRect().height<240);setTimeout(()=>tile.classList.remove("ambient-in"),reduced?0:timing.incoming+80);
+        }
+      });
+      if(!shown.length)return false;
+      // A user may interrupt between individual swaps. Acknowledge only the
+      // posters actually inserted; untouched candidates remain in the queue.
+      const replacements=Object.fromEntries(shown.map(row=>[row.item.detail_ref,proposal.rotation.replace[row.item.detail_ref]]));
+      proposal.rotation={...proposal.rotation,replace:replacements};
+      const indexes=new Set(shown.map(row=>row.index)),previous=new Map(proposal.before.items.map(item=>[item.detail_ref,item]));
+      proposal.result={...proposal.result,items:proposal.rotation.current.map((ref,i)=>indexes.has(i)?proposal.result.items[i]:previous.get(ref)),rotation:{...proposal.result.rotation,count:shown.length}};
+      if(proposal.account===state.account&&proposal.generation===state.generation){state.feed=proposal.result;state.rendered.items=proposal.result.items;wall.dataset.rotationCount=String(shown.length);wall.dataset.rotationOperation=proposal.rotation.operation;}
+      return true;
     }
     async function confirmAmbient(proposal){
       const result=await request("recommendations/rotate",{method:"POST",body:JSON.stringify({rotation:proposal.rotation}),keepalive:true});
       if(proposal.account!==state.account||proposal.generation!==state.generation)return;
       const {prepared_queue,...feed}=result;state.feed=feed;adoptPreparedQueue(result);if(document.body.classList.contains("wall-screen-running"))$("immersive-ambient-status").textContent="屏保轮替中 · 本次换入 "+result.rotation.count+" 张";prepareNext();
     }
-    ambient=globalThis.MovieClawAmbient?.create({active:ambientActive,prepare:prepareAmbient,apply:applyAmbient,confirm:confirmAmbient,
-      status(running){document.body.classList.toggle("wall-screen-running",running);$("immersive-ambient-status").textContent=running?"屏保轮替中 · 每次 1–3 张":state.ambientEnabled?"静置 5 秒自动轮替":"屏保轮替已暂停";},
+    ambient=globalThis.MovieClawAmbient?.create({active:ambientActive,prepare:prepareAmbient,apply:applyAmbient,confirm:confirmAmbient,interval:()=>globalThis.MovieClawAmbient.timing(state.ambientTiming).gap,
+      status(running){document.body.classList.toggle("wall-screen-running",running);$("immersive-ambient-status").textContent=running?"屏保轮替中 · 随机 1–3 张":!state.ambientEnabled?"屏保轮替已暂停":!state.preload?"提前加载已关闭 · 屏保暂停":"静置 5 秒自动轮替";},
       async recover(error,proposal,shown){cancelNext();if(shown&&proposal?.account===state.account&&proposal.generation===state.generation){if(error.status>=400&&error.status<500)await renderWall(proposal.before);setTimeout(()=>loadWall(true),0);}$("immersive-ambient-status").textContent="保留当前海报 · 稍后重试";}
     });
+    ambientSettings=globalThis.MovieClawAmbientSettings?.create({request,initialize,getAccount:()=>state.account,onChange(value){state.ambientTiming=value;ambient?.activity();}})||null;
     try{state.ambientEnabled=localStorage.getItem("movieclaw.platform-discovery.ambient.v1")!=="off";}catch{}
     const ambientLabel=()=>{$("immersive-ambient").setAttribute("aria-checked",String(state.ambientEnabled));$("immersive-ambient").textContent="屏保轮替："+(state.ambientEnabled?"开":"关");};ambientLabel();
     $("immersive-ambient").addEventListener("click",()=>{state.ambientEnabled=!state.ambientEnabled;try{localStorage.setItem("movieclaw.platform-discovery.ambient.v1",state.ambientEnabled?"on":"off");}catch{}ambientLabel();ambient?.activity();});
     const ambientActivity=()=>{image.cancelAmbient?.();ambient?.activity();};
     for(const event of ["pointermove","pointerdown","wheel","touchstart","keydown","scroll"])document.addEventListener(event,ambientActivity,{capture:true,passive:true});
-    document.addEventListener("close",ambientActivity,true);document.addEventListener("visibilitychange",ambientActivity);window.addEventListener("blur",()=>ambient?.stop());window.addEventListener("focus",ambientActivity);window.addEventListener("resize",ambientActivity);window.addEventListener("pagehide",()=>ambient?.close());
+    document.addEventListener("close",ambientActivity,true);document.addEventListener("visibilitychange",ambientActivity);window.addEventListener("focus",ambientActivity);window.addEventListener("resize",ambientActivity);window.addEventListener("pagehide",()=>ambient?.close());
     return {open(){if(!state.loaded)loadWall();else resizeWall();},recordView(item){return tools?.recordView(item);},leave(){ambient?.stop();cancelNext();state.activeQuick?.close();exitFullscreen(false);},detailActions,async subscriptionChanged(){state.syncedAt=0;await initialize();await syncSubscriptions(true);await loadWall(true);}};
   }
 };

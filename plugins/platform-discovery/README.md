@@ -1,6 +1,6 @@
 # 平台放映厅 · Platform Discovery
 
-MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.9.2**，已在 **MovieClaw Server 0.40.0** 验证。
+MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.9.9**，已在 **MovieClaw Server 0.40.0** 验证。
 
 Platform Discovery adds an account-scoped recommendation wall, a library theater, platform feeds and regional TV discovery to MovieClaw. It runs as an explicitly approved inline plugin. It does not modify the host application. The plugin UI and documentation are currently in Simplified Chinese.
 
@@ -31,8 +31,8 @@ Platform Discovery adds an account-scoped recommendation wall, a library theater
 管理员 CLI 安装示例（先将 CLI 连接到自己的服务器）：
 
 ```sh
-mclaw app plugins packages upload --file platform-discovery-0.9.2.mcplugin
-mclaw app plugins packages approve platform-discovery --version 0.9.2 \
+mclaw app plugins packages upload --file platform-discovery-0.9.9.mcplugin
+mclaw app plugins packages approve platform-discovery --version 0.9.9 \
   --operations-json '["discover.get-title-details","discover.filter-titles"]' \
   --paths-json '[]' --allow-inline --yes
 mclaw app plugins show platform-discovery
@@ -57,7 +57,7 @@ mclaw app plugins show platform-discovery
 ## 账号同步与数据边界
 
 - 通过 MovieClaw 已验证的 `Principal` 区分管理员和成员，不信任浏览器传来的用户名来决定数据归属。库权限、分级限制与播放访问仍由宿主核对。
-- 同一服务器同一账号跨设备／局域网／公网同步口味测试、片单、已看过、喜欢、筛选、方案、撤销和历史。不同域名需要各自登录；这是同一台服务器的同步，不是跨服务器云同步。
+- 同一服务器同一账号跨设备／局域网／公网同步口味测试、片单、已看过、喜欢、筛选、方案、撤销、历史和屏保节奏。不同域名需要各自登录；这是同一台服务器的同步，不是跨服务器云同步。
 - 私人记录使用现有插件数据存储的加密账号作用域；公开片目缓存不含个人答案、向量、历史和推荐理由。旧浏览器档案只在本人登录后进行一次性认领合并。
 - 已看过、不感兴趣、已收藏／已订阅等身份排除在新片单与缓存恢复时继续执行；关闭行为学习也不会取消已看过排除。管理员同步的是宿主允许看到的订阅范围，不声称它只代表管理员本人创建的记录。
 - 动效、全屏、拼贴外观与图片预载是本设备显示选项，保存在浏览器。网络设置、密钥及偏好不包含在安装包中。
@@ -65,9 +65,23 @@ mclaw app plugins show platform-discovery
 
 ## 海报、屏保与有界缓存
 
-普通墙显示录像厅同款评分角标，支持圆角卡片和可选无缝拼接。全屏默认关闭；一键全屏铺满浏览器可视区，自动选择完整行列，海报保持 2:3，最后一行不被裁掉。比例不能刚好容纳整数张时居中留边。全屏动效是轻微靠近／远离视线的纵深呼吸，不沿屏幕 Y 轴移动，遵循系统减少动态效果。
+普通墙的评分角标仅在悬停、可见键盘焦点或触屏快捷操作展开时显示，支持圆角卡片和可选无缝拼接。全屏默认关闭；一键优先进入浏览器原生全屏；不允许原生全屏时铺满窗口，并提供重新进入按钮。浏览器退出原生全屏后仍保留窗口屏保，明确退出才恢复普通页面。海报墙自动选择完整行列，海报保持 2:3，最后一行不被裁掉。比例不能刚好容纳整数张时居中留边。全屏动效是轻微靠近／远离视线的纵深呼吸，不沿屏幕 Y 轴移动，遵循系统减少动态效果。
 
-全屏下静置 5 秒启动屏保，随机位置按 1、2、3 张循环淡出并补入新海报。交互、详情弹窗、切换页面或隐藏页面会暂停。新图准备失败时保留原海报；轮替使用和手动“换一面”相同的有界候选。只有实际显示才确认展示历史，预载不算已展示。
+全屏下静置 5 秒启动屏保，每轮随机选择 1～3 张与随机位置，以错落时间更替，不固定按 1／2／3 循环。支持旧图尚未消失时新图交叠浮现，以及每张时长与间隔的小幅随机变化，最多六张同时处于变化阶段。交互、详情弹窗、切换页面或隐藏页面会暂停。新图准备失败时保留原海报；轮替使用和手动“换一面”相同的有界候选。只有实际显示才确认展示历史，预载不算已展示。
+
+### 调整屏保节奏
+
+从海报墙「更多设置 → 屏保节奏」，或全屏工具栏的「屏保节奏」进入。读取设置不占普通页面冷启动的网络路径；打开设置暂停轮替，关闭后静置五秒恢复。点击「保存节奏」后按当前 MovieClaw 账号保存，下次在其他设备打开全屏或节奏面板时读取；「恢复默认」先恢复草稿，仍需保存。
+
+| 项目 | 范围 | 默认 |
+| --- | --- | --- |
+| 淡出时长 | 0.6–6 秒 | 2.0 秒 |
+| 淡入时长 | 0.6–6 秒 | 2.6 秒 |
+| 海报更替间隔 | 0.2–5 秒 | 0.8 秒 |
+| 画面交叠 | 0–80% | 60% |
+| 节奏变化幅度 | 0–45% | 25% |
+
+时间是基准值；变化幅度控制每张海报在基准附近的随机偏移。间隔越小，交叠越丰富；网络准备和服务端确认可能使实际启动时间更长。交叠为 0% 时先淡出再淡入，变化为 0% 时固定节奏。账号版本冲突会阻止覆盖另一设备的新设置。仅实际插入的海报计入展示记录，中途打断未显示的候选仍保留。
 
 | 数据 | 上限／策略 |
 | --- | --- |
@@ -105,7 +119,7 @@ for test in plugins/platform-discovery/tests/*.cjs; do node "$test" || exit; don
 使用本仓库可重现打包脚本：
 
 ```sh
-python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.9.2.mcplugin
+python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.9.9.mcplugin
 ```
 
 测试覆盖账号隔离、版本冲突、缓存与图片失败、预载不计展示、轮替取消、完整视口、选季及显式订阅确认。测试中的凭据、代理和账号均是虚构夹具，不包含运行实例的数据。版本演进见 [CHANGELOG.md](CHANGELOG.md)。

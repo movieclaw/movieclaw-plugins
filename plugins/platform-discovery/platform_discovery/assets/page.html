@@ -12,6 +12,7 @@
   <script src="posters.js" defer></script>
   <script src="wall-tools.js" defer></script>
   <script src="ambient.js" defer></script>
+  <script src="ambient-settings.js" defer></script>
   <script src="personal.js" defer></script>
   <script src="subscription.js" defer></script>
   <script src="theater.js" defer></script>
@@ -55,7 +56,7 @@
         <div class="wall-copy"><p class="eyebrow">YOUR OWN PICTURE SHOW</p><h2 id="wall-title">你的片味，铺满这一面。</h2><p id="wall-description">好故事不分新旧。做一次口味测试，让下一面更懂你。</p></div>
         <div class="wall-actions"><button type="button" id="wall-fullscreen-launch" class="button" aria-label="一键全屏海报墙">⛶ 全屏海报墙</button><button type="button" id="taste-start" class="button primary">开始口味测试 <span aria-hidden="true">↗</span></button><button type="button" id="wall-shuffle" class="button">↻ 换一面</button></div>
       </div>
-      <div class="wall-toolbar"><div id="wall-profile-tags" class="wall-profile-tags"><span>新旧同选</span><span>已按 MovieClaw 账号同步</span></div><div class="wall-utilities"><span id="wall-count"></span><button type="button" id="wall-fullscreen" class="wall-layout-control" role="switch" aria-checked="false" aria-controls="poster-wall" aria-label="全屏海报墙"><span class="wall-layout-track" aria-hidden="true"></span>全屏海报墙</button><button type="button" id="wall-layout" class="wall-layout-control" role="switch" aria-checked="false"><span class="wall-layout-track" aria-hidden="true"></span>无缝拼贴</button><button type="button" id="wall-motion" class="button ghost" aria-pressed="true">呼吸动效：开</button><button type="button" id="taste-history-toggle" class="button ghost" aria-expanded="false" aria-controls="taste-history">片味档案</button></div></div>
+      <div class="wall-toolbar"><div id="wall-profile-tags" class="wall-profile-tags"><span>新旧同选</span><span>已按 MovieClaw 账号同步</span></div><div class="wall-utilities"><span id="wall-count"></span><button type="button" id="wall-fullscreen" class="wall-layout-control" role="switch" aria-checked="false" aria-controls="poster-wall" aria-label="全屏海报墙"><span class="wall-layout-track" aria-hidden="true"></span>全屏海报墙</button><button type="button" id="wall-layout" class="wall-layout-control" role="switch" aria-checked="false"><span class="wall-layout-track" aria-hidden="true"></span>无缝拼贴</button><button type="button" id="wall-motion" class="button ghost" aria-pressed="true">呼吸动效：开</button><button type="button" id="wall-ambient-settings" class="button ghost">屏保节奏</button><button type="button" id="taste-history-toggle" class="button ghost" aria-expanded="false" aria-controls="taste-history">片味档案</button></div></div>
       <section id="taste-history" class="taste-history" aria-label="历次口味测试" hidden><div class="taste-history-head"><h3>片味会变，好故事会留下。</h3><p>保留最近八次测试。最近一次约占 72%，此前测试合计约占 28%；第一次测试占全部权重。档案保存在本服务器，同一 MovieClaw 账号跨设备共用。</p></div><div id="taste-history-list"></div></section>
       <section id="wall-preset-shortcuts" class="wall-preset-shortcuts" aria-label="收藏方案快捷切换" hidden><span class="preset-shortcut-label">我的方案</span><div id="preset-shortcut-list" class="preset-shortcut-list" role="group" aria-label="已收藏筛选方案"></div><button id="preset-shortcut-manage" class="button ghost" type="button">管理方案</button></section><p id="preset-shortcut-status" class="preset-shortcut-status" role="status" hidden></p>
       <div class="wall-filters" aria-label="本次海报墙筛选"><label>想看什么 <select id="wall-format"><option value="all">电影与剧集</option><option value="movie">只看电影</option><option value="tv">只看剧集</option></select></label><div class="wall-filter-field"><span>国家／地区</span><button id="wall-country" class="button wall-filter-picker" type="button" aria-haspopup="dialog" aria-controls="wall-filter-dialog">全部</button></div><div class="wall-filter-field"><span>故事年代</span><button id="wall-era" class="button wall-filter-picker" type="button" aria-haspopup="dialog" aria-controls="wall-filter-dialog">全部</button></div><button id="wall-genres" class="button wall-filter-picker" type="button" aria-haspopup="dialog" aria-controls="wall-filter-dialog">题材与探索</button><button id="wall-presets" class="button" type="button">筛选方案</button><button id="wall-browse-history" class="button" type="button">浏览历史</button><button id="wall-shelf" class="button" type="button">我的片单</button><span id="wall-filter-sync" role="status">筛选按账号同步 · 不改口味档案</span></div>
@@ -77,15 +78,30 @@
   </main>
   <button type="button" id="immersive-trigger" class="immersive-trigger" aria-label="显示全屏操作" aria-controls="immersive-tools" aria-expanded="false" hidden>显示全屏操作</button>
   <div id="immersive-tools" class="immersive-tools" role="toolbar" aria-label="海报墙全屏操作" hidden>
-    <span class="immersive-title">海报墙</span>
+    <span id="immersive-title" class="immersive-title">海报墙</span>
     <button type="button" id="immersive-shuffle" class="button" aria-label="更换一面海报">↻ 换一面</button>
     <button type="button" id="immersive-taste" class="button" aria-label="打开口味测试">口味测试</button>
     <button type="button" id="immersive-filters" class="button">筛选方案</button>
     <button type="button" id="immersive-history" class="button">浏览历史</button>
     <button type="button" id="immersive-shelf" class="button">我的片单</button>
-    <button type="button" id="immersive-motion" class="button" aria-pressed="true">纵深呼吸：开</button><button type="button" id="immersive-ambient" class="button" role="switch" aria-checked="true">屏保轮替：开</button><span id="immersive-ambient-status" class="immersive-ambient-status" role="status">静置 5 秒自动轮替</span>
+    <button type="button" id="immersive-native" class="button" hidden>进入浏览器全屏</button><button type="button" id="immersive-motion" class="button" aria-pressed="true">纵深呼吸：开</button><button type="button" id="immersive-ambient" class="button" role="switch" aria-checked="true">屏保轮替：开</button><button type="button" id="immersive-ambient-settings" class="button">屏保节奏</button><span id="immersive-ambient-status" class="immersive-ambient-status" role="status">静置 5 秒自动轮替</span>
     <button type="button" id="immersive-exit" class="button" aria-label="退出全屏并恢复页面">退出全屏</button>
   </div>
+  <dialog id="ambient-dialog" class="shelf-dialog ambient-dialog" aria-labelledby="ambient-title">
+    <form id="ambient-form">
+      <div class="shelf-heading"><div><h2 id="ambient-title">屏保节奏</h2><p class="shelf-note">让海报错落呼吸，按你的速度流动。</p></div><button id="ambient-close" class="button" type="button">关闭</button></div>
+      <p class="shelf-note">保存后立即生效，随 MovieClaw 账号同步。调整时屏保暂停，关闭后静置 5 秒恢复。</p>
+      <label class="ambient-range" for="ambient-fade-out"><span>淡出时长 <output id="ambient-fade-out-value" for="ambient-fade-out">2.0 秒</output></span><input id="ambient-fade-out" type="range" min="600" max="6000" step="100" value="2000"><small>旧海报缓缓淡去的时间</small></label>
+      <label class="ambient-range" for="ambient-fade-in"><span>淡入时长 <output id="ambient-fade-in-value" for="ambient-fade-in">2.6 秒</output></span><input id="ambient-fade-in" type="range" min="600" max="6000" step="100" value="2600"><small>新海报逐渐清晰的时间</small></label>
+      <label class="ambient-range" for="ambient-gap"><span>海报更替间隔 <output id="ambient-gap-value" for="ambient-gap">0.8 秒</output></span><input id="ambient-gap" type="range" min="200" max="5000" step="100" value="800"><small>不同海报开始变化的间距；越小，彼此交叠越丰富。数量与位置仍随机。</small></label>
+      <details class="ambient-advanced"><summary>自然感与交叠</summary>
+        <label class="ambient-range" for="ambient-overlap"><span>画面交叠 <output id="ambient-overlap-value" for="ambient-overlap">60%</output></span><input id="ambient-overlap" type="range" min="0" max="80" step="5" value="60"><small>新海报在旧海报完全淡去前浮现，减少空黑。0% 为完整淡出后再淡入。</small></label>
+        <label class="ambient-range" for="ambient-variation"><span>节奏变化 <output id="ambient-variation-value" for="ambient-variation">25%</output></span><input id="ambient-variation" type="range" min="0" max="45" step="5" value="25"><small>每张海报的时长、间隔会在设定值附近轻微变化。0% 为固定节奏。</small></label>
+      </details>
+      <p id="ambient-settings-status" class="shelf-note" role="status"></p>
+      <div class="ambient-footer"><button id="ambient-reset" class="button ghost" type="button">恢复默认</button><button id="ambient-save" class="button primary" type="submit">保存节奏</button></div>
+    </form>
+  </dialog>
   <dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title">
     <div class="detail-topbar"><span id="detail-header-title"></span><span id="detail-position" aria-live="polite"></span><button type="button" id="detail-previous" class="button" aria-label="上一部影片">←</button><button type="button" id="detail-next" class="button" aria-label="下一部影片">→</button><button type="button" id="detail-copy" class="button" aria-label="复制片名">复制</button><button type="button" class="button icon-button detail-close" id="detail-close" aria-label="关闭详情">×</button></div><div class="wall-undo-slot" hidden></div><p id="detail-notice" class="dialog-notice" role="status" hidden></p><div class="detail-surface"><div id="detail-content"></div></div>
   </dialog>

@@ -129,6 +129,20 @@ class PublicDetailProjectionTests(unittest.TestCase):
 
 
 class PersonalRoutesTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ambient_settings_private_same_origin_and_bounded(self):
+        async def read(token): return {"settings": {"fade_out": 2000}, "revision": ""}
+        async def write(token, selection): return selection
+        self.personal.get_ambient_settings = read
+        self.personal.set_ambient_settings = write
+        self.assertEqual((await self.client.get('/personal/ambient')).status_code, 404)
+        response = await self.client.get('/personal/ambient', headers=self.private_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assert_no_store(response)
+        body = {"selection": {"settings": {"fade_out": 2000}, "revision": ""}}
+        self.assertEqual((await self.client.post('/personal/ambient', headers=self.private_headers(), json=body)).status_code, 200)
+        self.assertEqual((await self.client.post('/personal/ambient', headers={**self.private_headers(), 'sec-fetch-site': 'cross-site'}, json=body)).status_code, 403)
+        self.assertEqual((await self.client.post('/personal/ambient', headers=self.private_headers(), json={"selection": "x" * 3000})).status_code, 413)
+
     async def test_learning_and_subscription_sync_are_private_bounded_same_origin(self):
         for path, body in [("/personal/subscriptions", {"refs": ["tmdb:tv:42"]}), ("/personal/learning", {"enabled": False})]:
             self.assertEqual((await self.client.post(path, json=body)).status_code, 404)

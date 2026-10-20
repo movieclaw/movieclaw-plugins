@@ -641,6 +641,41 @@ class PersonalRecommendations:
             raise PersonalProfileError("筛选设置暂不可用。", status=503)
         return copy.deepcopy(record)
 
+    @staticmethod
+    def _ambient_values(value=None):
+        defaults = {"fade_out": 2000, "fade_in": 2600, "gap": 800, "variation": 25, "overlap": 60}
+        if value is None: return defaults
+        ranges = {"fade_out": (600, 6000), "fade_in": (600, 6000), "gap": (200, 5000), "variation": (0, 45), "overlap": (0, 80)}
+        if (not isinstance(value, dict) or set(value) != set(defaults)
+                or any(type(value[k]) is not int or not low <= value[k] <= high for k, (low, high) in ranges.items())):
+            raise PersonalProfileError("屏保节奏选项无效。")
+        return copy.deepcopy(value)
+
+    async def get_ambient_settings(self, profile_token):
+        scope = self._scope(profile_token)
+        async with self._locks.setdefault(scope, asyncio.Lock()):
+            record = await self._read(scope, "ambient-settings")
+            if record is None: return {"settings": self._ambient_values(), "revision": ""}
+            if not isinstance(record, dict) or not re.fullmatch(r"[0-9a-f]{24}", str(record.get("revision", ""))):
+                raise PersonalProfileError("屏保节奏暂不可用。", status=503)
+            self._ambient_values(record.get("settings", {}))
+            return copy.deepcopy(record)
+
+    async def set_ambient_settings(self, profile_token, selection):
+        if (not isinstance(selection, dict) or set(selection) != {"settings", "revision"}
+                or not isinstance(selection["revision"], str) or not re.fullmatch(r"[0-9a-f]{24}|", selection["revision"])):
+            raise PersonalProfileError("屏保节奏选项无效。")
+        settings = self._ambient_values(selection["settings"])
+        scope = self._scope(profile_token)
+        async with self._locks.setdefault(scope, asyncio.Lock()):
+            current = await self._read(scope, "ambient-settings") or {"settings": self._ambient_values(), "revision": ""}
+            if current["settings"] == settings: return copy.deepcopy(current)
+            if current["revision"] != selection["revision"]:
+                raise PersonalProfileError("另一设备已更新屏保节奏。", status=409)
+            record = {"settings": settings, "revision": secrets.token_hex(12)}
+            await self._write(scope, "ambient-settings", record)
+            return copy.deepcopy(record)
+
     async def get_wall_filters(self, profile_token):
         scope = self._scope(profile_token)
         async with self._locks.setdefault(scope, asyncio.Lock()):

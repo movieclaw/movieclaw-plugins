@@ -34,7 +34,7 @@ function make({reject=false,deferred=false}={}) {
     get requests(){return requests;},get exits(){return exits;}};
 }
 async function main(){
-  {const test=make();await test.fire("wall-fullscreen-launch");assert(test.classes.has("wall-immersive"));assert.equal(test.requests,0,"visible launcher fills the browser without requiring native fullscreen permission or focus");await test.fire("immersive-exit");assert(!test.classes.has("wall-immersive"));}
+  {const test=make();await test.fire("wall-fullscreen-launch");assert(test.classes.has("wall-immersive"));assert.equal(test.requests,1,"visible launcher requests native browser fullscreen in the original click gesture");assert.equal(test.document.body.dataset.fullscreenMode,"native");assert.equal(test.element("immersive-title").textContent,"浏览器全屏");await test.fire("immersive-exit");assert(!test.classes.has("wall-immersive"));}
 
   {
     const test=make();await test.fire("wall-fullscreen");
@@ -56,12 +56,16 @@ async function main(){
     assert(test.classes.has("wall-immersive"));test.document.dialogOpen=false;
     // Native Esc can arrive as fullscreenchange without a page keydown.
     test.document.fullscreenElement=null;test.emitDocument("fullscreenchange");
+    assert.equal(test.classes.has("wall-immersive"),true,"native fullscreen exit must not silently stop a visible screensaver");
+    assert.equal(test.document.body.dataset.fullscreenMode,"window");assert.equal(test.element("immersive-native").hidden,false);
+    await test.fire("immersive-native");assert.equal(test.requests,2,"window mode can re-enter native fullscreen from an explicit click");
+    test.emitDocument("keydown",{key:"Escape",preventDefault(){}});
     assert.equal(test.classes.has("wall-immersive"),false);assert.equal(test.element("immersive-tools").hidden,true);
     assert.equal(test.document.activeElement,test.element("wall-fullscreen"));
   }
   {
     const test=make({reject:true});await test.fire("wall-fullscreen");
-    assert(test.classes.has("wall-immersive"),"A denied native request retains the browser-window mosaic");assert.equal(test.notices.length,1);
+    assert(test.classes.has("wall-immersive"),"A denied native request retains the browser-window mosaic");assert.equal(test.notices.length,1);assert.equal(test.document.body.dataset.fullscreenMode,"window");
     await test.fire("immersive-trigger","focus");assert.equal(test.element("immersive-trigger").attrs["aria-expanded"],"true");
     await test.fire("immersive-trigger");assert.equal(test.document.activeElement,test.element("immersive-shuffle"));
     test.emitDocument("keydown",{key:"Escape",preventDefault(){}});

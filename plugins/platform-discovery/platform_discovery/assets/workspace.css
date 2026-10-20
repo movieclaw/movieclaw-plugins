@@ -191,18 +191,32 @@ body.workspace-ready.wall-immersive[data-wall-layout="seamless"] #poster-wall{bo
 /* Fullscreen breathes toward the viewer. Tile centers never move on screen. */
 body.workspace-ready.wall-immersive .wall-column-track{animation:none!important;transform:none!important;margin-top:0;will-change:auto}
 body.workspace-ready.wall-immersive .wall-tile{perspective:900px;perspective-origin:center;animation:none!important;transform:none!important;overflow:hidden}
-body.workspace-ready.wall-immersive .wall-poster{transform-origin:center;animation:wall-depth-breathe var(--float-duration,7s) ease-in-out var(--float-delay,0s) infinite;transition:opacity .65s ease;will-change:transform}
+body.workspace-ready.wall-immersive .wall-poster{transform-origin:center;animation:wall-depth-breathe var(--float-duration,7s) ease-in-out var(--float-delay,0s) infinite;transition:opacity var(--ambient-out-duration,2s) cubic-bezier(.45,0,.55,1);will-change:transform}
 @keyframes wall-depth-breathe{0%,100%{transform:translateZ(-12px)}50%{transform:translateZ(0)}}
 body.workspace-ready.wall-immersive.wall-still .wall-poster{animation:none;transform:none;will-change:auto}
 body.workspace-ready.wall-immersive:is(.page-hidden,.detail-open,.taste-open,.shelf-open,.filter-open) .wall-poster,
 body.workspace-ready.wall-immersive .wall-tile[data-quick-open="true"] .wall-poster{animation-play-state:paused}
 body.workspace-ready.wall-immersive .wall-tile.ambient-out{pointer-events:none}
 body.workspace-ready.wall-immersive .ambient-out .wall-poster{opacity:0}
-body.workspace-ready.wall-immersive .ambient-in .wall-poster{animation-name:wall-depth-breathe,wall-poster-arrive;animation-duration:var(--float-duration,7s),.65s;animation-delay:var(--float-delay,0s),0s;animation-iteration-count:infinite,1}
+body.workspace-ready.wall-immersive .ambient-in>.wall-poster{animation-name:wall-depth-breathe,wall-poster-arrive;animation-duration:var(--float-duration,7s),var(--ambient-in-duration,2.6s);animation-delay:var(--float-delay,0s),0s;animation-iteration-count:infinite,1;animation-timing-function:ease-in-out,cubic-bezier(.45,0,.55,1);animation-fill-mode:none,both}
 @keyframes wall-poster-arrive{from{opacity:0}to{opacity:1}}
+.ambient-ghost{position:absolute;inset:0;z-index:2;pointer-events:none;animation:ambient-old-leave var(--ambient-ghost-duration,1s) cubic-bezier(.45,0,.55,1) both}
+body.workspace-ready.wall-immersive .ambient-ghost>.wall-poster{width:100%;height:100%;animation:none!important;transition:none;opacity:1;pointer-events:none}
+@keyframes ambient-old-leave{from{opacity:var(--ambient-ghost-opacity,1)}to{opacity:0}}
 body.wall-screen-running .wall-quick-toggle,body.wall-screen-running .wall-tile-copy{opacity:0!important;pointer-events:none}
 .immersive-ambient-status{flex-basis:100%;text-align:center;color:var(--muted);font-size:10px;line-height:18px}
 .immersive-tools{border-radius:20px}
+.ambient-dialog{width:min(560px,calc(100% - 32px));max-height:88dvh;overflow-y:auto;padding:24px}
+.ambient-dialog h2{margin:0}.ambient-dialog .shelf-heading{align-items:flex-start}
+.ambient-dialog .shelf-note{font-size:12px;line-height:1.7;color:var(--muted)}
+.ambient-range{display:block;margin:22px 0;color:var(--text)}
+.ambient-range>span{display:flex;justify-content:space-between;gap:16px;font-size:14px;font-weight:600}
+.ambient-range output{font-variant-numeric:tabular-nums;font-weight:400;color:var(--muted)}
+.ambient-range input[type="range"]{display:block;width:100%;height:36px;padding:0;min-height:36px;margin:8px 0 0;border:0;accent-color:#ddd;cursor:pointer;background:transparent}
+.ambient-range small{display:block;font-size:11px;line-height:1.7;color:var(--muted)}
+.ambient-advanced{border-top:1px solid var(--line);padding-top:16px}.ambient-advanced summary{cursor:pointer;font-size:13px;padding:8px 0}
+.ambient-footer{display:flex;justify-content:space-between;gap:12px;position:sticky;bottom:-24px;background:var(--panel);padding:14px 0 0}
+@media(max-width:767px){.ambient-dialog{width:calc(100% - 20px);padding:20px 16px;border-radius:18px}.ambient-footer{bottom:-20px}.ambient-dialog .button{min-height:44px}.ambient-range input[type="range"]{height:44px}}
 @media(max-width:767px){
  .workspace-heading .wall-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;width:100%}
  .workspace-heading .wall-actions .button{width:100%;padding:8px 4px;font-size:11px;white-space:nowrap}
@@ -217,9 +231,11 @@ body.wall-screen-running .wall-quick-toggle,body.wall-screen-running .wall-tile-
 body.workspace-ready.wall-immersive[data-wall-layout="seamless"] #poster-wall{grid-template-columns:repeat(var(--wall-columns),var(--wall-fit-width));align-items:center;justify-content:center}
 body.workspace-ready.wall-immersive .wall-column{height:var(--wall-fit-height);align-self:center}
 body.wall-immersive .wall-rating-corner{display:none}
-body:not(.wall-immersive) .wall-rating-corner{z-index:3;border-radius:inherit;min-height:50px;padding:9px 10px}
+body:not(.wall-immersive) .wall-rating-corner{z-index:3;border-radius:inherit;min-height:50px;padding:9px 10px;opacity:0;transition:opacity .15s ease}
 body:not(.wall-immersive) .wall-rating-corner .theater-rating{font-size:clamp(22px,2.6vw,36px)}
-body:not(.wall-immersive) .wall-tile[data-quick-open="true"] .wall-rating-corner{opacity:0}
+body:not(.wall-immersive) .wall-tile:is(:hover,:has(:focus-visible)) .wall-rating-corner{opacity:1}
+@media(max-width:767px),(hover:none){body:not(.wall-immersive) .wall-tile[data-quick-open="true"] .wall-rating-corner{opacity:1}}
+@media(prefers-reduced-motion:reduce){body:not(.wall-immersive) .wall-rating-corner{transition:none}}
 @media(max-width:767px){body:not(.wall-immersive) .wall-rating-corner{padding:8px;min-height:42px}body:not(.wall-immersive) .wall-rating-corner .theater-rating{font-size:25px}}
 
 body.workspace-ready.wall-immersive .wall-column .wall-poster>img{object-fit:contain}

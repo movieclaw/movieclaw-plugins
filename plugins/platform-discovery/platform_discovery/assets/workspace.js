@@ -58,7 +58,7 @@
  more.addEventListener('click',()=>{sheet.showModal();sheet.scrollTop=0;});close.addEventListener('click',()=>sheet.close());
  // Close this sheet before an existing control opens another dialog. Display
  // switches stay in place, so several settings can be changed in one visit.
- const dialogButtons=new Set(['wall-presets','wall-browse-history','wall-shelf','theater-cache-open','wall-fullscreen','taste-start','entry-links-open']);
+ const dialogButtons=new Set(['wall-presets','wall-browse-history','wall-shelf','theater-cache-open','wall-fullscreen','taste-start','entry-links-open','wall-ambient-settings']);
  sheet.addEventListener('click',event=>{const b=event.target.closest('button');if(b&&dialogButtons.has(b.id))sheet.close();},true);
  sheet.addEventListener('close',()=>{if(!document.querySelector('dialog[open]')&&!document.body.classList.contains('wall-immersive'))more.focus({preventScroll:true});});
  globalThis.MovieClawWorkspace={setMode};document.body.classList.add('workspace-ready');

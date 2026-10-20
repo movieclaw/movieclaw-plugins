@@ -89,6 +89,10 @@ globalThis.MovieClawPosters={
       return results.length>0&&results.some(Boolean)&&generation===nextEpoch&&canPrepare();
     }
     let ambientEpoch=0;
+    function readyForSwap(items,width){
+      if(!canPrepare())return [];
+      return items.slice(0,96).filter(item=>[item.poster_url,...(item.poster_fallback_urls||[])].some(value=>[globalThis.MovieClawPosters.sized(value,width,dpr()),value].filter(Boolean).some(url=>ready.has(urlFor(url)))));
+    }
     async function prepareSwap(items,width){
       const generation=ambientEpoch;
       const results=await Promise.all(items.slice(0,3).map(async item=>{
@@ -108,6 +112,6 @@ globalThis.MovieClawPosters={
     function cancelHover(){clearTimeout(hoverTimer);discard("detail");}
     function setEnabled(value){enabled=!!value;if(!enabled){cancelAmbient();cancelHover();discard("warm-wall");cancelNext();}}
     function close(){cancelAmbient();beginWall();nextEpoch++;epoch++;clearTimeout(hoverTimer);paused=true;for(const job of [...jobs.values()])finish(job,false);paused=false;}
-    return {prepareSwap,cancelAmbient,attach,beginWall,warmWall,settled,canPrepare,warmNext,cancelNext,hover,cancelHover,setEnabled,close};
+    return {readyForSwap,prepareSwap,cancelAmbient,attach,beginWall,warmWall,settled,canPrepare,warmNext,cancelNext,hover,cancelHover,setEnabled,close};
   }
 };

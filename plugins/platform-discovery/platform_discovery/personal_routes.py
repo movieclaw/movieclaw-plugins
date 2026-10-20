@@ -409,6 +409,17 @@ def build_personal_router(entry_id, personal, get_ops, account_dependency=None):
         selection = await learning_body(request, "selection", 4096)
         return await private_call(personal.set_wall_filters, token, selection, _conflict_message="另一设备已更新筛选，请载入最新条件后再应用。")
 
+    @router.get("/personal/ambient", operation_id=operation + "personal-ambient", summary="读取账号的屏保节奏", openapi_extra=hidden)
+    async def ambient_settings(request: Request):
+        _browser_request(request)
+        return await private_call(personal.get_ambient_settings, await profile_token(request))
+
+    @router.post("/personal/ambient", operation_id=operation + "personal-ambient-update", summary="保存账号的屏保节奏", openapi_extra=hidden)
+    async def set_ambient_settings(request: Request):
+        token = await profile_token(request)
+        selection = await learning_body(request, "selection", 2048)
+        return await private_call(personal.set_ambient_settings, token, selection, _conflict_message="另一设备已更新屏保节奏，请关闭后重新打开，再调整。")
+
     @router.get("/personal/presets", operation_id=operation + "personal-presets", summary="读取账号收藏的筛选方案", openapi_extra=hidden)
     async def presets(request: Request):
         _browser_request(request)

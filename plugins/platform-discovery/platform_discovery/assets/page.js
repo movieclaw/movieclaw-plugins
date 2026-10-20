@@ -21,6 +21,7 @@
   image.canPrepare=()=>posterLoader?.canPrepare()||false;
   image.warmNext=(items,width)=>posterLoader?.warmNext(items,width)||Promise.resolve(false);
   image.cancelNext=()=>posterLoader?.cancelNext();
+  image.readyForSwap=(items,width)=>posterLoader?.readyForSwap(items,width)||[];
   image.prepareSwap=(items,width)=>posterLoader?.prepareSwap(items,width)||Promise.resolve([]);
   image.cancelAmbient=()=>posterLoader?.cancelAmbient();
   image.warmWall=(items,width)=>posterLoader?.warmWall(items,width)||Promise.resolve();
