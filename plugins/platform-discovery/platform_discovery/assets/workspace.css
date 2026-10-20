@@ -236,6 +236,23 @@ body:not(.wall-immersive) .wall-rating-corner .theater-rating{font-size:clamp(22
 body:not(.wall-immersive) .wall-tile:is(:hover,:has(:focus-visible)) .wall-rating-corner{opacity:1}
 @media(max-width:767px),(hover:none){body:not(.wall-immersive) .wall-tile[data-quick-open="true"] .wall-rating-corner{opacity:1}}
 @media(prefers-reduced-motion:reduce){body:not(.wall-immersive) .wall-rating-corner{transition:none}}
+
+/* v0.41 native shell provides its own navigation, theme and mobile title. */
+html.native-page{--bg:var(--mc-surface-inset,#080808);--text:var(--mc-text,#f3f5f9);--muted:var(--mc-text-muted,#aaa);--faint:var(--mc-text-faint,#777);--line:var(--mc-line,rgba(255,255,255,.09));--panel:var(--mc-surface-raised,#151516);--ring:var(--mc-accent,#c8daff)}
+html.native-page body{background:transparent;font-family:var(--mc-font,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif)}
+html.native-page .app-header{display:none}
+html.native-page .button{background:var(--mc-glass-fill,rgba(255,255,255,.04));border-color:var(--line);box-shadow:none}
+html.native-page .button:hover{background:var(--mc-glass-fill-hover,rgba(255,255,255,.08))}
+html.native-page .button.primary{background:var(--text);color:var(--bg);border-color:transparent}
+html.native-page .button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+html.native-page body.wall-immersive{background:#050505}
+@media(min-width:768px){html.native-page .discovery-modes{display:none}}
+@media(max-width:767px){
+ html.native-page body.workspace-ready .discovery-modes{height:46px;gap:12px;align-items:stretch}
+ html.native-page body.workspace-ready .discovery-modes button{padding:10px 0;justify-content:center}
+ html.native-page .discovery-modes .mode-description{display:none}
+ html.native-page .discovery-modes .mode-title{font-size:12px}
+}
 @media(max-width:767px){body:not(.wall-immersive) .wall-rating-corner{padding:8px;min-height:42px}body:not(.wall-immersive) .wall-rating-corner .theater-rating{font-size:25px}}
 
 body.workspace-ready.wall-immersive .wall-column .wall-poster>img{object-fit:contain}

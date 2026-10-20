@@ -153,7 +153,7 @@ globalThis.MovieClawTheater={
   }
   function playLink(item,episode=null){let url="/play/"+Number(item.media_item_id);if(episode)url+="/s"+String(episode.season).padStart(2,"0")+"e"+String(episode.episode_number).padStart(2,"0");if(episode?.position_ms>0&&!episode.played)url+="?t="+Math.floor(episode.position_ms/1000);return url;}
   function playback(label,item,episode=null){
-   const a=node("a",label,"button primary");a.href=playLink(item,episode);if(episode){a.className+=" theater-episode";a.title=label;a.setAttribute("aria-label",label);a.replaceChildren(node("span",label,"theater-episode-label"));}a.addEventListener("click",()=>{try{sessionStorage.setItem("movieclaw.player.return-to",base+"/panel?view=theater");sessionStorage.setItem("movieclaw.theater-return",JSON.stringify({account:state.account,scroll:window.scrollY,media_item_id:item.media_item_id,filters:state.filters}));}catch{}});return a;
+   const a=node("a",label,"button primary");a.href=playLink(item,episode);a.target="_top";if(episode){a.className+=" theater-episode";a.title=label;a.setAttribute("aria-label",label);a.replaceChildren(node("span",label,"theater-episode-label"));}a.addEventListener("click",()=>{try{sessionStorage.setItem("movieclaw.player.return-to",globalThis.MovieClawNavigation?.isNative()?"/apps/platform-discovery/theater/":base+"/panel?view=theater");sessionStorage.setItem("movieclaw.theater-return",JSON.stringify({account:state.account,scroll:window.scrollY,media_item_id:item.media_item_id,filters:state.filters}));}catch{}});return a;
   }
   function resumePosition(){try{const saved=JSON.parse(sessionStorage.getItem("movieclaw.theater-return")||"null");if(saved?.account===state.account&&JSON.stringify(saved.filters)===JSON.stringify(state.filters)){const row=state.cards.get(saved.media_item_id);if(row){row.card.scrollIntoView({block:"center"});sessionStorage.removeItem("movieclaw.theater-return");}}}catch{}}
   async function showDetail(item){
@@ -166,7 +166,7 @@ globalThis.MovieClawTheater={
     const meta=data.local_meta||{};main.append(node("p",meta.plot||"本地资料暂无简介。","theater-overview"));if(meta.genres?.length)main.append(node("p",meta.genres.join(" / ")));if(meta.directors?.length)main.append(node("p","导演："+meta.directors.join("、")));if(meta.actors?.length)main.append(node("p","参演："+meta.actors.slice(0,16).map(p=>p.name+(p.role?"（"+p.role+"）":"")).join("、")));
     const actions=node("div",null,"theater-detail-actions"),inPlace=(data.files||[]).some(file=>file.state==="in_place");
     if(data.kind==="movie"){if(inPlace)actions.append(playback("▶ 在 MovieClaw 观看",item));else actions.append(node("p","没有可播放的在位文件，请在主程序检查库存。"));}
-    const nativeLink=node("a","主程序库存详情 ↗","button");nativeLink.href="/library/"+item.library_id+"/item/"+item.media_item_id;actions.append(nativeLink,button("挑选海报","button",()=>chooseArt(item)));main.append(actions);
+    const nativeLink=node("a","主程序库存详情 ↗","button");nativeLink.href="/library/"+item.library_id+"/item/"+item.media_item_id;nativeLink.target="_top";actions.append(nativeLink,button("挑选海报","button",()=>chooseArt(item)));main.append(actions);
     if(data.kind==="tv"){
      const label=node("label","选择季 "),season=node("select");season.id="theater-season";
      const seasons=(data.seasons||item.seasons||[]).map(s=>typeof s==="number"?s:s.season_number).filter(Number.isInteger);

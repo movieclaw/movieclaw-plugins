@@ -39,7 +39,7 @@ globalThis.MovieClawPersonal = {
   create({api,node,button,image,showDetail,compactDate,announce}) {
     const $=id=>document.getElementById(id);
     const state={token:"",profile:null,schema:null,ready:null,loaded:false,loading:false,pendingReload:false,step:0,answers:{},submitting:false,motion:true,seamless:false,observer:null,generation:0,feed:null,layout:null,resizeTimer:null,immersive:false,nativeFullscreen:false,controlsTimer:null,scrollBeforeFullscreen:0,preload:true};
-    let tools=null,ambient=null,ambientSettings=null;state.ambientEnabled=true;state.ambientTiming={fade_out:2000,fade_in:2600,gap:800,variation:25,overlap:60};state.genres="all";state.excludeGenres="all";state.exploration="balanced";
+    let tools=null,ambient=null,ambientSettings=null;state.autoScreenPending=typeof globalThis.URLSearchParams==="function"&&new globalThis.URLSearchParams(globalThis.location?.search||"").get("screen")==="1";state.ambientEnabled=true;state.ambientTiming={fade_out:2000,fade_in:2600,gap:800,variation:25,overlap:60};state.genres="all";state.excludeGenres="all";state.exploration="balanced";
     state.filtersRevision="";state.filtersReadAt=0;state.filtersPromise=null;state.filtersSaving=false;state.filterEpoch=0;state.filterDraftRevision="";
     state.mediaType="all";state.era="all";state.country="all";state.quickLabels=new Set();state.activeQuick=null;state.feedbackPending=false;state.shelfReadAt=0;state.shelfReadPromise=null;
     state.shelf={saved:[],dismissed:[],watched:[],liked:[]};state.shelfEpoch=0;state.initialized=false;state.account="";state.checking=null;state.feedbackTail=Promise.resolve();state.syncPromise=null;state.syncedAt=0;state.admin=false;state.profileReadAt=0;state.profilePromise=null;state.syncTimer=null;
@@ -225,7 +225,7 @@ globalThis.MovieClawPersonal = {
     function fullscreenMode(){
       const native=!!document.fullscreenElement;
       document.body.dataset.fullscreenMode=state.immersive?(native?"native":"window"):"off";
-      $("immersive-title").textContent=native?"浏览器全屏":"窗口铺满";$("immersive-native").hidden=native||!state.immersive;
+      $("immersive-title").textContent=native?"浏览器全屏":"窗口铺满";$("immersive-native").hidden=native||!state.immersive;$("immersive-standalone").hidden=native||!state.immersive||!globalThis.MovieClawNavigation?.isNative();
     }
     function immersiveState(enabled){
       state.immersive=enabled;clearTimeout(state.controlsTimer);
@@ -431,7 +431,7 @@ globalThis.MovieClawPersonal = {
         if(!state.loaded){const empty=node("div",null,"wall-empty");empty.append(node("h3","暂时无法载入海报墙"),node("p",error.message||"暂时连接不到影片片库，请稍后重试。"),node("p","无需重新做口味测试，你的片味档案会保留。"),button("重新连接","button",()=>loadWall()));wall.replaceChildren(empty);}
         $("wall-status").textContent=error.message;$("wall-status").classList.add("has-error");
       }finally{
-        state.loading=false;ambient?.wake();wall.setAttribute("aria-busy","false");$("wall-shuffle").disabled=false;$("wall-shuffle-bottom").disabled=false;$("immersive-shuffle").disabled=false;
+        state.loading=false;if(state.loaded&&state.autoScreenPending){state.autoScreenPending=false;enterFullscreen(false);}ambient?.wake();wall.setAttribute("aria-busy","false");$("wall-shuffle").disabled=false;$("wall-shuffle-bottom").disabled=false;$("immersive-shuffle").disabled=false;
         if(state.initialized)tools?.refreshShortcuts();
         if(state.pendingReload){state.pendingReload=false;loadWall();}else if(state.initialized){Promise.resolve(state.syncPromise||syncSubscriptions()).finally(()=>prepareNext());}
       }

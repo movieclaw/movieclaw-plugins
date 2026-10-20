@@ -8,10 +8,11 @@ globalThis.MovieClawTransport={
     return Date.now().toString(36)+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
   },
   loginUrl(location=globalThis.location){
-    const base="/api/v1/plugins/platform-discovery/panel";
-    let target=location?.pathname?.startsWith("/apps/platform-discovery")?"/apps/platform-discovery/":base;
-    const view=new URLSearchParams(location?.search||"").get("view");
-    if(["personal","random","platforms","theater"].includes(view))target+="?view="+view;
+    const base="/api/v1/plugins/platform-discovery/panel",app="/apps/platform-discovery/",web="/api/v1/plugins/platform-discovery/web/";
+    const path=location?.pathname||"",prefix=path===app.slice(0,-1)||path.startsWith(app)?app:path===web.slice(0,-1)||path.startsWith(web)?web:null;
+    let target=base;
+    if(prefix){const sub=path.slice(prefix.length).replace(/\/$/,"");target=app+(["theater","platforms","random"].includes(sub)?sub+"/":"");}
+    else {const params=new URLSearchParams(location?.search||""),view=params.get("view");if(["personal","random","platforms","theater"].includes(view))target+="?view="+view;if(view==="personal"&&params.get("screen")==="1")target+="&screen=1";}
     return "/login?next="+encodeURIComponent(target);
   },
   async request(path,options={},timeoutMs=30000){

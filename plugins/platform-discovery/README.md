@@ -1,6 +1,6 @@
 # 平台放映厅 · Platform Discovery
 
-MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.9.9**，已在 **MovieClaw Server 0.40.0** 验证。
+MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.10.0**，兼容独立入口，并为 **MovieClaw Server 0.41.0** 提供正式原生菜单适配。完整操作见 [使用教程](docs/USER_GUIDE.md)。
 
 Platform Discovery adds an account-scoped recommendation wall, a library theater, platform feeds and regional TV discovery to MovieClaw. It runs as an explicitly approved inline plugin. It does not modify the host application. The plugin UI and documentation are currently in Simplified Chinese.
 
@@ -26,19 +26,25 @@ Platform Discovery adds an account-scoped recommendation wall, a library theater
    ```
 
    可在当前 MovieClaw 地址后附加上述路径；不同 IP／域名均跟随当前来源，未登录时先登录并返回插件。源码的 HTML 文件不能脱离服务器直接作为在线页面使用。
-4. 新版宿主如支持标准插件页面入口，可读取 `web/manifest.webmanifest`；旧宿主仍可使用上述同源路径。插件不会注入或改写宿主前端。
+4. MovieClaw 0.41.0 起，在批准本版本网页后提供四个原生入口：
 
-管理员 CLI 安装示例（先将 CLI 连接到自己的服务器）：
+   | 菜单 | 地址 |
+   | --- | --- |
+   | 海报墙 | `/apps/platform-discovery/` |
+   | 录像厅 | `/apps/platform-discovery/theater/` |
+   | 平台热榜 | `/apps/platform-discovery/platforms/` |
+   | 随心看剧 | `/apps/platform-discovery/random/` |
+
+   电脑在主导航，手机浏览器在「我的」页；导航排序及隐藏由主程序管理。网页信任必须由管理员在网页确认，普通成员是否可见由管理员选择。旧版宿主仍可使用独立入口。插件不会注入或改写宿主前端。
+5. 原生页只有宿主的一层 iframe，资源均使用同源绝对路径；刷新、地址回跳和前进后退保持板块。字体、按钮和颜色跟随宿主主题，手机保留紧凑切换条。
+
+管理员可用已配对的 CLI 上传安装包：
 
 ```sh
-mclaw app plugins packages upload --file platform-discovery-0.9.9.mcplugin
-mclaw app plugins packages approve platform-discovery --version 0.9.9 \
-  --operations-json '["discover.get-title-details","discover.filter-titles"]' \
-  --paths-json '[]' --allow-inline --yes
-mclaw app plugins show platform-discovery
+mclaw app plugins packages upload --file platform-discovery-0.10.0.mcplugin
 ```
 
-`--allow-inline` 是管理员审阅后明确接受进程内运行的开关；不要把它当成无需审阅的默认安装流程。
+然后回到 MovieClaw 网页的「设置 → 插件」审阅并批准本版本的主进程运行、网页信任及菜单可见性。不要让代理或命令行代替网页信任确认。安装后可用 `mclaw app plugins show platform-discovery` 查看状态。
 
 ## 配置
 
@@ -95,13 +101,15 @@ mclaw app plugins show platform-discovery
 
 ## 兼容性与限制
 
-- 已验证 MovieClaw Server **0.40.0**、SDK／`host-ops`／`plugin-routes`／`plugin-data` **1.0**；其他主程序版本需要重新验证。
+- 基础功能以 MovieClaw Server **0.40.0** 为基线；原生菜单适配 **0.41.0**。SDK／`host-ops`／`plugin-routes`／`plugin-data` **1.0**；其他主程序版本需要重新验证。
 - 清单申请 `discover.get-title-details`、`discover.filter-titles`，路径授权为空，声明联网。**清单中的两个只读操作不等于 inline 插件只有这两项能力**：inline 与宿主共享权限，必须一起审阅库存、账号和订阅路由实现。
 - 国内公开接口可能变更、限流或返回空片单；显示来源状态与缓存时间，不以假榜单替代。TMDB 地区片库不等同于各平台官方热播榜。
 - 手机验证使用浏览器视口模拟，未宣称已覆盖所有手机实机。后台标签页计时会受浏览器节流限制。
 - 本插件不是媒体播放器；库存播放跳到 MovieClaw。宿主资料服务异常时，新订阅仍可能不可用，不修改宿主网络设置来绕过故障。
 
 ## 开发与检查
+
+修改页面后先运行 `python3 tools/build_web.py`，原生静态页由独立页生成；测试会检查两者同步。原生菜单解析需在 0.41.0 环境验证，旧版环境中该项会跳过。
 
 在与仓库 CI 相同的 MovieClaw 0.40.0 环境中运行：
 
@@ -119,7 +127,7 @@ for test in plugins/platform-discovery/tests/*.cjs; do node "$test" || exit; don
 使用本仓库可重现打包脚本：
 
 ```sh
-python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.9.9.mcplugin
+python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.10.0.mcplugin
 ```
 
 测试覆盖账号隔离、版本冲突、缓存与图片失败、预载不计展示、轮替取消、完整视口、选季及显式订阅确认。测试中的凭据、代理和账号均是虚构夹具，不包含运行实例的数据。版本演进见 [CHANGELOG.md](CHANGELOG.md)。

@@ -43,7 +43,7 @@
   }
   // 主题偏好按当前屏幕选覆盖值；不读取或猜测登录凭据。
   async function syncTheme() {
-    if(preview) return;
+    if(preview||globalThis.MovieClawNavigation?.isEmbedded()) return;
     try {
       const response=await fetch("/api/v1/ui/preferences",{credentials:"same-origin",cache:"no-store"});
       if(!response.ok) return;
@@ -107,7 +107,7 @@
     if(feed.status==="stale") provenance.append(node("div","当前展示上次成功获取的缓存，请以来源页面为准。"));
     main.append(provenance);
     if(platform.id==="personal")main.append(personal.detailActions(item));
-    const actions=node("div",null,"detail-actions"), native=node("a",item.detail_ref?"查看 MovieClaw 详情":"在 MovieClaw 查找","button");native.href=nativeTarget(item);
+    const actions=node("div",null,"detail-actions"), native=node("a",item.detail_ref?"查看 MovieClaw 详情":"在 MovieClaw 查找","button");native.href=nativeTarget(item);native.target="_top";
     if(!preview&&item.detail_ref){detailSubscription=globalThis.MovieClawSubscriptions.create({item,node,button,announce,onCreated:()=>personal.subscriptionChanged(),onBusy:busy=>{$("detail-close").disabled=busy;$("detail-previous").disabled=busy||detailNavigation.index===0;$("detail-next").disabled=busy||detailNavigation.index>=detailNavigation.items.length-1;}});actions.append(detailSubscription.entry);}
     const nativeStatus=node("p",null,"detail-native-status");nativeStatus.hidden=true;nativeStatus.setAttribute("role","status");
     if(preview) native.addEventListener("click",event=>{event.preventDefault();announce("启用插件后，会跳到 MovieClaw 原生影视资料页。");});
@@ -121,7 +121,7 @@
         try{
           const status=await api("/native-title-status/"+encodeURIComponent(item.detail_ref));
           if(generation!==detailGeneration||!$("detail-dialog").open||detailSubscription?.isSubmitting())return;
-          if(status.available===true){location.assign(nativeTarget(item));return;}
+          if(status.available===true){globalThis.MovieClawNavigation?globalThis.MovieClawNavigation.hostNavigate(nativeTarget(item)):location.assign(nativeTarget(item));return;}
           nativeStatus.textContent=status.message||"MovieClaw 的影片资料服务暂时不可用，请稍后重试。";nativeStatus.hidden=false;
         }catch(error){if(generation===detailGeneration&&$("detail-dialog").open){nativeStatus.textContent=error.message;nativeStatus.hidden=false;}}
         finally{checking=false;native.removeAttribute("aria-disabled");native.textContent=nativeStatus.hidden?label:"重试 MovieClaw 入口";}
@@ -321,7 +321,8 @@
     }catch(err){if(generation!==rec.generation)return;row.replaceChildren();const empty=node("div",null,"empty-state");empty.append(node("p",err.message));row.append(empty);$("recommendation-note").textContent="可点“换一批”重试。";}
     finally{if(generation===rec.generation){trigger.disabled=false;trigger.textContent="↻ 换一批";}}
   }
-  function setMode(mode){
+  function setMode(mode,syncUrl=true){
+    if(syncUrl)globalThis.MovieClawNavigation?.updateMode?.(mode);
     if(state.mode==="personal"&&mode!=="personal")personal.leave?.();
     if(state.mode==="theater"&&mode!=="theater")theater.leave();
     $("theater-area").hidden=mode!=="theater";
@@ -349,6 +350,7 @@
   $("scope-filter").addEventListener("click",event=>{const target=event.target.closest("button[data-scope]");if(!target||state.scope===target.dataset.scope)return;state.scope=target.dataset.scope;remember();renderChapters();});
   $("kind-filter").addEventListener("click",event=>{const target=event.target.closest("button[data-kind]");if(!target||state.kind===target.dataset.kind)return;state.kind=target.dataset.kind;remember();renderChapters();});
   document.querySelectorAll("[data-mode]").forEach(tab=>tab.addEventListener("click",()=>{if(state.mode!==tab.dataset.mode)setMode(tab.dataset.mode);}));
+  window.addEventListener("popstate",()=>{const mode=globalThis.MovieClawNavigation?.mode()||"personal";if(mode!==state.mode)setMode(mode,false);});
   $("shuffle-recommendations").addEventListener("click",loadRecommendations);
   const moveRecommendation=(direction)=>{const row=$("recommendation-row");row.scrollBy({left:direction*Math.max(200,row.clientWidth*.75),behavior:matchMedia("(prefers-reduced-motion:reduce)").matches?"instant":"smooth"});};
   $("recommendation-previous").addEventListener("click",()=>moveRecommendation(-1));$("recommendation-next").addEventListener("click",()=>moveRecommendation(1));
@@ -371,12 +373,12 @@
     syncTheme();loadProxyStatus();
     if(preview)$("preview-banner").hidden=false;
     try{const saved=JSON.parse(sessionStorage.getItem("movieclaw.platform-discovery")||"null");if(saved&&["all","domestic","global"].includes(saved.scope))state.scope=saved.scope;if(saved&&["all","tv","variety","movie"].includes(saved.kind))state.kind=saved.kind;if(saved?.category)rec.category=saved.category;}catch{}
-    const requestedMode=new URLSearchParams(location.search).get("view"),initialMode=["random","personal","platforms","theater"].includes(requestedMode)?requestedMode:"personal";setMode(initialMode);
+    const requestedMode=globalThis.MovieClawNavigation?.mode()||new URLSearchParams(location.search).get("view"),initialMode=["random","personal","platforms","theater"].includes(requestedMode)?requestedMode:"personal";setMode(initialMode,false);
     try{
       const catalog=await api("/catalog");state.platforms=catalog.platforms||[];state.region=catalog.region||"US";$("region-label").textContent="海外片库地区 · "+state.region;
       renderChapters();
       const footer=$("attribution");footer.replaceChildren(node("span","平台名称及标识归各自权利人所有。 "));
-      const logoLink=externalLink("","https://www.themoviedb.org/","tmdb-credit"),logo=node("img");logo.src="assets/tmdb-logo.svg";logo.alt="TMDB";logo.width=80;logo.height=11;logoLink.append(logo);footer.append(logoLink);
+      const logoLink=externalLink("","https://www.themoviedb.org/","tmdb-credit"),logo=node("img");logo.src=base+"/assets/tmdb-logo.svg";logo.alt="TMDB";logo.width=80;logo.height=11;logoLink.append(logo);footer.append(logoLink);
       if(catalog.attribution){const label=node("span",catalog.attribution);footer.append(label);}else{footer.append(node("span","平台片库数据：TMDB / JustWatch。This product uses the TMDB API but is not endorsed or certified by TMDB. "));}
       [externalLink("TMDB","https://www.themoviedb.org/"),externalLink("JustWatch","https://www.justwatch.com/")].filter(Boolean).forEach(link=>{footer.append(node("span"," · "),link);});
     }catch(err){$("page-error").textContent=err.message;$("page-error").hidden=false;$("intro-status").textContent="片单尚未连接";}

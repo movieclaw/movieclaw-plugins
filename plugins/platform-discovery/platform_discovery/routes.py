@@ -43,7 +43,10 @@ class LoginNavigationRoute(APIRoute):
                 view = request.query_params.get("view")
                 target = prefix + "/panel"
                 if view in {"personal", "random", "platforms", "theater"}:
-                    target += "?" + urlencode({"view": view})
+                    query = {"view": view}
+                    if view == "personal" and request.query_params.get("screen") == "1":
+                        query["screen"] = "1"
+                    target += "?" + urlencode(query)
                 return RedirectResponse("/login?" + urlencode({"next": target}), status_code=303,
                                         headers={"Cache-Control": "no-store"})
         return handle

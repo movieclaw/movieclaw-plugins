@@ -54,7 +54,7 @@
  for(const n of [$('entry-links-open'),document.querySelector('.app-header nav a[href="/settings/plugins/platform-discovery"]')])if(n){const anchor=document.createComment('desktop header action');n.before(anchor);ports.push({n,anchor,target:globalTools});}
  const phone=matchMedia('(max-width:767px)');
  function adapt(){for(const {n,anchor,target} of ports){if(phone.matches)target.append(n);else anchor.after(n);}document.body.classList.toggle('workspace-phone',phone.matches);}
- phone.addEventListener('change',adapt);adapt();setMode(new URLSearchParams(location.search).get('view')||'personal');
+ phone.addEventListener('change',adapt);adapt();setMode(globalThis.MovieClawNavigation?.mode()||new URLSearchParams(location.search).get('view')||'personal');
  more.addEventListener('click',()=>{sheet.showModal();sheet.scrollTop=0;});close.addEventListener('click',()=>sheet.close());
  // Close this sheet before an existing control opens another dialog. Display
  // switches stay in place, so several settings can be changed in one visit.
