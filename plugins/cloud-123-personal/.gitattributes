@@ -1,2 +1,2 @@
 # Preserve verbatim upstream license text, including original whitespace.
-licenses/** -whitespace
+THIRD_PARTY_NOTICES.md -whitespace

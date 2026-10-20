@@ -1,63 +1,54 @@
 # 123 云盘个人账号
 
-当前版本：`0.1.0-beta.1`。展示名称调整不代表已通过严格契约或真实服务验收。
+版本 `0.1.0-beta.1`。通过 `p123client` 的手机号、密码登录链路访问个人网盘，无需 OpenAPI 开发者权益。插件 ID 为 `cloud-123-personal`，Python 包为 `cloud_123_personal`，网盘类型为 `123-personal`，与 `cloud-123` OpenAPI 插件独立。
 
-手机号密码登录、完整分页目录扫描和持久化上传恢复的独立插件。插件 ID `cloud-123-personal`、包名 `cloud_123_personal`、网盘类型 `123-personal`，不影响 `cloud-123` OpenAPI 版。
+## 使用要求
 
-**alpha.4 已启用扫描，不再因缺少原生整树接口禁用功能。** 扫描独立实现为逐目录分页遍历；这偏离 SDK 1.5 的原生整树要求，不能声称严格全契约兼容。服务行为仍需隔离账号验收。alpha.5 的真实目录选择复测已由维护者反馈通过；这不覆盖完整扫描、上传恢复或播放。
+需要 Python 3.12、MovieClaw v0.41.0 的正式 SDK 1.0、`drive-backends ^1.5` 和 `plugin-data ^1.0`。插件以独立进程运行，仅请求网络权限。安装后，在宿主的网盘表单中输入手机号和密码；不提供命令行凭据或明文配置方式。
 
-## 扫描
+登录使用正式 `Login(form=...)` / `login_with_form`。手机号和密码均为 `SecretStr`，认证结果交由宿主加密认证存储，不写入插件日志或普通存储。有有效 JWT `exp` 时提前120秒重新认证并核验 UID；未知有效期不猜测。验证码返回可恢复的 `RiskControl`，当前不支持挑战续交，也不绕过验证码。
 
-使用源码确认的个人 `fs_list(parentFileId, limit=100, Page, next)`，每页带服务返回的 Next；迭代队列遍历，返回全部文件（含非视频）的相对路径、真实 ID、大小、父目录，以及全部子目录 ID（含空目录）。根目录不存在或任何页面失败都抛错误，不把失败当空树、不返回部分成功。
+下载链接的默认有效期为300秒，由宿主缓存，不在每次请求时强制刷新。远端未取得可信 SHA1，文件返回 `sha1=None`、能力声明 `list_hashes=False`，不以 MD5 或本地计算值冒充远端 SHA1。
 
-校验父目录、项目类型、名称、重复 ID、重复路径和游标；检测循环、目录改名/移动、非终止空页。上限为200000项目、20000列表页、256层、8192字符相对路径；超过上限明确失败，须缩小扫描根目录。每个 HTTP 请求走正式 SDK 出口和限速，取消会传播。
+## 扫描与上传边界
 
-分页遍历不是服务端快照，无法证明扫描期间没有发生未被观察到的变动。首次验收应使用静止的隔离目录；大树会增加请求量与扫描时间。远端仅有 MD5，`sha1=None`、`list_hashes=False`，不拿本地 SHA1 冒充远端。
+扫描按目录完整分页遍历，返回全部文件及子目录 ID（含空目录），不是服务端原生整树接口，也不是原子快照。**这仍偏离 SDK 的原生整树契约，不能声称严格全契约兼容。** 根目录不存在、分页失败或路径冲突时整次失败，不返回部分成功。限制为200000个项目、20000页、256层、8192字符相对路径；超限须缩小扫描根目录。
 
-### 目录名称边界（继承 alpha.5 修复）
+目录选择保留远端名称的大小写、空格、Unicode 和标点。作为路径段的名称不能含 NUL、正反斜杠，也不能为空、`.` 或 `..`；无法无歧义表示的扫描项明确报错，不静默改名或丢弃。新建文件使用独立的保守名称校验。
 
-目录选择器先按Type区分文件/目录；普通文件的名称与大小字段不参与目录显示校验，仍校验全页Type、ID、父目录及分页。远端名称保留原始大小写、空格、Unicode及`: * ? | < > "`等标点，不套用新建文件的Windows禁字符集合，不替换或截断名称。
+上传使用顺序分片。通过正式 `PLUGIN_DATA` 的 `secret=True` 日志保存会话和服务确认（ACK），支持进程重启后继续；日志不保存手机号、密码、token、Cookie、签名 URL 或分片内容。
 
-目录选择器的名称也会被宿主拼入display_path，故子目录及扫描路径段仍拒绝空/非字符串、NUL、`.`、`..`、正反斜杠。全量扫描不忽略坏文件名：无法无歧义表示时整次明确失败。重名目录可在选择器按不同ID显示；扫描时同路径仍报Conflict。新建名称继续独立使用保守校验，上传逻辑未放宽。
-
-目录选择的回归测试覆盖标点、Unicode、文件-only页和同名目录。远端不安全路径段仍明确失败，不静默改名或丢弃扫描项。
-
-## 上传与恢复
-
-通过公开服务 `PLUGIN_DATA` 保存每个文件的独立日志，作用域 `upload:v2`，键由 UID、目标目录、名称、大小、MD5 摘要构造。日志使用 `secret=True`，交由宿主已有加密存储；包含初始化意图、会话、连续确认进度、最近/正在重试分片的 SHA256、合并确认和完成对象 ID。**不保存手机号、密码、token、Cookie、签名 URL 或分片内容。** 单日志限制60KiB，低于宿主64KiB上限；最多10000片，无自建文件存储或全局数据库。
-
-| 状态 | 恢复方式 |
+| 情况 | 处理 |
 |---|---|
-| 已持久化初始化响应 | 宿主 state 丢失时也能按文件绑定找到原会话，不重复创建 |
-| PUT成功且日志确认成功 | 重启后从下一片继续；不依赖未证实的远端进度字段 |
-| PUT响应丢失 / 确认日志未保存 | 从最后确认处重传相同会话、相同片号、相同字节；刷新签名 URL，不自动循环重试 |
-| 合并确认已持久化，stat失败 | 重启后只重试远端元数据核验，不重放合并 |
-| 已完成或已收到秒传确认 | 重新读取原远端ID，核对名称、父目录、大小、MD5后复用；变化/删除明确失败 |
-| 初始化请求已发出但响应或会话日志丢失 | 保留 `initializing`，明确阻塞重复初始化，不凭占位元数据成功 |
-| 合并请求已发出但确认未持久化 | 保留 `committing`，明确结果不确定，不重放合并或猜测成功 |
-| 宿主有state但插件日志缺失 / alpha.3旧state | 明确拒绝继续旧会话；不猜测远端进度 |
+| 分片成功并已持久化确认 | 从下一片继续 |
+| 分片响应丢失或确认未持久化 | 在原会话重传相同片号和字节，刷新签名 URL |
+| 合并确认已保存，元数据核验失败 | 只重试元数据核验 |
+| 已完成或收到秒传确认 | 重新核验原对象的名称、目录、大小和 MD5 |
+| 初始化或合并请求已发出，确认未持久化 | 保留不确定状态并停止，避免重复创建或合并 |
+| 恢复日志缺失、会话失效或文件绑定不符 | 明确报错，不猜测进度或创建替代会话 |
 
-恢复依据是本插件持久化的服务确认，并非“查询远端当前已上传分片”。源站会话若过期、被外部修改或已失效，会返回错误；不自动创建替代会话。单片与多片适用相同日志协议；只支持顺序上传，幂等重试最近确认分片，较早片请重新调用 begin_upload 获取进度。
+恢复依据是持久化 ACK；当前没有经真实非空响应证实的远端已上传分片查询。只支持单个活跃写入实例和顺序重启，不提供多活并发保证。日志不自动过期删除；仍有上传任务时不要清空插件数据。单日志上限60KiB、最多10000片。
 
-个人 `s3_list_upload_parts` 的已发布非空响应证据仍不足：公开真实记录仅有新会话 `Parts:null`；另一项目消费小写 `parts`，但对应测试是模拟。生产实现不调用它来猜测进度。日志不能弥补服务与宿主之间没有分布式事务的窗口，也不提供多活实例写同一日志的保证；依赖宿主同插件单个活跃写入实例、顺序重启。日志不自动过期删除，以免丢失不确定操作的防重复证据；勿手动清空仍有上传任务的插件数据。
+首次真实账号验收应使用静止的隔离目录和可丢弃文件，分别检查登录、完整扫描、下载播放及中断上传恢复。自动测试使用模拟网盘与假宿主存储，不能替代真实服务验收。
 
-## 登录与下载
+## 开发与验证
 
-正式 `Login(form=Credentials)` / `login_with_form`，两项 `SecretStr`。凭据只交给 `LoginResult.credentials` / `account.credentials`，通过宿主认证仓储加密保存。JWT有有效exp时提前120秒重新密码登录并验证UID；未知过期不猜测。验证码归 `RiskControl`，不绕过，也不支持挑战续交。
+以下从插件仓库根运行，宿主环境使用 MovieClaw v0.41.0（`5b0739f54fc1e22ba2fd9c4037d132d16e85e0c1`）。测试核对正式 `drives.py` 的源码哈希；升级基准需要重新审查契约。插件依赖应装入独立测试目录，先在干净宿主环境执行依赖与官方结构检查：
 
-下载保留 fork 的 `platform=android` 和播放器 UA，`DirectLink(expires_in=300)`，由宿主缓存，不每次强制刷新。真实登录、风控、下载中转和播放仍需验收。
+```bash
+.venv/bin/python -m movieclaw_sdk.deps check plugins/cloud-123-personal --constraints host-constraints.txt
+.venv/bin/python .movieclaw/src/movieclaw_agent/builtin-skills/movieclaw-plugin-dev/scripts/check_plugin.py plugins/cloud-123-personal
+plugin_deps="$(mktemp -d)"
+.venv/bin/python -m pip install --target "$plugin_deps" --require-hashes --only-binary=:all: --no-deps -r plugins/cloud-123-personal/requirements.lock
+PYTHONPATH="$plugin_deps" .venv/bin/python -m unittest discover -s plugins/cloud-123-personal/tests -t plugins/cloud-123-personal -v
+.venv/bin/python plugins/cloud-123-personal/tools/check_contract.py
+.venv/bin/python scripts/pack.py plugins/cloud-123-personal --output cloud-123-personal-0.1.0-beta.1.mcplugin
+```
 
-## 安装、复验与提交范围
+`host-constraints.txt` 使用对应宿主发布附件，`.movieclaw` 指上述固定版本的源码目录。117项模拟测试覆盖 SDK/RPC、分页与名称边界、认证更新、错误分类、下载 TTL、上传持久化与跨进程恢复。严格契约检查器当前预期退出码为 **2（阻塞）**，结构检查及模拟测试通过不代表完整语义合规。安装包使用官方打包器及宿主 `read_archive` 校验；发布后的版本内容不得静默替换。
 
-需要 Python3.12、SDK1.0、`drive-backends ^1.5`、`plugin-data ^1.0`。正式验证基线 v0.41.0 / 5b0739f；旧发布v0.40.0缺少表单契约，不能降低版本绕过检查。包仅请求network、使用独立进程、无宿主业务操作权限。锁定34项轮子依赖与哈希，保留许可证；未复制或打包GPL的MoviePilot/123panNextGen实现。
+## 许可证
 
-完整环境准备、离线测试、官方检查、Linux双架构依赖安装及确定性打包命令见 [开发与验证](docs/DEVELOPMENT.md)。官方仓库要求与现有 CI 基准差异见 [PR 要求对照](docs/PR_REQUIREMENTS.md)。发布前仍须处理下述契约差异和验收边界，不能将结构检查通过等同于严格语义合规。
+原创适配层采用 [MIT](LICENSE)。运行依赖在安装时按 `requirements.lock` 下载固定版本和哈希的 wheel，插件包不内嵌第三方 wheel 或复制的库源码。34项依赖的归属、完整 LICENSE / NOTICE 原文及未取得原文的明确说明集中在 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，相同原文仅去重存放，不改变版权归属或许可条款。
 
-- [契约矩阵](docs/CONTRACT.md)
-- [源码与许可证核对](docs/SOURCES.md)、[依赖许可证](THIRD_PARTY_NOTICES.md)
-- [验证结果](docs/VALIDATION.md)
-- [用户隔离验收步骤与脱敏工具](docs/ACCEPTANCE.md)
-
-## 许可证与仓库元数据
-
-原创适配层采用 [MIT](LICENSE)，34项锁定依赖的许可、33项已取得的原文及1项正文缺口见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和 `licenses/`。不重新分发 MovieClaw 核心/SDK，也不复制 GPL/AGPL 调用者实现。`store.json` 的 `origin: official` 是目标仓库要求的索引分类，表示拟提交该仓库，不表示本插件已经被接纳或发布。
+未复制 GPL/AGPL 调用者实现，也不重新分发 MovieClaw 核心或 SDK。`store.json` 的 `origin: official` 是目标插件仓库要求的分类，不表示已被接纳或发布。
