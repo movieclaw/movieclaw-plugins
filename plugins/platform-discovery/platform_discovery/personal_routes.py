@@ -46,7 +46,7 @@ def _browser_request(request):
     # Browsers set this themselves. Native/CLI requests may omit it and still
     # need both host authentication and the unguessable private capability.
     if request.headers.get("sec-fetch-site") == "cross-site":
-        raise _error(403, "请从平台放映厅页面操作口味档案。")
+        raise _error(403, "请从映屿页面操作口味档案。")
 
 
 def _private_projection(value, active_token=None, depth=0):

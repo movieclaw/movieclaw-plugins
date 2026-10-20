@@ -10,6 +10,6 @@ vm.createContext(transport);vm.runInContext(fs.readFileSync(path.join(assets,'tr
 (async()=>{
  await assert.rejects(transport.MovieClawTransport.request('/api/v1/auth/me'),e=>e.status===401);assert.equal(parsed,false);assert.equal(decodeURIComponent(redirected),'/login?next=/api/v1/plugins/platform-discovery/panel?view=personal');
  assert.equal(transport.MovieClawTransport.loginUrl({pathname:'/apps/platform-discovery/',search:''}),'/login?next=%2Fapps%2Fplatform-discovery%2F');
- const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../web/manifest.webmanifest'),'utf8'));assert.equal(manifest.short_name,'海报墙');assert.equal(manifest.start_url,'.');assert.ok(fs.existsSync(path.join(__dirname,'../web/index.html')));
+ const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../web/manifest.webmanifest'),'utf8'));assert.equal(manifest.short_name,'映屿');assert.equal(manifest.start_url,'.');assert.ok(fs.existsSync(path.join(__dirname,'../web/index.html')));
  console.log('PASS: LAN/public/IPv6 generated links, unsafe address rejection, 401 before JSON parsing, same-origin login return and standard native-page manifest');
 })().catch(e=>{console.error(e);process.exitCode=1;});

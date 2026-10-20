@@ -1,50 +1,12 @@
 {
-  "name": "平台放映厅",
-  "short_name": "海报墙",
+  "name": "映屿",
+  "short_name": "映屿",
   "start_url": ".",
   "icons": [
     {
       "src": "icon.svg",
       "type": "image/svg+xml",
       "purpose": "monochrome"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "录像厅",
-      "short_name": "录像厅",
-      "url": "theater",
-      "icons": [
-        {
-          "src": "theater.svg",
-          "type": "image/svg+xml",
-          "purpose": "monochrome"
-        }
-      ]
-    },
-    {
-      "name": "平台热榜",
-      "short_name": "平台热榜",
-      "url": "platforms",
-      "icons": [
-        {
-          "src": "platforms.svg",
-          "type": "image/svg+xml",
-          "purpose": "monochrome"
-        }
-      ]
-    },
-    {
-      "name": "随心看剧",
-      "short_name": "随心看剧",
-      "url": "random",
-      "icons": [
-        {
-          "src": "random.svg",
-          "type": "image/svg+xml",
-          "purpose": "monochrome"
-        }
-      ]
     }
   ]
 }

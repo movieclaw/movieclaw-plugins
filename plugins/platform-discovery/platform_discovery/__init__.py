@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 sexyfeifan
-"""平台放映厅：官方插件运行时中的影视发现与账号偏好页面。"""
+"""映屿：官方插件运行时中的影视发现与账号偏好页面。"""
 
 from __future__ import annotations
 
@@ -30,11 +30,11 @@ from .theater_routes import build_theater_router, build_collection_router
 
 
 class Settings(BaseModel):
-    model_config = {"title": "平台放映厅设置"}
+    model_config = {"title": "映屿设置"}
 
     proxy_mode: Literal["host", "direct", "custom"] = Field(
         "host", title="代理模式",
-        description="host：跟随服务器已有代理；direct：直接连接；custom：使用下方独立代理地址，仅影响平台放映厅。",
+        description="host：跟随服务器已有代理；direct：直接连接；custom：使用下方独立代理地址，仅影响映屿。",
     )
     proxy_address: str = Field(
         "", title="代理地址",
@@ -133,7 +133,7 @@ def theater_cache_root():
 
 
 @plugin(
-    "platform-discovery", title="平台放映厅", config=Settings,
+    "platform-discovery", title="映屿", config=Settings,
     inject=(HOST_OPS, PLUGIN_ROUTES, PLUGIN_DATA), permissions=("discover.get-title-details", "discover.filter-titles"),
     reloadable=True, disableable=True,
 )

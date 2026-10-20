@@ -246,7 +246,8 @@ html.native-page .button:hover{background:var(--mc-glass-fill-hover,rgba(255,255
 html.native-page .button.primary{background:var(--text);color:var(--bg);border-color:transparent}
 html.native-page .button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
 html.native-page body.wall-immersive{background:#050505}
-@media(min-width:768px){html.native-page .discovery-modes{display:none}}
+/* One host entry; the four views stay inside the plugin on every device. */
+html.native-page .discovery-modes{display:grid}
 @media(max-width:767px){
  html.native-page body.workspace-ready .discovery-modes{height:46px;gap:12px;align-items:stretch}
  html.native-page body.workspace-ready .discovery-modes button{padding:10px 0;justify-content:center}

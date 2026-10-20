@@ -19,19 +19,19 @@ class NativePageTests(unittest.TestCase):
 
     def test_stable_official_menu_contract(self):
         manifest = json.loads((ROOT / 'web/manifest.webmanifest').read_text())
-        self.assertEqual(manifest['short_name'], '海报墙')
-        self.assertEqual([item['short_name'] for item in manifest['shortcuts']], ['录像厅', '平台热榜', '随心看剧'])
-        for item in [manifest] + manifest['shortcuts']:
+        self.assertEqual(manifest['short_name'], '映屿')
+        self.assertEqual(manifest.get('shortcuts', []), [])
+        for item in [manifest] + manifest.get('shortcuts', []):
             for icon in item['icons']:
                 self.assertTrue((ROOT / 'web' / icon['src']).is_file())
 
-    def test_v041_host_parses_all_four_menu_entries(self):
+    def test_v041_host_exposes_one_plugin_entry(self):
         try:
             from movieclaw_api.services import plugin_web
         except ImportError:
             self.skipTest('Native menu parser requires MovieClaw 0.41.0')
-        plugin = plugin_web.WebPlugin(id='platform-discovery', title='平台放映厅', source='package', root=ROOT / 'web', consent=None)
+        plugin = plugin_web.WebPlugin(id='platform-discovery', title='映屿', source='package', root=ROOT / 'web', consent=None)
         manifest = plugin_web.read_manifest(plugin)
-        self.assertEqual([entry.label for entry in manifest.entries], ['海报墙', '录像厅', '平台热榜', '随心看剧'])
-        self.assertEqual([entry.path for entry in manifest.entries], ['', 'theater', 'platforms', 'random'])
+        self.assertEqual([entry.label for entry in manifest.entries], ['映屿'])
+        self.assertEqual([entry.path for entry in manifest.entries], [''])
         self.assertTrue(all(entry.monochrome for entry in manifest.entries))

@@ -2,7 +2,7 @@
 (() => {
   const base = "/api/v1/plugins/platform-discovery";
   if(location.protocol==="file:"){
-    document.addEventListener("DOMContentLoaded",()=>{document.body.replaceChildren();const box=document.createElement("main");box.style.padding="40px";const title=document.createElement("h1"),note=document.createElement("p"),path=document.createElement("code");title.textContent="请从 MovieClaw 服务器打开平台放映厅";note.textContent="当前打开的是本地源码文件，无法连接服务器或读取账号偏好。请在服务器地址后打开以下入口；你的档案无需重建。";path.textContent=base+"/panel";box.append(title,note,path);document.body.append(box);});return;
+    document.addEventListener("DOMContentLoaded",()=>{document.body.replaceChildren();const box=document.createElement("main");box.style.padding="40px";const title=document.createElement("h1"),note=document.createElement("p"),path=document.createElement("code");title.textContent="请从 MovieClaw 服务器打开映屿";note.textContent="当前打开的是本地源码文件，无法连接服务器或读取账号偏好。请在服务器地址后打开以下入口；你的档案无需重建。";path.textContent=base+"/panel";box.append(title,note,path);document.body.append(box);});return;
   }
   const $ = (id) => document.getElementById(id);
   const preview = document.documentElement.dataset.preview === "true";

@@ -1,8 +1,10 @@
-# 平台放映厅 · Platform Discovery
+# 映屿 · Yingyu
 
-MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.10.2**，兼容独立入口，并为 **MovieClaw Server 0.41.0** 提供正式原生菜单适配。完整操作见 [使用教程](docs/USER_GUIDE.md)。
+属于你的电影小岛。
 
-Platform Discovery adds an account-scoped recommendation wall, a library theater, platform feeds and regional TV discovery to MovieClaw. It runs as an explicitly approved inline plugin. It does not modify the host application. The plugin UI and documentation are currently in Simplified Chinese.
+MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.11.0**，兼容独立入口，并为 **MovieClaw Server 0.41.0** 提供正式原生菜单适配。完整操作见 [使用教程](docs/USER_GUIDE.md)。
+
+Yingyu (formerly Platform Discovery) adds an account-scoped recommendation wall, a library theater, platform feeds and regional TV discovery to MovieClaw. It runs as an explicitly approved inline plugin. It does not modify the host application. The plugin UI and documentation are currently in Simplified Chinese.
 
 ## 四个页面
 
@@ -26,9 +28,9 @@ Platform Discovery adds an account-scoped recommendation wall, a library theater
    ```
 
    可在当前 MovieClaw 地址后附加上述路径；不同 IP／域名均跟随当前来源，未登录时先登录并返回插件。源码的 HTML 文件不能脱离服务器直接作为在线页面使用。
-4. MovieClaw 0.41.0 起，在批准本版本网页后提供四个原生入口：
+4. MovieClaw 0.41.0 起，主程序只保留一个「映屿」入口。进入后在页内切换海报墙、录像厅、平台热榜和随心看剧；下表是可收藏的板块地址，并非四个主程序菜单：
 
-   | 菜单 | 地址 |
+   | 页内板块 | 地址 |
    | --- | --- |
    | 海报墙 | `/apps/platform-discovery/` |
    | 录像厅 | `/apps/platform-discovery/theater` |
@@ -36,12 +38,12 @@ Platform Discovery adds an account-scoped recommendation wall, a library theater
    | 随心看剧 | `/apps/platform-discovery/random` |
 
    电脑在主导航，手机浏览器在「我的」页；导航排序及隐藏由主程序管理。网页信任必须由管理员在网页确认，普通成员是否可见由管理员选择。旧版宿主仍可使用独立入口。插件不会注入或改写宿主前端。
-5. 原生页只有宿主的一层 iframe，资源均使用同源绝对路径；刷新、地址回跳和前进后退保持板块。字体、按钮和颜色跟随宿主主题，手机保留紧凑切换条。
+5. 原生页只有宿主的一层 iframe，资源均使用同源绝对路径；刷新、地址回跳和前进后退保持板块。字体、按钮和颜色跟随宿主主题；电脑显示四项页内导航及说明，手机使用紧凑切换条。
 
 管理员可用已配对的 CLI 上传安装包：
 
 ```sh
-mclaw app plugins packages upload --file platform-discovery-0.10.2.mcplugin
+mclaw app plugins packages upload --file platform-discovery-0.11.0.mcplugin
 ```
 
 然后回到 MovieClaw 网页的「设置 → 插件」审阅并批准本版本的主进程运行、网页信任及菜单可见性。不要让代理或命令行代替网页信任确认。安装后可用 `mclaw app plugins show platform-discovery` 查看状态。
@@ -127,7 +129,7 @@ for test in plugins/platform-discovery/tests/*.cjs; do node "$test" || exit; don
 使用本仓库可重现打包脚本：
 
 ```sh
-python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.10.2.mcplugin
+python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.11.0.mcplugin
 ```
 
 测试覆盖账号隔离、版本冲突、缓存与图片失败、预载不计展示、轮替取消、完整视口、选季及显式订阅确认。测试中的凭据、代理和账号均是虚构夹具，不包含运行实例的数据。版本演进见 [CHANGELOG.md](CHANGELOG.md)。
@@ -139,3 +141,5 @@ Copyright (C) 2026 sexyfeifan。插件原创代码按 **GNU GPL version 3 only (
 TMDB、Fanart.tv 与各平台的资料、海报及商标归各自权利人所有，不因插件代码的许可证而转移。TMDB 署名：**This product uses the TMDB API but is not endorsed or certified by TMDB.** MovieClaw 及其依赖继续适用各自许可证。
 
 原生菜单子路径不加末尾斜杠，以避免部分反向代理将 Next.js 的规范化重定向解析为内部 localhost 地址。
+
+原「平台放映厅」从 0.11.0 起更名为「映屿」。内部插件 ID 仍为 `platform-discovery`，API、数据目录和账号偏好键均不变，无需卸载重装或重新测试口味。

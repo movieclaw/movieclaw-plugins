@@ -69,7 +69,7 @@ def build_routers(entry_id, config, sources, get_ops, recommendations=None, upda
             raise HTTPException(404, "资源不存在")
         return Response(read_asset(name), media_type=ASSET_TYPES[name], headers=SECURITY_HEADERS)
 
-    @pages.get("", operation_id=operation + "entry", summary="进入平台放映厅", openapi_extra=hidden)
+    @pages.get("", operation_id=operation + "entry", summary="进入映屿", openapi_extra=hidden)
     async def entry():
         return RedirectResponse(prefix + "/panel", status_code=307, headers={"Cache-Control": "no-store"})
 
@@ -77,7 +77,7 @@ def build_routers(entry_id, config, sources, get_ops, recommendations=None, upda
     async def entry_slash():
         return RedirectResponse(prefix + "/panel", status_code=307, headers={"Cache-Control": "no-store"})
 
-    @pages.get("/panel", operation_id=operation + "panel", summary="打开平台放映厅发现页", openapi_extra=hidden)
+    @pages.get("/panel", operation_id=operation + "panel", summary="打开映屿发现页", openapi_extra=hidden)
     async def panel():
         return HTMLResponse(read_asset("page.html"), headers=SECURITY_HEADERS)
 
@@ -107,7 +107,7 @@ def build_routers(entry_id, config, sources, get_ops, recommendations=None, upda
     async def status():
         result = await sources.catalog()
         return {
-            "state": "ready", "title": "平台放映厅", "entry_url": prefix + "/panel",
+            "state": "ready", "title": "映屿", "entry_url": prefix + "/panel",
             "region": config.watch_region, "platform_count": len(result["platforms"]),
             "tmdb_configured": bool(config.tmdb_token and config.tmdb_token.get_secret_value().strip()),
             "catalog_url": prefix + "/catalog", "feed_url": prefix + "/feeds/{platform}",
