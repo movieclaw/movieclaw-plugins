@@ -1,0 +1,13 @@
+{
+  "core_commit": "5b0739f54fc1e22ba2fd9c4037d132d16e85e0c1",
+  "sha256": "125a5034f493007f81bd5b85a9cad0a86d23aab59639f01b622cf3710aa10d3d",
+  "contract": "drive-backends",
+  "version": "1.5",
+  "semantic_compliance": false,
+  "blockers": [
+    "paginated traversal differs from SDK native whole-tree requirement",
+    "initialization/completion response-loss outcome cannot be safely inferred",
+    "remote nonempty part-list shape unverified; recovery uses durable acknowledgements only"
+  ],
+  "core_tag": "v0.41.0"
+}

@@ -1,0 +1,19 @@
+[plugin]
+id = "cloud-123-personal"
+title = "123 云盘个人账号（实验版）"
+version = "0.1.0-alpha.5"
+entry = "cloud_123_personal"
+runtime = "process"
+sdk = "^1.0"
+description = "个人账号实验版：逐目录完整分页扫描与加密上传日志恢复；扫描偏离原生整树要求，不确定提交安全停止。"
+
+[requires]
+"drive-backends" = "^1.5"
+"plugin-data" = "^1.0"
+
+[permissions]
+operations = []
+network = true
+
+[dependencies]
+lock = "requirements.lock"

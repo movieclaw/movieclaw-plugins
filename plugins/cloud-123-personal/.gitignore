@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+/dist/
+/evidence/
+/diagnostics/
+*.mcplugin
+*.mcplugin.sha256
+*.har
+.env
+.env.*

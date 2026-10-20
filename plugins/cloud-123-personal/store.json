@@ -1,0 +1,8 @@
+{
+  "author": "MovieClaw 123 Personal contributors",
+  "homepage": "https://github.com/movieclaw/movieclaw-plugins",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "个人账号实验版：逐目录分页扫描与持久化上传恢复；扫描非原生快照，上传不确定结果安全停止。",
+  "icon": null
+}
