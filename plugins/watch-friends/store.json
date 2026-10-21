@@ -1,7 +1,7 @@
 {
   "author": "sexyfeifan",
   "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/watch-friends",
-  "license": "未声明独立许可证（见 README）",
+  "license": "GPL-3.0-only",
   "origin": "official",
   "icon": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/main/plugins/watch-friends/web/icon.svg",
   "screenshots": [],

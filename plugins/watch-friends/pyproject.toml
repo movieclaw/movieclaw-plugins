@@ -7,6 +7,7 @@ name = "movieclaw-friends"
 version = "0.1.0"
 description = "MovieClaw 原生映迹插件"
 readme = "README.md"
+license = "GPL-3.0-only"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.116,<1",
