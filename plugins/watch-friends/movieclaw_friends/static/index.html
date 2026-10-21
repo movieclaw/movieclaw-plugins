@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#0a0b10">
+    <title>映迹 · MovieClaw</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="feed.css">
+    <link rel="stylesheet" href="availability.css">
+    <link rel="stylesheet" href="profile.css">
+    <link rel="stylesheet" href="host-ui.css">
+    <script src="icons.js" defer></script>
+    <script src="ui.js" defer></script>
+    <script src="info-help.js" defer></script>
+    <script src="settings-ui.js" defer></script>
+    <script src="alignment.js" defer></script>
+    <script src="tasks.js" defer></script>
+    <script src="sync-card.js" defer></script>
+    <script src="auto-sync.js" defer></script>
+    <script src="resume-sync.js" defer></script>
+    <script src="profile.js" defer></script>
+    <script src="display-policy.js" defer></script>
+    <script src="availability.js" defer></script>
+    <script src="community.js" defer></script>
+    <script src="network.js" defer></script>
+    <script src="artwork.js" defer></script>
+    <script src="feed.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/apps/watch-friends" target="_top" aria-label="映迹首页">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+        <span>映迹<small>MOVIECLAW · YINGJI</small></span>
+      </a>
+      <div class="header-actions">
+        <span class="service-badge">一起发现好故事</span><button class="button button-quiet notification-bell" id="notification-bell" type="button" aria-label="通知" disabled><span data-ui-icon="bell"></span><span>通知</span><span id="notification-count" class="count-pill" hidden>0</span></button>
+        <a class="button button-quiet" href="/" target="_top" data-icon-label>返回 MovieClaw ↗</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="auth-required panel" id="auth-required" aria-labelledby="auth-title" hidden>
+        <span class="small-label">MOVIECLAW · 映迹</span>
+        <h1 id="auth-title">请先登录 MovieClaw</h1>
+        <p class="muted">本插件直接使用主程序当前登录身份，无需单独登录。完成主站登录后，即可返回映迹。</p>
+        <div class="auth-actions"><a class="button button-primary" id="host-login-link" href="/login?next=%2Fapps%2Fwatch-friends" target="_top">返回主站登录</a><button class="button button-outline" id="retry-session" type="button">我已登录，重新连接</button></div>
+      </section>
+
+      <section class="workspace" id="workspace" aria-label="映迹" hidden>
+        <div class="page-heading">
+          <div><p class="eyebrow">A LITTLE CLOSER THROUGH CINEMA</p><h1>你的观影同好圈<span class="heading-dot">.</span></h1><p class="muted" id="greeting"></p></div>
+          <div class="workspace-tools"><button class="button button-outline" id="refresh-button" type="button"><span aria-hidden="true" data-ui-icon="refresh-cw"></span><span>刷新动态</span></button></div>
+        </div>
+        <nav class="tabs" aria-label="观影空间导航">
+          <button class="tab is-active" data-tab="profile" type="button" aria-current="page"><svg class="nav-icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.7"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <circle cx="12" cy="8" r="5" />
+  <path d="M20 21a8 8 0 0 0-16 0" />
+</svg>
+个人主页</button>
+          <button class="tab" data-tab="friends" type="button"><svg class="nav-icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.7"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M18 21a8 8 0 0 0-16 0" />
+  <circle cx="10" cy="8" r="5" />
+  <path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3" />
+</svg>
+我的好友 <span class="tab-count" id="friend-count">0</span></button>
+          <button class="tab" data-tab="directory" type="button"><svg class="nav-icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.7"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <circle cx="12" cy="12" r="10" />
+  <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
+</svg>
+开放广场</button>
+          <button class="tab" data-tab="feed" type="button"><svg class="nav-icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.7"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m12.296 3.464 3.02 3.956" />
+  <path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z" />
+  <path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  <path d="m6.18 5.276 3.1 3.899" />
+</svg>
+影友动态</button>
+          <button class="tab" data-tab="collections" type="button"><svg class="nav-icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.7"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M21 5H3" />
+  <path d="M10 12H3" />
+  <path d="M10 19H3" />
+  <path d="M15 12.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z" />
+</svg>
+我的片单</button>
+          <button class="tab" data-tab="privacy" type="button"><svg class="nav-icon" aria-hidden="true" focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.7"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M14 17H5" />
+  <path d="M19 7h-9" />
+  <circle cx="17" cy="17" r="3" />
+  <circle cx="7" cy="7" r="3" />
+</svg>
+设置</button>
+        </nav>
+
+        <section id="panel-profile" class="tab-panel" aria-label="个人主页"><div id="profile-root" aria-live="polite"></div></section>
+        <section id="panel-friends" class="tab-panel" aria-labelledby="friends-title">
+          <div class="friends-top">
+            <div><h2 id="friends-title">此刻，大家在看什么<span data-info-label="此刻，大家在看什么" data-info="显示好友已授权的正在观看内容和进度。"></span></h2></div>
+            <div class="sync-label"><span class="status-dot"></span><span id="last-refreshed">动态每 30 秒刷新</span></div>
+          </div>
+          <details class="requests-panel panel" id="requests-panel">
+            <summary class="section-heading"><span id="requests-title">好友申请 <span class="count-pill" id="request-count">0</span></span><span class="muted">邀请与申请 <span aria-hidden="true" data-ui-icon="arrow-up-right"></span></span></summary>
+            <div id="incoming-requests" aria-live="polite"></div>
+            <details class="outgoing-wrap"><summary>我发出的申请 <span id="outgoing-count">0</span></summary><div id="outgoing-requests"></div></details>
+          </details>
+          <div class="friends-layout">
+            <aside class="friend-list panel"><div class="section-heading"><h3>我的观影圈</h3><span class="small-label">YOUR CIRCLE</span></div><div id="friend-list" aria-live="polite"></div></aside>
+            <section class="friend-detail panel" id="friend-detail" aria-label="好友观影信息" aria-live="polite"></section>
+          </div>
+          <section class="invite-panel panel" aria-labelledby="invite-title">
+            <div class="invite-copy"><span class="eyebrow">SAVE A SEAT FOR A FRIEND</span><h3 id="invite-title">给朋友留个座位<span data-info-label="邀请好友" data-info="分享邀请码，或粘贴朋友的邀请码发出申请；跨服务器添加需双方插件通过配置的公开地址互相连接。"></span></h3><div class="invite-code-row"><code id="invite-code"></code><button class="button button-quiet" id="copy-invite" type="button">复制邀请码</button></div></div>
+            <form id="invite-form"><label for="invite-input">朋友的邀请码</label><div class="input-action"><input id="invite-input" name="invite_code" autocomplete="off" spellcheck="false" placeholder="粘贴完整邀请码" required><button class="button button-primary" type="submit">添加好友</button></div></form>
+          </section>
+        </section>
+
+        <section id="panel-directory" class="tab-panel" aria-labelledby="directory-title" hidden>
+          <div class="section-intro"><p class="eyebrow">FIND YOUR PEOPLE</p><h2 id="directory-title">从一部电影，认识一个人<span data-info-label="从一部电影，认识一个人" data-info="看看大家最近喜欢的故事。仅展示主动公开的姓名、近期观看与喜欢电影。"></span></h2></div>
+          <div class="directory-scope" id="directory-scope" role="group" aria-label="广场范围"><button class="button button-outline" type="button" data-scope="local" aria-pressed="true">本服广场</button><button class="button button-outline" type="button" data-scope="network" aria-pressed="false">联网广场</button><button class="button button-quiet" type="button" id="network-directory-refresh" hidden>刷新联网名片</button></div>
+          <div id="local-directory"><div class="context-help" id="directory-notice"></div>
+          <div class="directory-grid" id="directory-list" aria-live="polite"></div></div>
+          <div id="network-directory" aria-live="polite" hidden></div>
+        </section>
+
+        <section id="panel-feed" class="tab-panel" aria-label="影友动态" hidden><div id="feed-root"></div></section>
+        <section id="panel-collections" class="tab-panel" aria-labelledby="collections-title" hidden>
+          <div class="section-intro"><p class="eyebrow">A COLLECTION OF GOOD STORIES</p><h2 id="collections-title">把喜欢，整理成片单<span data-info-label="把喜欢，整理成片单" data-info="为某种心情收藏电影，也把好故事推荐给朋友。创建默认私有，分享由你决定。"></span></h2></div>
+          <section class="favorites-panel panel" aria-labelledby="favorites-title"><div class="section-heading"><div><p class="eyebrow">MY FAVORITES</p><h3 id="favorites-title">我喜欢的电影 <span class="count-pill" id="favorites-count">0</span><span data-info-label="喜欢的电影" data-info="先为自己收藏。公开给广场需去设置单独预览并确认，不会自动公开。"></span></h3></div><button class="button button-outline" id="edit-favorites" type="button">编辑喜欢</button></div><div id="favorites-list" aria-live="polite"></div><div class="favorites-public-state"><p id="favorites-public-notice" class="field-help"></p><button class="button button-quiet" id="favorites-publish" type="button" data-icon-label>去设置确认公开 ↗</button></div></section>
+          <div class="section-heading"><div><h3>我创建的片单<span data-info-label="私人片单" data-info="保存在本插件，创建后默认为私有，可逐份预览并确认分享。"></span></h3></div><button class="button button-primary" id="open-list-creator" type="button" data-icon-label>＋ 创建片单</button></div>
+          <p class="notice" id="list-notice" role="status" hidden></p>
+          <div class="collections-grid" id="plugin-list-list" aria-live="polite"></div>
+          <div class="section-heading source-collections-heading"><div><h3>MovieClaw 已有片单<span data-info-label="主程序片单" data-info="读取本人可管理的自建片单，按需确认分享快照，不自动分享。"></span></h3></div></div>
+          <p class="notice" id="collection-notice" role="status" hidden></p>
+          <div class="collections-grid" id="collection-list" aria-live="polite"></div>
+          <section class="demo-collections" id="demo-collections" aria-labelledby="demo-collections-title" hidden><div class="section-heading"><div><h3 id="demo-collections-title">片单灵感 <span class="demo-badge">演示</span></h3><span data-info-label="片单灵感" data-info="来自演示好友的主题推荐，不属于你的个人片单。"></span></div></div><div id="demo-collection-list"></div></section>
+        </section>
+
+        <section id="panel-privacy" class="tab-panel" aria-labelledby="privacy-title" hidden>
+          <div class="section-intro"><p class="eyebrow">YOUR SPACE, YOUR SETTINGS</p><h2 id="privacy-title">设置<span data-info-label="设置" data-info="管理个人资料、观影数据、展示范围和分享权限。"></span></h2></div>
+          <nav class="settings-jump-links" aria-label="设置分区"><a href="#community-settings"><span>个人资料</span><small>头像与简介</small></a><a href="#display-policy-settings"><span>展示范围</span><small>媒体库、足迹与统计</small></a><a href="#sharing-settings"><span>分享权限</span><small>本服名片与好友</small></a><a href="#watch-source-settings"><span>观影数据与同步</span><small>导入、已看与续播</small></a><a href="#network-settings"><span>影友互联</span><small>联网广场与服务器</small></a><a href="#demo-settings"><span>演示设置</span><small>虚拟用户与样片</small></a></nav>
+          <div class="settings-sections">
+          <div id="community-settings"></div>
+          <div id="display-policy-settings"></div>
+          <div id="sharing-settings" class="privacy-layout">
+            <form id="privacy-form" class="panel privacy-form">
+              <div class="privacy-group-heading"><span class="group-number">01</span><div><h3>我的公开名片</h3><p>广场里的其他登录用户可见</p></div></div>
+              <label for="nickname-input">显示姓名（昵称亦可）</label><input id="nickname-input" name="nickname" maxlength="60" autocomplete="nickname" required>
+              <label class="setting-row" for="discoverable-input"><span><strong>在广场展示姓名</strong><small>关闭后，整张公开名片都会撤下。</small></span><input id="discoverable-input" name="discoverable" type="checkbox" role="switch"></label>
+              <div class="public-options"><label class="setting-row" for="public-recent-input"><span><strong>近期观看</strong><small>公开最近 5 条观影记录。</small></span><input id="public-recent-input" name="public_recent" type="checkbox" role="switch"></label><label class="setting-row" for="share-favorites-input"><span><strong>我喜欢的电影</strong><small>公开你这次确认的喜欢列表。</small></span><input id="share-favorites-input" name="share_favorites" type="checkbox" role="switch"></label></div>
+              <div class="privacy-group-heading friend-sharing-heading"><span class="group-number">02</span><div><h3>分享给好友</h3><p>仅双方已同意的好友可见</p></div></div>
+              <label class="setting-row" for="share-current-input"><span><strong>正在观看</strong><small>当前影片与观看进度。</small></span><input id="share-current-input" name="share_current" type="checkbox" role="switch"></label>
+              <label class="setting-row" for="share-history-input"><span><strong>观影历史</strong><small>与你的广场设置互相独立。</small></span><input id="share-history-input" name="share_history" type="checkbox" role="switch"></label>
+              <label class="setting-row" for="share-posts-input"><span><strong>跨服推荐动态</strong><small>已确认跨服好友可查看你已发布和之后发布的推荐；双方评论仅参与双方可见。</small></span><input id="share-posts-input" name="share_posts" type="checkbox" role="switch"></label>
+              <div class="privacy-actions"><button class="button button-outline" id="preview-button" type="button">预览待保存的分享</button><button class="button button-primary" type="submit">保存设置</button></div>
+
+            </form>
+            <aside class="privacy-preview-column"><section class="panel privacy-card-preview"><div class="section-heading"><h3>公开名片预览<span data-info-label="公开名片预览" data-info="正式发布时会展示姓名及具体影片供你核对，确认后才保存本次公开内容。"></span></h3><span class="small-label">待保存设置</span></div><div id="public-card-preview"></div></section><section class="panel sharing-scope"><h3>当前分享范围<span data-info-label="当前分享范围" data-info="片单在我的片单中逐个分享。关闭分享可阻止后续访问，无法收回别人已看到或保存的内容。关闭广场不会删除已发布推荐，可在动态中逐条删除。"></span></h3><div id="sharing-scope"></div></section></aside>
+          </div>
+          <div id="watch-source-settings"><p class="muted">正在读取观影数据连接…</p></div>
+          <div id="network-settings"></div>
+          <section id="demo-settings" class="panel demo-settings" aria-labelledby="demo-settings-title">
+            <h3 id="demo-settings-title">演示设置<span data-info-label="演示内容" data-info="仅影响当前账号看到的演示用户、推荐和片单，修改后自动保存，不改变真实记录和分享授权。"></span></h3>
+            <label class="setting-row" for="demo-toggle"><span><strong>显示演示内容</strong><small id="demo-status">正在读取偏好…</small></span><input id="demo-toggle" type="checkbox" role="switch" disabled></label>
+          </section>
+          <div id="community-admin"></div>
+          </div>
+        </section>
+        <details class="data-source-details"><summary>数据与隐私说明</summary><p class="data-source" id="data-source">原生插件网页 · 使用当前 MovieClaw 登录身份，适用于支持插件网页的桌面和手机浏览器。仅读取当前账号有权访问的观影与自建片单；好友关系与共享快照由插件独立保存。</p></details>
+      </section>
+      <div class="startup-state" id="startup-state" role="status"><span class="loading-dot"></span>正在打开观影空间…</div>
+    </main>
+    <footer class="site-footer"><span>MovieClaw · 映迹</span><span>让好故事，成为相遇的开始。</span></footer>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <dialog id="list-target-dialog" aria-labelledby="list-target-title"><div class="dialog-heading"><h2 id="list-target-title">加入片单</h2><button class="button button-quiet" id="close-list-target" type="button" data-icon-label>关闭 ✕</button></div><p class="muted">选择已有片单，或创建一份新的私有片单。</p><div id="list-target-options" aria-live="polite"></div></dialog>
+    <dialog id="media-dialog" aria-labelledby="media-dialog-title"><div class="dialog-heading"><h2 id="media-dialog-title">影片详情</h2><button class="button button-quiet" id="close-media" type="button" aria-label="关闭影片详情" data-icon-label>关闭 ✕</button></div><div id="media-dialog-content" aria-live="polite"></div></dialog>
+    <dialog id="list-create-dialog" aria-labelledby="list-create-title"><div class="dialog-heading"><h2 id="list-create-title">创建自己的片单</h2><button class="button button-quiet" id="close-list-creator" type="button" aria-label="关闭创建片单" data-icon-label>关闭 ✕</button></div><p class="muted" id="list-editor-description">片单只保存在本插件，默认为私有。你可以先创建空片单，或搜索并选择喜欢的影片。</p><form id="list-create-form"><div id="list-metadata"><label for="list-name">片单名称</label><input id="list-name" maxlength="120" required placeholder="例如：想在周末重看的故事"><label for="list-description">片单介绍（选填）</label><textarea id="list-description" maxlength="500" rows="3" placeholder="写下这份片单的主题或心情"></textarea></div><label for="list-search-input">搜索影片</label><div class="input-action"><input id="list-search-input" placeholder="输入电影或剧集名" autocomplete="off"><button class="button button-outline" id="list-search-button" type="button">搜索</button></div><p class="field-help">使用你在 MovieClaw 的搜索权限；不会保存搜索历史。也可从已可见的影片详情加入待创建片单。</p><p class="notice" id="list-search-notice" role="status" hidden></p><div id="list-search-results" aria-live="polite"></div><h3 class="draft-heading">已选影片 <span id="list-draft-count" class="count-pill">0</span></h3><div id="list-draft-items"></div><div class="dialog-actions"><button class="button button-outline" id="cancel-list-creator" type="button">返回</button><button class="button button-primary" id="list-save-button" type="submit">创建私有片单</button></div></form></dialog>
+    <dialog id="preview-dialog" aria-labelledby="preview-title"><div class="dialog-heading"><div><p class="eyebrow">SHARING PREVIEW</p><h2 id="preview-title">分享内容预览</h2></div><button class="button button-quiet" id="close-preview" type="button" aria-label="关闭数据预览" data-icon-label>关闭 ✕</button></div><p class="muted" id="preview-description">这是待保存设置对应的展示内容，预览不会修改授权。</p><div id="preview-content"></div><div class="dialog-actions" id="public-confirm-actions" hidden><button class="button button-outline" id="cancel-public" type="button">返回修改</button><button class="button button-primary" id="confirm-public" type="button">确认分享并保存</button></div></dialog>
+    <dialog id="address-dialog" aria-labelledby="address-title"><h2 id="address-title">添加好友前，请确认</h2><p class="muted" id="address-target"></p><p class="notice" id="address-demo-notice" hidden>这是本插件内置的演示身份，影片来自真实作品、观看与在线行为为模拟。该用户由本插件自动回应，演示不会向外部服务器发送你的数据。本次只创建本地演示好友关系，不会自动开启你的广场展示或任何观影分享。</p><ul class="consent-list" id="address-real-notice"><li>好友关系建立后，双方可访问对方已授权的当前观影、历史记录和共享片单。</li><li>跨服务器申请或接受好友时，本方服务器地址会暴露给对方服务器。页面不展示该地址，但对方服务器仍可记录该地址及你已授权的共享数据。</li><li>删除好友或关闭分享会阻止后续访问，无法收回对方此前已经看到或保存的内容。</li></ul><label class="consent-check" for="address-checkbox"><input id="address-checkbox" type="checkbox"><span id="address-check-label">我已了解服务器地址与已授权数据可能被对方记录，同意继续。</span></label><div class="dialog-actions"><button class="button button-outline" id="cancel-address" type="button">取消</button><button class="button button-primary" id="confirm-address" type="button" disabled>同意并继续</button></div></dialog>
+  </body>
+</html>

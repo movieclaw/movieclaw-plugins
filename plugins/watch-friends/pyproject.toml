@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "movieclaw-friends"
+version = "0.1.0"
+description = "MovieClaw 原生映迹插件"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
+  "cryptography>=43",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+e2e = ["playwright>=1.48,<2", "uvicorn>=0.35,<1"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["movieclaw_friends*"]
+
+[tool.setuptools.package-data]
+movieclaw_friends = ["static/*", "static/avatars/*.svg"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "tests"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"

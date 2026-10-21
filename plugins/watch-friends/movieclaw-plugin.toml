@@ -1,0 +1,18 @@
+[plugin]
+id = "watch-friends"
+title = "映迹"
+version = "0.1.0"
+entry = "movieclaw_friends"
+runtime = "inline"
+sdk = "^1.0"
+description = "观看足迹、私人片单、影视推荐、已看与续播同步、互联影友。"
+
+[requires]
+host-ops = "^1.0"
+plugin-routes = "^1.0"
+plugin-files = "^1.0"
+
+[permissions]
+operations = ["members.list", "playback.history", "search.library"]
+paths = []
+network = true

@@ -1,0 +1,6 @@
+.availability-widget { margin: 13px 0; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-inset); }
+.availability-widget .availability-status { font-size: 11px; margin: 0 0 6px; }
+.availability-widget[data-state=available] .availability-status { color: var(--ok); }
+.availability-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.availability-actions>.button { font-size: 10px; padding: 6px 9px; min-height: 30px; }
+@media(max-width:767px) { .availability-actions>.button { min-height: 35px; font-size: 11px; } }

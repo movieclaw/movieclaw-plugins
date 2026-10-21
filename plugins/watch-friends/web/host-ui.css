@@ -1,0 +1,74 @@
+/* 消费宿主注入的 data-mc-theme；Netflix 的中性色、小圆角与银玻璃回退分别保留。
+   不跟随品牌红铺满操作按钮；主操作按宿主规范使用白底黑字。 */
+:root{--ui-radius-control:10px;--ui-radius-card:12px;--ui-radius-dialog:16px;--ui-modal-bg:var(--surface-raised);--ui-modal-padding:24px}
+:root[data-mc-theme=netflix]{--bg:#000;--surface-main:#141414;--surface-sidebar:#141414;--ui-radius-control:4px;--ui-radius-card:4px;--ui-radius-dialog:6px;--ui-modal-bg:var(--mc-surface-raised,#181818);--shadow:none;--glass:var(--mc-glass-fill,#ffffff0f)}
+.button{border-radius:var(--ui-radius-control);transition:background .15s,border-color .15s,color .15s}
+.button-primary:hover:not(:disabled){transform:none}
+.button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent-ring);outline-offset:2px}
+.ui-icon{stroke-width:1.7;flex-shrink:0}
+:root[data-mc-theme=netflix] .button-primary{background:#fff;color:#000;box-shadow:none}
+:root[data-mc-theme=netflix] .button-primary:hover:not(:disabled){background:#ffffffbf}
+:root[data-mc-theme=netflix] .button-primary:active:not(:disabled){background:#ffffff80}
+:root[data-mc-theme=netflix] .button-outline{background:#6d6d6e70;border-color:transparent;color:#fff}
+:root[data-mc-theme=netflix] .button-outline:hover:not(:disabled){background:#6d6d6ea0;border-color:transparent}
+:root[data-mc-theme=netflix] :is(.panel,.sync-card,.task-card,.shared-collection-card,.collection-card,.network-card,.feed-card,.feed-compose,.feed-sidebar-card){border-radius:var(--ui-radius-card);background:var(--mc-surface-raised,#181818);box-shadow:none;border-color:var(--line)}
+:root[data-mc-theme=netflix] :is(.tabs,.tab,.sync-card-icon,.auto-sync-connection,.display-library-group,.settings-jump-links a,.task-progress-panel,.watch-preview-stats,.auto-sync-run,.network-movie,.media-artwork){border-radius:var(--ui-radius-card)}
+:root[data-mc-theme=netflix] :is(.sync-card-actions .button,.task-control-actions .button,.sync-config-collapse){border-radius:var(--ui-radius-control)}
+:root[data-mc-theme=netflix] :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([role=switch]),textarea,select:not([multiple]):not([size])){border-radius:var(--ui-radius-control)}
+:root[data-mc-theme=netflix] select:not([multiple]):not([size])::picker(select){background:#181818;border-radius:6px}
+:root[data-mc-theme=netflix] select option{background:#181818}
+:root[data-mc-theme=netflix] select option:checked{background:#ffffff15;color:#fff}
+/* 统一弹窗骨架：头部始终可见，只有内容区滚动，关闭键保持 36px 命中范围。 */
+dialog.ui-dialog{padding:0;overflow:hidden;max-height:min(88dvh,900px);background:var(--ui-modal-bg);border:1px solid var(--line);border-radius:var(--ui-radius-dialog);box-shadow:0 8px 32px #0009}
+dialog.ui-dialog[open]{display:flex;flex-direction:column}
+dialog.ui-dialog::backdrop{background:#000b;backdrop-filter:blur(4px)}
+:root[data-mc-theme=netflix] dialog.ui-dialog::backdrop{backdrop-filter:none}
+:root[data-mc-theme=netflix] #person-dialog.ui-dialog{border-radius:var(--ui-radius-dialog)}
+dialog.ui-dialog>.ui-dialog-head,#person-dialog.ui-dialog>.ui-dialog-head{display:flex;flex-shrink:0;align-items:center;justify-content:space-between;gap:16px;position:relative;top:auto;padding:16px var(--ui-modal-padding);margin:0;border-bottom:1px solid var(--line);background:var(--ui-modal-bg);min-height:68px}
+dialog.ui-dialog>.ui-dialog-head h2,#person-dialog.ui-dialog>.ui-dialog-head h2{margin:0;font-size:18px;line-height:26px;font-weight:600;letter-spacing:-.02em;color:var(--text);overflow-wrap:anywhere}
+.ui-dialog-head .eyebrow{display:none}
+dialog.ui-dialog .ui-dialog-close{flex:0 0 36px;width:36px;min-height:36px;height:36px;padding:8px;border:0;border-radius:50%;background:var(--glass);color:var(--text-muted);box-shadow:none}
+dialog.ui-dialog .ui-dialog-close:hover{background:var(--accent-soft);color:var(--text)}
+.ui-dialog-close .ui-icon{width:18px;height:18px}
+dialog.ui-dialog>.ui-dialog-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:var(--ui-modal-padding);margin:0;flex:1}
+dialog.ui-dialog .dialog-actions,.ui-dialog-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+.ui-dialog-body>.section-heading{gap:12px}
+.sync-report{padding:20px;border:1px solid var(--line);border-radius:var(--ui-radius-card);background:var(--glass)}
+.sync-report-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sync-report-state{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+.sync-report-state .ui-icon{width:18px;height:18px;color:var(--accent)}
+.sync-report-state.is-attention .ui-icon,.sync-report-state.is-failed .ui-icon{color:var(--danger)}
+.sync-report-heading .field-help{font-size:11px;font-variant-numeric:tabular-nums}
+.sync-report-copy{font-size:14px;margin:14px 0 12px;overflow-wrap:anywhere}
+.sync-report progress{display:block;width:100%;height:5px;accent-color:var(--accent)}
+.sync-platform-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.sync-platform-card{min-width:0;padding:16px;border:1px solid var(--line);border-radius:var(--ui-radius-card);background:var(--glass)}
+.sync-platform-heading{display:flex;gap:10px;align-items:center}
+.sync-platform-heading>.ui-icon{width:22px;height:22px;color:var(--text-muted)}
+.sync-platform-heading>div{min-width:0}
+.sync-platform-heading h3{font-size:13px;margin:0;line-height:20px}
+.sync-platform-heading small{display:block;font-size:10px;overflow-wrap:anywhere}
+.sync-platform-read{display:flex;flex-direction:column;gap:2px;margin:18px 0 16px}
+.sync-platform-read strong{font-size:26px;line-height:32px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.sync-platform-read span{font-size:11px;color:var(--text-muted)}
+.sync-platform-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0;padding-top:12px;border-top:1px solid var(--line)}
+.sync-platform-metrics>div{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px}
+.sync-platform-metrics dt{color:var(--text-muted)}
+.sync-platform-metrics dd{margin:0;font-variant-numeric:tabular-nums}
+.sync-platform-error{font-size:11px;line-height:1.7;color:var(--danger);overflow-wrap:anywhere;margin:14px 0 0}
+.sync-target-empty{display:flex;align-items:center;gap:10px;padding:14px 0;font-size:12px;color:var(--text-muted)}
+.sync-target-empty .ui-icon{width:18px;height:18px}
+@media(max-width:700px){:root{--ui-modal-padding:18px}dialog.ui-dialog>.ui-dialog-head,#person-dialog.ui-dialog>.ui-dialog-head{padding-block:12px;min-height:60px}dialog.ui-dialog>.ui-dialog-head h2{font-size:16px}.sync-platform-grid{grid-template-columns:1fr}.sync-platform-card{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px}.sync-platform-read{margin:0;text-align:right}.sync-platform-read strong{font-size:24px}.sync-platform-metrics,.sync-platform-error{grid-column:1/-1}.sync-platform-metrics{margin-top:14px;grid-template-columns:repeat(3,minmax(0,1fr))}.sync-report{padding:16px}.ui-dialog-actions>.button{flex:1;white-space:normal}dialog.ui-dialog{max-height:90dvh;max-width:calc(100vw - 24px)}}
+@media(prefers-reduced-motion:reduce){dialog.ui-dialog::backdrop{backdrop-filter:none}.button{transition:none}}
+
+/* 任务明细操作固定在内容区之外，较矮窗口也能直接关闭、暂停或重试。 */
+dialog.ui-dialog>.ui-dialog-footer{flex-shrink:0;margin:0;padding:12px var(--ui-modal-padding);background:var(--ui-modal-bg);border-top:1px solid var(--line)}
+dialog.ui-dialog>.ui-dialog-footer:empty{display:none}
+
+/* 公共发现是独立且默认折叠的设置，状态、说明与操作沿用宿主按钮和排版。 */
+.discovery-status{display:flex;align-items:center;gap:12px;padding:16px 0}
+.discovery-status>svg{width:24px;height:24px;color:var(--accent);flex-shrink:0}
+.discovery-status>div{display:grid;gap:6px;min-width:0}
+.discovery-admin .network-server-form{display:grid;gap:12px}
+.discovery-admin .network-server-form>.button{justify-self:start}
+.directory-card.network-card .network-movies{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}

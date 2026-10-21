@@ -1,0 +1,178 @@
+/* 影友动态与原页面共享银蓝色及玻璃表面；卡片只展示公开推荐，不嵌入服务器入口。 */
+#feed-root>.section-intro { max-width:1122px; margin:0 auto 25px; }
+#workspace:has(#panel-feed:not([hidden])) .page-heading .eyebrow { display:none; }
+#workspace:has(#panel-feed:not([hidden])) .page-heading h1 { font-size:25px; }
+#workspace:has(#panel-feed:not([hidden])) .page-heading { margin-bottom:20px; }
+.feed-compose { padding: 20px 24px; margin-bottom: 22px; background: var(--glass); }
+.feed-compose>summary { color: var(--text); font-size: 14px; font-weight: 550; cursor: pointer; }
+.feed-compose-form { max-width: 780px; padding-top: 20px; }
+.feed-compose-form>label { display: block; margin: 15px 0 8px; }
+.feed-compose-form>textarea { width: 100%; }
+.feed-compose-form>.field-help { margin: 13px 0; }
+.feed-rating { min-width:0; margin:20px 0 10px; padding:0; border:0; display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.feed-rating>legend { padding:0; margin-bottom:8px; font-size:13px; }
+.feed-rating-stars { display:flex; gap:2px; }
+.feed-rating-option { position:relative; width:38px; height:38px; display:grid; place-items:center; margin:0; cursor:pointer; border-radius:8px; color:var(--text-muted); }
+.feed-rating-option input { position:absolute; width:1px; height:1px; opacity:0; }
+.feed-rating-option svg { width:27px; height:27px; transition:fill .15s,color .15s; }
+.feed-rating-option.is-filled { color:var(--accent); }
+.feed-rating-option.is-filled svg { fill:currentColor; }
+.feed-rating-option:hover { background:var(--accent-soft); }
+.feed-rating-option:has(input:focus-visible) { outline:2px solid var(--accent-ring); outline-offset:2px; }
+.feed-rating>.button { padding:5px 7px; font-size:11px; }
+.feed-post-rating { display:flex; align-items:center; gap:4px; margin:23px 26px 18px; color:var(--text-muted); }
+.feed-post-rating svg { width:22px; height:22px; }
+.feed-post-rating svg.is-filled { color:var(--accent); fill:currentColor; }
+.feed-post-rating>span { font-size:12px; margin-left:7px; }
+.feed-post-rating+.feed-post-copy { margin-top:0; }
+.feed-search-results { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; max-height: 360px; overflow-y: auto; margin-top: 12px; }
+.feed-search-choice { justify-content: flex-start; text-align: left; white-space: normal; border-color: var(--line); }
+.feed-search-choice .media-poster { width: 40px; flex: none; }
+.feed-selected { display: flex; align-items: center; gap: 13px; background: var(--accent-soft); padding: 12px; border-radius: 12px; margin-top: 12px; }
+.feed-selected .media-poster { width: 45px; flex: none; }
+.feed-selected>small { margin-left: auto; flex: none; }
+.feed-layout { display: grid; grid-template-columns: minmax(0,800px) minmax(230px,290px); justify-content: center; gap: 32px; align-items: start; }
+.feed-stream { min-width: 0; }
+.feed-toolbar { margin-bottom: 20px; }
+.feed-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: 28px; }
+.feed-card { padding: 0; min-width: 0; overflow: hidden; background: var(--surface-main); box-shadow: 0 12px 40px #00000012; }
+.feed-author { display: flex; align-items: center; gap: 11px; margin: 0; padding: 18px 24px; }
+.feed-author>.avatar { width: 37px; height: 37px; flex: none; }
+.feed-author .person-copy { flex: 1; }
+.feed-author .person-copy strong { font-size: 13px; display: block; }
+.feed-author .person-copy small { font-size: 10px; }
+.feed-author>.button { padding: 5px; font-size: 10px; }
+.feed-film { position: relative; aspect-ratio: 16/9; background: var(--surface-inset); }
+.feed-film>.media-artwork { width: 100%; height: 100%; border: 0; border-radius: 0; }
+.feed-film:after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg,transparent 35%,#07090d30 55%,#07090de8 100%); }
+.feed-film-copy { position: absolute; z-index: 1; bottom: 23px; left: 26px; right: 26px; min-width: 0; pointer-events: none; color: #f6f8fc; }
+.feed-film-copy .small-label { color: #e0e8f2b3; font-size: 9px; letter-spacing: .12em; }
+.feed-film-copy .muted { color: #e0e8f2b3; }
+.feed-film-copy .media-title { pointer-events: auto; text-shadow: 0 2px 16px #0008; }
+.feed-film h3 { font-size: clamp(23px,2.4vw,34px); margin: 7px 0 3px; }
+.feed-film .media-title { text-align: left; font-size: inherit; }
+.feed-post-copy { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); font-size: 15px; line-height: 1.95; margin: 23px 26px 20px; }
+.feed-reactions,.feed-native-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.feed-reactions { margin: 0 20px; padding: 0 0 16px; gap: 10px; }
+.feed-reactions .button { color: var(--text-muted); font-size: 12px; }
+.feed-reactions [aria-pressed=true] { color: var(--accent); background: var(--accent-soft); }
+.feed-native-actions { margin: 14px -5px 10px; }
+.feed-native-actions .button { font-size: 10px; padding: 6px; }
+.feed-card-footer { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 13px; border-top: 1px solid var(--line); padding: 16px 26px 19px; }
+.feed-discussion { flex: 1; min-width: 0; }
+.feed-tools { min-width: 0; }
+.feed-discussion>summary,.feed-tools>summary { color: var(--text-muted); font-size: 11px; cursor: pointer; }
+.feed-discussion[open],.feed-tools[open] { flex-basis: 100%; order: 1; }
+.feed-tools .availability-widget { margin-top: 12px; }
+.feed-comments { margin-top: 12px; }
+.feed-comment { display: grid; grid-template-columns: 25px minmax(0,1fr) auto; column-gap: 9px; align-items: start; margin: 12px 0; }
+.feed-comment>.avatar { width: 25px; height: 25px; grid-row: span 2; }
+.feed-comment>strong { font-size: 11px; }
+.feed-comment>span:not(.avatar) { font-size: 12px; color: var(--text-muted); grid-column: 2; overflow-wrap: anywhere; white-space: pre-wrap; }
+.feed-comment>.button { grid-column: 3; grid-row: 1/3; font-size: 10px; padding: 3px; }
+.feed-comment-form { display: flex; gap: 7px; padding-top: 9px; }
+.feed-comment-form>input { min-width: 0; flex: 1; }
+.feed-comment-form>.button { padding: 8px 10px; font-size: 11px; }
+.feed-discussion>.field-help { display: block; margin: 10px 0 0; }
+#feed-more { margin: 25px auto 0; display: flex; }
+.feed-aside { position: sticky; top: 24px; display: grid; gap: 20px; min-width: 0; }
+.feed-identity { padding: 28px 24px; text-align: center; background: linear-gradient(155deg,var(--accent-soft),var(--surface-main)); }
+.feed-identity>.person-link { margin: 11px auto 17px; }
+.feed-identity .avatar { width: 68px; height: 68px; border-radius: 22px; font-size: 25px; }
+.feed-identity h3 { font-size: 20px; overflow-wrap: anywhere; margin-bottom: 12px; }
+.feed-identity>.muted { font-size: 11px; line-height: 1.85; overflow-wrap: anywhere; white-space: pre-wrap; }
+.feed-identity>.button { margin-top: 10px; }
+.feed-circle { padding: 24px 20px 18px; background: var(--glass); }
+.feed-circle h3 { font-size: 15px; margin: 5px 0 19px; }
+.feed-circle-person { width: 100%; padding: 10px 0; gap: 11px; }
+.feed-circle-person .avatar { width: 36px; height: 36px; border-radius: 12px; }
+.feed-circle-person .person-copy { flex: 1; min-width: 0; }
+.feed-circle-person strong { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.feed-circle-person small { display: block; margin-top: 3px; font-size: 9px; }
+.feed-circle-person>span:last-child { font-size: 12px; }
+@media(max-width:1100px) { .feed-layout { grid-template-columns: minmax(0,760px); } .feed-aside { display: none; } }
+@media(max-width:767px) {
+  .feed-compose { padding: 17px; }
+  .feed-grid { gap: 22px; }
+  .feed-author { padding: 15px 17px; }
+  .feed-film-copy { left: 18px; right: 18px; bottom: 17px; }
+  .feed-film h3 { font-size: 23px; }
+  .feed-post-copy { margin: 18px 19px 15px; font-size: 13px; }
+  .feed-post-rating { margin:18px 19px 15px; }
+  .feed-reactions { margin: 0 12px; gap: 1px; padding-bottom: 12px; }
+  .feed-reactions .button { font-size: 11px; padding: 7px; }
+  .feed-card-footer { padding: 14px 19px 17px; }
+  .feed-search-results { grid-template-columns: minmax(0,1fr); }
+  .feed-comment-form { flex-wrap: wrap; }
+  .feed-comment-form>input { width: 100%; }
+}
+
+.feed-filters { display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
+.feed-filters select { appearance:none; -webkit-appearance:none; width:auto; max-width:220px; font-family:inherit; font-size:12px; font-weight:550; line-height:1.4; padding:9px 36px 9px 13px; min-height:39px; color:var(--text); background-color:var(--glass); background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a5bbd5' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; border:1px solid var(--line-strong); border-radius:10px; cursor:pointer; outline-offset:4px; transition:background-color .18s,border-color .18s; }
+.feed-filters select:hover { background-color:var(--accent-soft); border-color:var(--accent-2); }
+.feed-filters select:focus-visible { outline:2px solid var(--accent-ring); }
+.feed-filters select option { color:var(--text); background:var(--bg); }
+.feed-menu { position:relative; margin-left:auto; }
+.feed-menu>summary { cursor:pointer; font-size:20px; color:var(--text-muted); padding:2px 8px; list-style:none; }
+.feed-menu>summary::-webkit-details-marker { display:none; }
+.feed-menu-items { position:absolute; right:0; top:32px; min-width:165px; padding:6px; background:var(--surface-raised); border:1px solid var(--line); border-radius:11px; box-shadow:var(--shadow); z-index:3; }
+.feed-menu-items>.button { width:100%; font-size:11px; justify-content:flex-start; }
+.feed-author>.person-link>.avatar { width:37px; height:37px; }
+.feed-author .person-link { min-height:0; padding:0; }
+.feed-comment>.comment-avatar-link { grid-column:1; grid-row:1/3; padding:0; }
+.feed-comment>.comment-avatar-link .avatar { width:25px; height:25px; }
+.feed-comment>.comment-name-link { grid-column:2; grid-row:1; padding:0; font-size:11px; justify-self:start; }
+.feed-comment>.comment-body { grid-column:2; grid-row:2; }
+.feed-comment>.comment-report { grid-column:3; grid-row:1/3; }
+.feed-card.is-focused { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+@media(max-width:767px) { .feed-toolbar { flex-wrap:wrap; gap:10px; } .feed-filters { flex:1; } .feed-filters select { max-width:100%; min-height:40px; } }
+
+.feed-selected .feed-share-status{max-width:260px;font-size:11px;line-height:1.7}.feed-share-status[data-status=allowed]{color:var(--accent)}.feed-share-status[data-status=excluded],.feed-share-status[data-status=unverified]{color:var(--text-muted)}.feed-selected .feed-provenance-retry{font-size:11px;padding:5px 8px}@media(max-width:700px){.feed-selected{flex-wrap:wrap}.feed-selected .feed-share-status{flex-basis:100%;max-width:none}.feed-selected .feed-provenance-retry{margin-left:0}}
+
+.feed-comment-form { flex-wrap: wrap; }
+.feed-network-reply { display:flex; align-items:center; gap:8px; flex-basis:100%; color:var(--muted,#a5adb8); font-size:12px; }
+.feed-network-reply input { flex:0 0 auto; width:auto; min-width:0; }
+
+/* 推荐封面只在选片后展开：大图预览和可键盘选择的缩略图共用真实发布数据。 */
+.feed-cover-picker { display:grid;gap:14px;padding:18px;border:1px solid var(--line);border-radius:12px;min-width:0;background:var(--surface-inset); }
+.feed-cover-picker[hidden] { display:none; }
+.feed-cover-heading { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+.feed-cover-heading h3 { margin:0 0 5px;font-size:14px; }
+.feed-cover-heading .button { flex:none;font-size:11px;padding:5px 0; }
+.feed-cover-preview { width:100%;max-width:560px;justify-self:center; }
+.feed-cover-preview .media-artwork { border-radius:8px; }
+.feed-cover-tabs { display:flex;gap:8px;flex-wrap:wrap; }
+.feed-cover-tabs .button { padding:7px 12px;font-size:11px;border:1px solid var(--line);border-radius:7px; }
+.feed-cover-tabs .button[aria-pressed=true] { background:var(--accent-soft);color:var(--accent);border-color:var(--accent); }
+.feed-cover-choices { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;max-height:330px;overflow:auto;padding:3px; }
+.feed-cover-choice { position:relative;min-width:0;margin:0;display:grid;gap:0;border:2px solid transparent;border-radius:8px;overflow:hidden;background:var(--glass);cursor:pointer; }
+.feed-cover-choice img { display:block;aspect-ratio:16/9;width:100%;object-fit:cover; }
+.feed-cover-choice.is-portrait img { aspect-ratio:2/3;object-fit:contain; }
+.feed-cover-choice input { position:absolute;top:7px;right:7px;width:15px;height:15px;accent-color:var(--accent); }
+.feed-cover-choice span { display:block;font-size:10px;padding:7px 8px;color:var(--text-muted); }
+.feed-cover-choice.is-selected { border-color:var(--accent);background:var(--accent-soft); }
+.feed-cover-choice:focus-within { outline:2px solid var(--accent);outline-offset:1px; }
+.feed-cover-choice.is-unavailable { opacity:.45;cursor:default; }
+.media-artwork.is-poster-cover>.artwork-backdrop { object-fit:contain;background:var(--surface-inset); }
+@media(max-width:700px){.feed-cover-picker{padding:12px}.feed-cover-heading{align-items:flex-start}.feed-cover-choices{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.feed-cover-heading h3{font-size:13px}}
+/* 选图和动态网格都完整保留原画幅；缩略图不再以 cover 裁切。 */
+.artwork-picker{display:grid;gap:14px;min-width:0}
+.artwork-picker .feed-cover-choices{align-items:start;grid-auto-rows:auto}
+.artwork-picker .feed-cover-choice img,.artwork-picker .feed-cover-choice.is-portrait img{height:150px;aspect-ratio:auto;object-fit:contain;background:var(--surface-inset)}
+.artwork-gallery{display:grid;grid-template-columns:repeat(var(--artwork-columns,3),minmax(0,1fr));gap:8px;align-items:start;min-width:0}
+.artwork-gallery[data-columns="1"]{--artwork-columns:1}.artwork-gallery[data-columns="2"]{--artwork-columns:2}
+.artwork-tile{min-width:0;background:var(--surface-inset);overflow:hidden;border-radius:6px}
+.artwork-open{display:flex;align-items:center;justify-content:center;padding:0;width:100%;border:0;background:none;cursor:zoom-in;color:inherit}
+.artwork-open img{display:block;width:100%;height:auto;max-height:620px;object-fit:contain}
+.artwork-tile-actions{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:5px 8px}.artwork-tile-actions .button{padding:3px;font-size:10px}
+.artwork-selection-preview{max-width:680px;justify-self:center;width:100%}.artwork-selection-preview .artwork-open img{max-height:360px}
+.artwork-tile.is-unavailable .artwork-open:after{content:"图片暂不可用";padding:24px;color:var(--text-muted);font-size:12px}
+.feed-film.has-gallery{aspect-ratio:auto}.feed-film.has-gallery:after{display:none}.feed-film.has-gallery>.feed-film-copy{position:static;padding:20px 24px;color:var(--text)}.feed-film.has-gallery .media-title{text-shadow:none}.feed-film.has-gallery .muted{color:var(--text-muted)}
+.artwork-lightbox{max-width:min(1100px,96vw)}.artwork-lightbox-content{display:grid;justify-items:center;gap:12px;min-width:0}.artwork-lightbox-content>img{max-width:100%;max-height:75vh;width:auto;height:auto;object-fit:contain}
+.list-cover-editor{margin:16px 0}.list-cover-editor>summary{cursor:pointer;padding:12px 0}.list-cover-current .artwork-open img{max-height:220px}
+@media(max-width:700px){.artwork-picker .feed-cover-choice img,.artwork-picker .feed-cover-choice.is-portrait img{height:120px}.artwork-open img{max-height:480px}.artwork-tile-actions{padding:4px;gap:2px}.artwork-tile-actions .button{font-size:9px}.feed-film.has-gallery>.feed-film-copy{padding:14px}}
+.artwork-gallery:not([data-count="1"]) .artwork-open{aspect-ratio:1}
+.artwork-gallery:not([data-count="1"]) .artwork-open img{width:100%;height:100%;max-height:none;object-fit:contain}
+/* 预选区按图片本身画幅排列，取消九宫格容器的额外上下留白。 */
+.artwork-selection-preview .artwork-gallery:not([data-count="1"]) .artwork-open{aspect-ratio:auto}
+.artwork-selection-preview .artwork-gallery:not([data-count="1"]) .artwork-open img{height:auto;max-height:360px;object-fit:contain}

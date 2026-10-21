@@ -1,0 +1,13 @@
+{
+  "name": "映迹",
+  "short_name": "映迹",
+  "description": "以当前 MovieClaw 身份记录观看足迹、管理片单、推荐影视、对齐已看记录并结识影友。",
+  "start_url": ".",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "purpose": "monochrome"
+    }
+  ]
+}
