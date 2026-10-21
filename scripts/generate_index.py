@@ -129,7 +129,16 @@ def _image(directory: Path, plugin_id: str, value: str, label: str, repo: str) -
     """A store.json image path → (asset, catalog file name, bytes). Paths only, no URLs:
     the catalog hosts every image itself, named by content, so a mirror cannot swap it."""
     if value.startswith(("http://", "https://")):
-        raise PluginError(f"{plugin_id} 的 {label} 写的是网址；请把图片放进插件目录，写相对路径")
+        # 指向本仓库里这个插件自己目录的 raw 地址，按目录里的文件处理
+        own = re.match(
+            rf"^https://raw\.githubusercontent\.com/{re.escape(repo)}/[^/]+/plugins/{re.escape(plugin_id)}/(.+)$",
+            value,
+        )
+        if own is None:
+            raise PluginError(
+                f"{plugin_id} 的 {label} 写的是外部网址；请把图片放进插件目录，写相对路径（如 icon.svg）"
+            )
+        value = own.group(1)
     path = (directory / value).resolve()
     if directory.resolve() not in path.parents or not path.is_file():
         raise PluginError(f"{plugin_id} 的 {label} {value!r} 须是插件目录里的文件")

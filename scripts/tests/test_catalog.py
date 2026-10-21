@@ -327,7 +327,6 @@ class IndexTest(unittest.TestCase):
 
     def test_store_json_rules(self) -> None:
         cases = {
-            "removed field": {"min_app": None},
             "long summary": {"summary": "长" * 61},
             "bad category": {"category": "games"},
             "bad homepage": {"homepage": "http://example.com"},
@@ -339,6 +338,30 @@ class IndexTest(unittest.TestCase):
                 repo.store(extra)
                 with self.assertRaises(pluginlib.PluginError):
                     pluginlib.load_store(repo.plugin)
+
+    def test_store_json_tolerates_old_fields_and_own_raw_urls(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Repo(tmp)
+            record = repo.release("1.0.0")
+            (repo.plugin / "web").mkdir()
+            svg = b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>'
+            (repo.plugin / "web" / "icon.svg").write_bytes(svg)
+            repo.store(
+                {
+                    "min_app": None,
+                    "max_app": None,
+                    "app": None,
+                    "screenshots": None,
+                    "icon": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/main/"
+                    "plugins/demo-note/web/icon.svg",
+                }
+            )
+            store = pluginlib.load_store(repo.plugin)
+            self.assertNotIn("min_app", store)
+            self.assertEqual(store["screenshots"], [])
+            plugin = repo.build([record])["plugins"][0]
+            self.assertEqual(plugin["icon"]["sha256"], hashlib.sha256(svg).hexdigest())
+            _valid(repo.build([record]), tmp)
 
     def test_lint_wants_a_changelog_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

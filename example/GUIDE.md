@@ -352,7 +352,7 @@ python3 scripts/pack.py example/hello-note --output /tmp/hello-note-0.1.0.mcplug
 | `yanked` | 否 | `{"0.2.0": "撤回原因"}`：这一版不再推荐，已装的人会看到原因 |
 | `deprecated` | 否 | `{"reason": "…", "replaced_by": "新插件 id 或 null"}`：整个插件不再维护 |
 
-图片由 CI 按内容命名后放到 `catalog` Release 上（`<id>-icon-<哈希>.svg`），索引里带 sha256。不接受外部网址。
+图片由 CI 按内容命名后放到 `catalog` Release 上（`<id>-icon-<哈希>.svg`），索引里带 sha256。不接受外部网址；指向本仓库里这个插件目录的 raw 地址按目录里的文件处理。旧的 `min_app` / `max_app` / `app` 字段会被忽略，可以删掉。
 
 `CHANGELOG.md` 每个版本一节，标题是 `## <版本>`（可以带日期，如 `## 1.2.0 - 2026-10-21`）。这一节就是 Release 正文和市场里这一版的更新说明。打 tag 时没有这一节会直接失败，PR 上的 `--lint` 也会报。
 

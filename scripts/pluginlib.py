@@ -185,12 +185,9 @@ def load_store(directory: Path) -> dict:
         raise PluginError(f"{path} 不是合法的 JSON：{exc}") from exc
     if not isinstance(data, dict):
         raise PluginError(f"{path} 须是 JSON 对象")
-    removed = sorted(set(data) & set(STORE_REMOVED))
-    if removed:
-        names = "、".join(removed)
-        raise PluginError(
-            f"{path} 的 {names} 已经去掉：服务器从不检查它们，兼容性改由清单的 sdk 和 [requires] 判断"
-        )
+    # 旧字段服务器从不检查，兼容性改由清单的 sdk 和 [requires] 判断：照旧写着也不报错，直接忽略
+    for key in STORE_REMOVED:
+        data.pop(key, None)
     unknown = set(data) - set(STORE_REQUIRED) - set(STORE_OPTIONAL)
     if unknown:
         names = "、".join(sorted(unknown))
@@ -217,7 +214,7 @@ def load_store(directory: Path) -> dict:
     icon = data.get("icon", None)
     if icon is not None and not isinstance(icon, str):
         raise PluginError(f"{path} 的 icon 须是字符串或 null")
-    shots = data.get("screenshots", [])
+    shots = data.get("screenshots") or []
     if not isinstance(shots, list) or not all(isinstance(item, str) for item in shots):
         raise PluginError(f"{path} 的 screenshots 须是字符串数组")
     yanked = data.get("yanked", {})
@@ -243,7 +240,7 @@ def load_store(directory: Path) -> dict:
     data.setdefault("homepage", None)
     data.setdefault("category", None)
     data.setdefault("icon", None)
-    data.setdefault("screenshots", [])
+    data["screenshots"] = shots
     data.setdefault("yanked", {})
     data.setdefault("deprecated", None)
     return data
