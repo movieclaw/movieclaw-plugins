@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that TAG is ``<id>-v<version>`` and matches ``plugins/<id>``.
+"""Check that TAG is ``<id>-v<version>``, matches ``plugins/<id>``, and has CHANGELOG notes.
 
 Writes ``id`` and ``version`` to stdout and, when set, to ``$GITHUB_OUTPUT``.
 """
@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from pluginlib import ID_RE, PluginError, plugin_table, split_tag
+from release_notes import notes
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,6 +38,7 @@ def main() -> int:
             raise PluginError(
                 f"清单 version 是 {table['version']}，tag {tag} 是 {version}；两边必须相同"
             )
+        notes(plugin_id, version, ROOT)
     except PluginError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

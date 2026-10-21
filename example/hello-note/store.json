@@ -1,12 +1,7 @@
 {
   "author": "MovieClaw",
-  "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/example/hello-note",
+  "author_url": "https://github.com/movieclaw",
   "license": "见仓库许可证",
   "origin": "official",
-  "icon": null,
-  "screenshots": [],
-  "summary": "整理入库完成后，按设置记下最近一部片子的标题。",
-  "min_app": null,
-  "max_app": null,
-  "app": null
+  "summary": "整理入库完成后，按设置记下最近一部片子的标题。"
 }

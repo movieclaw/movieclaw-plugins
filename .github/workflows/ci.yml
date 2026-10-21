@@ -41,15 +41,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # every tag: each version in the index is read back from its own tag
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Check index.json, pack the example, run script tests
+      - name: Lint plugins, check index.json, run script tests
         run: |
           set -euo pipefail
           python3 -m pip install jsonschema
+          python3 scripts/generate_index.py --lint
           python3 -m unittest discover -s scripts/tests -t scripts -v
           python3 scripts/generate_index.py --check index.json
 

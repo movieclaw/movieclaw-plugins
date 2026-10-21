@@ -1,40 +1,127 @@
 {
-  "schema": 1,
-  "generated_at": "2026-10-19T10:30:37Z",
-  "signed": false,
-  "key_id": null,
+  "schema": 2,
+  "generated_at": "2026-10-21T08:02:59Z",
+  "signed": true,
+  "key_id": "catalog-1",
+  "repository": "https://github.com/movieclaw/movieclaw-plugins",
   "plugins": [
     {
       "id": "cloud-115",
       "name": "115 网盘",
+      "summary": "把 115 网盘接进媒体库：网盘里已有的片子直接看，新片自动上传、本地自动腾空。",
       "description": "把 115 网盘接进媒体库：扫码或浏览器 Cookie 登录，纳管已有文件夹、秒传与分片续传上传、取直链播放",
-      "author": "MovieClaw",
+      "category": "storage",
+      "author": {
+        "name": "MovieClaw",
+        "url": "https://github.com/movieclaw"
+      },
       "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/cloud-115",
+      "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/cloud-115",
       "license": "GPL-3.0-or-later",
       "origin": "official",
-      "icon": null,
-      "screenshots": [],
-      "runtime": "process",
-      "sdk": "^1.0",
-      "app": null,
-      "permissions": {
-        "operations": [],
-        "paths": [],
-        "network": true,
-        "callbacks": [],
-        "events": []
+      "icon": {
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/cloud-115-icon-d5961310a09fa524.svg",
+        "sha256": "d5961310a09fa5242f92d64457a8a93d5561b36c0471df77f948c3423e31c00b",
+        "size": 519
       },
-      "platforms": [
-        "any"
-      ],
+      "screenshots": [],
+      "deprecated": null,
       "latest": "0.1.0-beta.2",
+      "latest_stable": null,
       "versions": [
         {
           "version": "0.1.0-beta.2",
+          "prerelease": true,
           "released_at": "2026-10-19T10:30:37Z",
+          "yanked": null,
+          "notes": "- 请求改走 MovieClaw 的网络出口：主程序按请求限速，整树列举翻的每一页都排队领名额、计入每日预算，\n  大文件夹纳管不再连发几十页把 115 打到限流（#907，需要带按请求限速的 MovieClaw）；「网络与代理」里给本插件配的代理也生效了。\n",
           "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/cloud-115-v0.1.0-beta.2",
-          "min_app": null,
-          "max_app": null,
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/cloud-115-v0.1.0-beta.2/plugins/cloud-115",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/cloud-115-v0.1.0-beta.2/plugins/cloud-115/README.md",
+            "sha256": "af782bde5017498d4c6bba5a13ba46e4eea40e429cc775ce30e1ebcabd1d6dd0",
+            "size": 1842
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "drive-backends": "^1.4"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [],
+            "paths": [],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": false,
+          "dependencies": {
+            "lock": {
+              "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/cloud-115-v0.1.0-beta.2/plugins/cloud-115/requirements.lock",
+              "sha256": "d8bbd424ed1f368edb1d971cdde22ab8d3a7ce673366a65fdba59558bb070f19",
+              "size": 20924
+            },
+            "packages": [
+              {
+                "name": "ecdsa",
+                "version": "0.19.2",
+                "native": false
+              },
+              {
+                "name": "lz4",
+                "version": "4.4.5",
+                "native": true
+              },
+              {
+                "name": "p115cipher",
+                "version": "0.0.6",
+                "native": false
+              },
+              {
+                "name": "p115pickcode",
+                "version": "0.0.5.4",
+                "native": false
+              },
+              {
+                "name": "pycryptodome",
+                "version": "4.0.1",
+                "native": true
+              },
+              {
+                "name": "python-asynctools",
+                "version": "0.2.2",
+                "native": false
+              },
+              {
+                "name": "python-decotools",
+                "version": "0.0.4",
+                "native": false
+              },
+              {
+                "name": "python-filewrap",
+                "version": "0.3.1.1",
+                "native": false
+              },
+              {
+                "name": "python-property",
+                "version": "0.0.3",
+                "native": false
+              },
+              {
+                "name": "python-undefined",
+                "version": "0.0.4",
+                "native": false
+              },
+              {
+                "name": "six",
+                "version": "1.17.0",
+                "native": false
+              }
+            ]
+          },
           "artifacts": [
             {
               "platform": "any",
@@ -47,10 +134,97 @@
         },
         {
           "version": "0.1.0-beta.1",
+          "prerelease": true,
           "released_at": "2026-10-18T03:27:04Z",
+          "yanked": null,
+          "notes": "- 首次内测。扫码登录（可选登录端）与浏览器 Cookie 导入；账号容量；目录选择、整树列举与操作动态（纳管）；\n  文件核验、按播放器 User-Agent 取直链；秒传（含区间校验）与 OSS 分片续传上传；删除进 115 回收站。\n- 依赖 `p115cipher`（115 的请求加密）与 `p115pickcode`（提取码换文件 id），均为 MIT 许可，安装时经管理员批准下载。\n",
           "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/cloud-115-v0.1.0-beta.1",
-          "min_app": null,
-          "max_app": null,
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/cloud-115-v0.1.0-beta.1/plugins/cloud-115",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/cloud-115-v0.1.0-beta.1/plugins/cloud-115/README.md",
+            "sha256": "af782bde5017498d4c6bba5a13ba46e4eea40e429cc775ce30e1ebcabd1d6dd0",
+            "size": 1842
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "drive-backends": "^1.4"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [],
+            "paths": [],
+            "network": false,
+            "callbacks": [],
+            "events": []
+          },
+          "web": false,
+          "dependencies": {
+            "lock": {
+              "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/cloud-115-v0.1.0-beta.1/plugins/cloud-115/requirements.lock",
+              "sha256": "d8bbd424ed1f368edb1d971cdde22ab8d3a7ce673366a65fdba59558bb070f19",
+              "size": 20924
+            },
+            "packages": [
+              {
+                "name": "ecdsa",
+                "version": "0.19.2",
+                "native": false
+              },
+              {
+                "name": "lz4",
+                "version": "4.4.5",
+                "native": true
+              },
+              {
+                "name": "p115cipher",
+                "version": "0.0.6",
+                "native": false
+              },
+              {
+                "name": "p115pickcode",
+                "version": "0.0.5.4",
+                "native": false
+              },
+              {
+                "name": "pycryptodome",
+                "version": "4.0.1",
+                "native": true
+              },
+              {
+                "name": "python-asynctools",
+                "version": "0.2.2",
+                "native": false
+              },
+              {
+                "name": "python-decotools",
+                "version": "0.0.4",
+                "native": false
+              },
+              {
+                "name": "python-filewrap",
+                "version": "0.3.1.1",
+                "native": false
+              },
+              {
+                "name": "python-property",
+                "version": "0.0.3",
+                "native": false
+              },
+              {
+                "name": "python-undefined",
+                "version": "0.0.4",
+                "native": false
+              },
+              {
+                "name": "six",
+                "version": "1.17.0",
+                "native": false
+              }
+            ]
+          },
           "artifacts": [
             {
               "platform": "any",

@@ -2,20 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/movieclaw/movieclaw-plugins/blob/main/index.schema.json",
   "title": "MovieClaw plugin catalog",
-  "description": "Schema version 1 of the official plugin index. The app downloads index.json from the catalog release, not from /releases/latest.",
+  "description": "Schema version 2 of the official plugin index. The app downloads index.json (and index.json.sig) from the catalog release, not from /releases/latest. Fields may be added within schema 2; readers ignore fields they do not know. A breaking change ships under a new file name.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "generated_at", "signed", "key_id", "plugins"],
+  "required": ["schema", "generated_at", "signed", "key_id", "repository", "plugins"],
   "properties": {
-    "schema": { "const": 1 },
-    "generated_at": {
-      "type": "string",
-      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
-      "description": "UTC time this file was generated."
-    },
+    "schema": { "const": 2 },
+    "generated_at": { "$ref": "#/$defs/utc" },
     "signed": {
       "type": "boolean",
-      "description": "True when index.json.sig (Ed25519 over these exact bytes) is published next to this file."
+      "description": "True when index.json.sig (Ed25519 over these exact bytes, base64 plus a newline) is published next to this file."
     },
     "key_id": {
       "description": "Which baked-in public key signed this file. Null when unsigned. The index must not announce a new key.",
@@ -24,6 +20,7 @@
         { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" }
       ]
     },
+    "repository": { "type": "string", "format": "uri" },
     "plugins": {
       "type": "array",
       "items": { "$ref": "#/$defs/plugin" }
@@ -40,66 +37,105 @@
     }
   ],
   "$defs": {
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "asset": {
+      "description": "A file the app fetches separately. It must match sha256 and size; the signed index is the trust anchor, so any mirror may serve it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "sha256", "size"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "size": { "type": "integer", "minimum": 0 }
+      }
+    },
     "plugin": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "id",
         "name",
+        "summary",
         "description",
+        "category",
         "author",
         "homepage",
+        "repository",
         "license",
         "origin",
         "icon",
         "screenshots",
-        "runtime",
-        "sdk",
-        "app",
-        "permissions",
-        "platforms",
+        "deprecated",
         "latest",
+        "latest_stable",
         "versions"
       ],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$" },
-        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Title of the newest version." },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 60, "description": "One line for a card." },
         "description": { "type": "string", "maxLength": 500 },
-        "author": { "type": "string", "minLength": 1 },
+        "category": {
+          "enum": ["storage", "downloader", "messaging", "sites", "library", "tools"],
+          "description": "store.json category, else inferred from the newest version's requires."
+        },
+        "author": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "url"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "url": { "type": ["string", "null"], "format": "uri" }
+          }
+        },
         "homepage": { "type": "string", "format": "uri" },
+        "repository": { "type": "string", "format": "uri", "description": "Source directory on main." },
         "license": { "type": "string", "minLength": 1 },
         "origin": { "const": "official" },
         "icon": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/asset" }],
+          "description": "Hosted on the catalog release, file name carries the content hash."
+        },
+        "screenshots": { "type": "array", "items": { "$ref": "#/$defs/asset" } },
+        "deprecated": {
           "anyOf": [
             { "type": "null" },
-            { "type": "string", "format": "uri" }
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason", "replaced_by"],
+              "properties": {
+                "reason": { "type": "string", "minLength": 1 },
+                "replaced_by": {
+                  "anyOf": [
+                    { "type": "null" },
+                    { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$" }
+                  ]
+                }
+              }
+            }
           ]
-        },
-        "screenshots": {
-          "type": "array",
-          "items": { "type": "string", "format": "uri" }
-        },
-        "runtime": { "enum": ["process", "inline", "exec"] },
-        "sdk": { "type": "string", "pattern": "^\\^?\\d+\\.\\d+$" },
-        "app": {
-          "type": ["string", "null"],
-          "description": "Reserved display field. Compatibility is still sdk plus requires; min_app on each version is not enforced by the server."
-        },
-        "permissions": { "$ref": "#/$defs/permissions" },
-        "platforms": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
         },
         "latest": {
-          "anyOf": [
-            { "type": "null" },
-            { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$" }
-          ]
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/version" }],
+          "description": "Newest version that is not yanked, prereleases included."
+        },
+        "latest_stable": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/version" }],
+          "description": "Newest version that is neither yanked nor a prerelease."
         },
         "versions": {
           "type": "array",
-          "items": { "$ref": "#/$defs/version" }
+          "minItems": 1,
+          "description": "Newest first (semver precedence).",
+          "items": { "$ref": "#/$defs/release" }
         }
       }
     },
@@ -111,52 +147,117 @@
         "operations": { "type": "array", "items": { "type": "string" } },
         "paths": {
           "type": "array",
-          "items": { "$ref": "#/$defs/pathGrant" }
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "mode"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "mode": { "enum": ["read", "rw"] }
+            }
+          }
         },
         "network": { "type": "boolean" },
         "callbacks": { "type": "array", "items": { "type": "string" } },
         "events": { "type": "array", "items": { "type": "string" } }
       }
     },
-    "pathGrant": {
+    "release": {
+      "description": "One published version, with what it declared at its tag.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "mode"],
+      "required": [
+        "version",
+        "prerelease",
+        "released_at",
+        "yanked",
+        "notes",
+        "changelog_url",
+        "source_url",
+        "readme",
+        "runtime",
+        "sdk",
+        "requires",
+        "platforms",
+        "permissions",
+        "web",
+        "dependencies",
+        "artifacts"
+      ],
       "properties": {
-        "path": { "type": "string", "minLength": 1 },
-        "mode": { "enum": ["read", "rw"] }
-      }
-    },
-    "version": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["version", "released_at", "changelog_url", "min_app", "max_app", "artifacts"],
-      "properties": {
-        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$" },
-        "released_at": {
-          "type": "string",
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        "version": { "$ref": "#/$defs/version" },
+        "prerelease": { "type": "boolean" },
+        "released_at": { "$ref": "#/$defs/utc" },
+        "yanked": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason"],
+              "properties": { "reason": { "type": "string", "minLength": 1 } }
+            }
+          ]
         },
+        "notes": { "type": "string", "description": "Markdown: this version's CHANGELOG section." },
         "changelog_url": { "type": "string", "format": "uri" },
-        "min_app": { "type": ["string", "null"] },
-        "max_app": { "type": ["string", "null"] },
+        "source_url": { "type": "string", "format": "uri" },
+        "readme": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/asset" }] },
+        "runtime": { "enum": ["process", "inline", "exec"] },
+        "sdk": { "type": "string", "pattern": "^\\^?\\d+\\.\\d+$" },
+        "requires": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Contract name to ^major.minor. With sdk, this is what the server checks before install."
+        },
+        "platforms": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "permissions": { "$ref": "#/$defs/permissions" },
+        "web": { "type": "boolean", "description": "The package carries web pages (approval asks separately)." },
+        "dependencies": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["lock", "packages"],
+              "properties": {
+                "lock": {
+                  "$ref": "#/$defs/asset",
+                  "description": "requirements.lock at the tag. Its sha256 is the digest the server's approval asks for."
+                },
+                "packages": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["name", "version", "native"],
+                    "properties": {
+                      "name": { "type": "string", "minLength": 1 },
+                      "version": { "type": "string", "minLength": 1 },
+                      "native": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
         "artifacts": {
           "type": "array",
           "minItems": 1,
-          "items": { "$ref": "#/$defs/artifact" }
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["platform", "filename", "url", "sha256", "size"],
+            "properties": {
+              "platform": { "type": "string", "minLength": 1 },
+              "filename": { "type": "string", "minLength": 1 },
+              "url": { "type": "string", "format": "uri" },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "size": { "type": "integer", "minimum": 0 }
+            }
+          }
         }
-      }
-    },
-    "artifact": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["platform", "filename", "url", "sha256", "size"],
-      "properties": {
-        "platform": { "type": "string", "minLength": 1 },
-        "filename": { "type": "string", "minLength": 1 },
-        "url": { "type": "string", "format": "uri" },
-        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "size": { "type": "integer", "minimum": 0 }
       }
     }
   }

@@ -2,6 +2,11 @@
 # Every release is created with --latest=false, including the long-lived
 # catalog release that carries index.json. Do not point clients at
 # /releases/latest: whichever plugin was published last would win.
+#
+# The Release body is this version's CHANGELOG section. After publishing, the
+# index is rebuilt from main (store.json, the committed index.json) and the tags
+# (what each version declared), signed, uploaded to the catalog release, and
+# committed back to main.
 
 name: release
 
@@ -13,8 +18,9 @@ on:
 permissions:
   contents: write
 
+# Shared with catalog.yml: one writer of index.json at a time.
 concurrency:
-  group: release-${{ github.ref }}
+  group: plugin-catalog
   cancel-in-progress: false
 
 env:
@@ -31,14 +37,24 @@ jobs:
       TAG: ${{ github.ref_name }}
       # gh release / gh api in the steps below
       GH_TOKEN: ${{ github.token }}
-      # Ed25519 PKCS#8 PEM. Absent → index is unsigned and says so.
+      # Ed25519 PKCS#8 PEM. Required: the app rejects an unsigned index.
       # Optional RELEASE_SIGNING_KEY_ID selects key_id (default catalog-1).
       RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
       RELEASE_SIGNING_KEY_ID: ${{ secrets.RELEASE_SIGNING_KEY_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Require the signing key
+        run: |
+          if [ -z "${RELEASE_SIGNING_KEY}" ]; then
+            echo "::error::没有配置 Actions secret RELEASE_SIGNING_KEY。MovieClaw 只接受签名的索引，未签名的索引发出去市场会拒绝加载。"
+            exit 1
+          fi
 
-      - name: Check the tag against the manifest
+      - uses: actions/checkout@v4
+        with:
+          # every tag: each version's manifest is read at its own tag
+          fetch-depth: 0
+
+      - name: Check the tag against the manifest and CHANGELOG
         id: tag
         run: python3 scripts/check_tag.py
 
@@ -79,6 +95,7 @@ jobs:
           sha="$(printf '%s\n' "$line" | awk '{print $3}')"
           size="$(printf '%s\n' "$line" | awk '{print $5}')"
           printf '%s\n' "$sha" > "${file}.sha256"
+          python3 scripts/release_notes.py "$PLUGIN_ID" "$PLUGIN_VERSION" > dist/notes.md
           {
             echo "file=${file}"
             echo "sha=${sha}"
@@ -92,28 +109,24 @@ jobs:
           ASSET: ${{ steps.pack.outputs.file }}
         run: |
           set -euo pipefail
-          notes="plugins/${PLUGIN_ID}/CHANGELOG.md"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$ASSET" "${ASSET}.sha256" --clobber
+            gh release edit "$TAG" --notes-file dist/notes.md
           else
             args=(
               gh release create "$TAG" "$ASSET" "${ASSET}.sha256"
               --latest=false
               --verify-tag
               --title "${PLUGIN_ID} ${PLUGIN_VERSION}"
+              --notes-file dist/notes.md
             )
-            if [ -f "$notes" ]; then
-              args+=(--notes-file "$notes")
-            else
-              args+=(--notes "${PLUGIN_ID} ${PLUGIN_VERSION}")
-            fi
             case "$PLUGIN_VERSION" in
               *-*) args+=(--prerelease) ;;
             esac
             "${args[@]}"
           fi
 
-      - name: Rebuild the catalog index
+      - name: Rebuild the catalog index on main
         env:
           PLUGIN_ID: ${{ steps.tag.outputs.id }}
           PLUGIN_VERSION: ${{ steps.tag.outputs.version }}
@@ -121,51 +134,27 @@ jobs:
           SIZE: ${{ steps.pack.outputs.size }}
         run: |
           set -euo pipefail
-          mkdir -p dist/prev
+          # store.json and the committed index live on main; versions come from the tags
+          git fetch origin main
+          git checkout -B main origin/main
           stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           args=(
             python3 scripts/generate_index.py
+            --previous index.json
             --output dist/index.json
+            --assets dist/assets
             --generated-at "$stamp"
             --release "$PLUGIN_ID" "$PLUGIN_VERSION" "$SHA" "$SIZE" "$stamp"
           )
-          if gh release view "$CATALOG_TAG" >/dev/null 2>&1; then
-            gh release download "$CATALOG_TAG" --pattern index.json --dir dist/prev || true
-          fi
-          if [ -f dist/prev/index.json ]; then
-            args+=(--previous dist/prev/index.json)
-          fi
-          if [ -n "${RELEASE_SIGNING_KEY}" ]; then
-            args+=(--sign --sig dist/index.json.sig)
-          fi
-          "${args[@]}"
+          "${args[@]}" --sign --sig dist/index.json.sig
 
-      - name: Upload index.json to the catalog release
-        run: |
-          set -euo pipefail
-          if ! gh release view "$CATALOG_TAG" >/dev/null 2>&1; then
-            gh release create "$CATALOG_TAG" \
-              --latest=false \
-              --title "Plugin catalog" \
-              --notes "Machine-readable plugin index. This release is updated in place. Do not use /releases/latest."
-          fi
-          gh release edit "$CATALOG_TAG" --latest=false
-          if [ -n "${RELEASE_SIGNING_KEY}" ]; then
-            gh release upload "$CATALOG_TAG" dist/index.json dist/index.json.sig --clobber
-          else
-            if gh release view "$CATALOG_TAG" --json assets --jq '.assets[].name' | grep -qx 'index.json.sig'; then
-              gh release delete-asset "$CATALOG_TAG" index.json.sig --yes
-            fi
-            gh release upload "$CATALOG_TAG" dist/index.json --clobber
-          fi
+      - name: Upload index.json and images to the catalog release
+        run: bash scripts/upload_catalog.sh
 
       - name: Commit index.json on main
         run: |
           set -euo pipefail
-          cp dist/index.json /tmp/index.json
-          git fetch origin main
-          git checkout -B main origin/main
-          cp /tmp/index.json index.json
+          cp dist/index.json index.json
           git add index.json
           if git diff --cached --quiet; then
             echo "index.json unchanged"
