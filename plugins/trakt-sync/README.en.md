@@ -1,4 +1,4 @@
-# Trakt playback tracking (beta)
+# Trakt playback tracking
 
 [中文](README.md)
 
@@ -37,3 +37,13 @@ Disconnect clears local credentials and pending work and attempts remote revocat
 [Technical notes](docs/technical-notes.en.md) · [Privacy](PRIVACY.md) · [Changelog](CHANGELOG.md) · [Source](SOURCE.md)
 
 MovieClaw Trakt uses Trakt but is not endorsed or certified by Trakt.
+
+## Release tracks and recovery
+
+`main` and the marketplace use stable 0.2.2. The separate `dev` / `v0.3.0-beta.1` track depends on unmerged host APIs and is not a production update.
+
+Retries read current media metadata via `library.list` and `library.items.get`, using the original file ID when available. Completed views are checked against nearby Trakt history before adding a missing view with its original timestamp. Deleted media/file records retire the task; temporarily missing files wait. No media file access or writes are granted. Failed jobs retry with 10-minute to 6-hour backoff. Expired live events are retired, never converted into watched history.
+
+Legacy records without local file IDs cannot be mapped automatically: correct their season/episode in the details or dismiss the record. Dismissal never removes Trakt history. Failed counts represent retained records, not a lifetime total.
+
+To retain an existing application binding across this default-app change, explicitly save the previous public Client ID in advanced settings before upgrading. Reauthorization is required only when choosing to switch applications.

@@ -13,20 +13,25 @@ from movieclaw_sdk.events import (
     PLAYBACK_STARTED,
     PLAYBACK_STOPPED,
 )
+from movieclaw_sdk.ops import HOST_OPS
 from pydantic import BaseModel, Field, SecretStr
 
 from .application import application_credentials
 from .client import TraktClient, TraktError
 from .engine import Engine
 from .policy import iso_time
+from .recovery import MetadataResolver
 
 PLUGIN_ID = "trakt-sync"
 
 
+class RetryOptions(BaseModel):
+    season: int = Field(ge=0)
+    episode: int = Field(gt=0)
+
+
 class Settings(BaseModel):
-    enabled: bool = Field(
-        True, title="启用自动追踪", description="只同步已明确绑定的成员"
-    )
+    enabled: bool = Field(True, title="启用自动追踪", description="只同步已明确绑定的成员")
     client_id: str = Field(
         "",
         title="自定义 Trakt Client ID（高级，可留空）",
@@ -44,7 +49,8 @@ class Settings(BaseModel):
     PLUGIN_ID,
     title="Trakt 自动追踪",
     config=Settings,
-    inject=(PLUGIN_DATA, PLUGIN_HEALTH, PLUGIN_ROUTES, DURABLE_EVENTS),
+    inject=(PLUGIN_DATA, PLUGIN_HEALTH, PLUGIN_ROUTES, DURABLE_EVENTS, HOST_OPS),
+    permissions=("library.list", "library.items.get"),
 )
 async def apply(ctx: Context):
     settings = ctx.config
@@ -58,7 +64,10 @@ async def apply(ctx: Context):
         settings.client_id, settings.client_secret.get_secret_value()
     )
     client = TraktClient(client_id, client_secret, http)
-    engine = Engine(store, client, health, ctx.logger, enabled=settings.enabled)
+    ops = await ctx.use(HOST_OPS).client(ctx)
+    engine = Engine(
+        store, client, health, ctx.logger, enabled=settings.enabled, resolver=MetadataResolver(ops)
+    )
 
     def listener(kind):
         async def receive(event):
@@ -82,9 +91,7 @@ async def apply(ctx: Context):
     ctx.task(engine.run(), name="trakt-delivery")
     router = APIRouter()
 
-    @router.get(
-        "/status", operation_id="plugins.trakt-sync.status", summary="Trakt 同步状态"
-    )
+    @router.get("/status", operation_id="plugins.trakt-sync.status", summary="Trakt 同步状态")
     async def status(member_id: int = Query(0, ge=0)) -> dict:
         return await engine.status(member_id)
 
@@ -145,9 +152,7 @@ async def apply(ctx: Context):
     async def disconnect(member_id: int = Query(0, ge=0)) -> dict:
         return await engine.disconnect(member_id)
 
-    @router.post(
-        "/retry", operation_id="plugins.trakt-sync.retry", summary="重试匹配失败的记录"
-    )
+    @router.post("/retry", operation_id="plugins.trakt-sync.retry", summary="重试匹配失败的记录")
     async def retry(member_id: int = Query(0, ge=0)) -> dict:
         try:
             return await engine.retry_failed(member_id)
@@ -159,9 +164,24 @@ async def apply(ctx: Context):
         operation_id="plugins.trakt-sync.retry-one",
         summary="重试指定的失败记录",
     )
-    async def retry_one(delivery_id: str, member_id: int = Query(0, ge=0)) -> dict:
+    async def retry_one(
+        delivery_id: str, member_id: int = Query(0, ge=0), correction: RetryOptions | None = None
+    ) -> dict:
         try:
-            return await engine.retry_failed(member_id, delivery_id)
+            return await engine.retry_failed(
+                member_id, delivery_id, correction.model_dump() if correction else None
+            )
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
+
+    @router.post(
+        "/dismiss/{delivery_id}",
+        operation_id="plugins.trakt-sync.dismiss",
+        summary="忽略此条失败记录，不删除 Trakt 历史",
+    )
+    async def dismiss(delivery_id: str, member_id: int = Query(0, ge=0)) -> dict:
+        try:
+            return await engine.dismiss_failed(member_id, delivery_id)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from None
 

@@ -9,9 +9,7 @@ import httpx
 
 API_URL = "https://api.trakt.tv"
 VERSION = tomllib.loads(
-    (Path(__file__).resolve().parents[1] / "movieclaw-plugin.toml").read_text(
-        encoding="utf-8"
-    )
+    (Path(__file__).resolve().parents[1] / "movieclaw-plugin.toml").read_text(encoding="utf-8")
 )["plugin"]["version"]
 
 
@@ -74,9 +72,7 @@ class TraktClient:
         return fields
 
     async def begin(self):
-        result = await self.request(
-            "POST", "/oauth/device/code", {"client_id": self.client_id}
-        )
+        result = await self.request("POST", "/oauth/device/code", {"client_id": self.client_id})
         url = urlparse(result.get("verification_url", ""))
         if url.scheme != "https" or url.hostname not in {
             "trakt.tv",
@@ -108,8 +104,7 @@ class TraktClient:
     @staticmethod
     def credentials(tokens: dict, *, now=None):
         if not all(
-            isinstance(tokens.get(k), str) and tokens[k]
-            for k in ("access_token", "refresh_token")
+            isinstance(tokens.get(k), str) and tokens[k] for k in ("access_token", "refresh_token")
         ):
             raise TraktError(502)
         now = time.time() if now is None else now

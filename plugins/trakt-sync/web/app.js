@@ -21,8 +21,8 @@ function time(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "时间未知" : date.toLocaleString(undefined, {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"});
 }
-async function api(path, method = "GET", id = selected) {
-  const response = await fetch(`/api/v1/plugins/trakt-sync/${path}?member_id=${id}`, {method, credentials:"same-origin", headers:{Accept:"application/json"}, cache:"no-store"});
+async function api(path, method = "GET", id = selected, body) {
+  const response = await fetch(`/api/v1/plugins/trakt-sync/${path}?member_id=${id}`, {method, credentials:"same-origin", headers:{Accept:"application/json", ...(body ? {"Content-Type":"application/json"} : {})}, body:body ? JSON.stringify(body) : undefined, cache:"no-store"});
   const result = await response.json();
   if (!response.ok || result.success === false) throw new Error(response.status === 403 ? "此页面需要管理员权限" : result.message || result.detail || "请求未完成");
   return result.data ?? result;
@@ -55,7 +55,7 @@ function renderAccounts(accounts) {
     const status = el("div", "account-state");
     status.append(el("span", `badge ${account.last_error ? "blocked" : account.connected ? "ok" : account.has_account ? "blocked" : ""}`, account.needs_reconnect ? "需要重新连接" : account.last_error ? "同步需检查" : account.connected ? "● 已连接" : account.has_account ? "需要重新连接" : "尚未连接"));
     const counts = el("p");
-    counts.append(el("span", "", `${account.pending} 待发送 · `), el("span", account.failed ? "has-error" : "", `${account.failed} 失败`));
+    counts.append(el("span", "", `${account.pending} 待发送 · `), el("span", account.failed ? "has-error" : "", `${account.failed} 条保留的失败记录`));
     status.append(counts, el("p", "", [account.last_error, account.warning].filter(Boolean).join("；") || (account.last_success ? `上次发送 ${time(account.last_success)}` : "暂无发送记录")));
     button.append(identity,status,el("span", "chevron", "›")); row.append(button);
     if (!account.has_account) {
@@ -89,11 +89,32 @@ function renderRecords() {
     body.append(el("p", "", `${events[row.event] || "播放同步"} · 观看时间 ${time(row.occurred_at)}`));
     if (row.completed_at) body.append(el("p", "", `处理时间 ${time(row.completed_at)}`));
     if (row.error_status != null) body.append(el("p", "", row.error_status ? `Trakt 返回 HTTP ${row.error_status}` : "未能连接到 Trakt"));
-    if (row.retry_at && ["retrying","blocked"].includes(row.state)) body.append(el("p", "", `下次自动尝试 ${time(row.retry_at)}`));
+    if (row.retry_at && ["retrying","blocked","failed"].includes(row.state)) body.append(el("p", "", `下次自动尝试 ${time(row.retry_at)}`));
     if (row.can_retry) {
-      const retry = el("button", "", "重试此记录");
-      retry.onclick = action(async () => { retry.disabled = true; try { await api(`retry/${encodeURIComponent(row.id)}`, "POST"); await refresh(); notice("已将这条记录加入待发送队列。"); } finally { retry.disabled = false; } });
+      const retry = el("button", "", "核对后重试");
+      retry.onclick = action(async () => { retry.disabled = true; try { const result = await api(`retry/${encodeURIComponent(row.id)}`, "POST"); await refresh(); retryNotice(result); } finally { retry.disabled = false; } });
       body.append(retry);
+      if (row.can_repair) {
+        const form = el("div", "repair-controls");
+        const season = el("input"), episode = el("input");
+        season.type = episode.type = "number"; season.min = "0"; episode.min = "1";
+        season.value = row.season ?? ""; episode.value = row.episode ?? "";
+        season.setAttribute("aria-label", "修正季号"); episode.setAttribute("aria-label", "修正集号");
+        const repair = el("button", "", "修正季集并核对");
+        repair.onclick = action(async () => {
+          const s = Number(season.value), e = Number(episode.value);
+          if (!season.value || !episode.value || !Number.isInteger(s) || !Number.isInteger(e) || s < 0 || e < 1) throw new Error("请输入有效的季号和集号");
+          const result = await api(`retry/${encodeURIComponent(row.id)}`, "POST", selected, {season:s, episode:e});
+          await refresh(); retryNotice(result);
+        });
+        form.append(el("span", "", "季"), season, el("span", "", "集"), episode, repair); body.append(form);
+      }
+      const dismiss = el("button", "", "忽略此记录");
+      dismiss.onclick = action(async () => {
+        if (!confirm("忽略此条失败记录？不会补传，也不会删除 Trakt 的观看历史。")) return;
+        await api(`dismiss/${encodeURIComponent(row.id)}`, "POST"); await refresh();
+      });
+      body.append(dismiss);
     }
     if (row.state === "blocked") {
       const manage = el("button", "", "管理账号连接"); manage.onclick = () => { $("advanced").open = true; $("advanced").scrollIntoView({behavior:"smooth", block:"nearest"}); }; body.append(manage);
@@ -112,7 +133,7 @@ async function refresh() {
   const pending = accounts.reduce((sum, account) => sum + account.pending,0);
   const failed = accounts.reduce((sum, account) => sum + account.failed,0);
   const attention = accounts.some(account => account.last_error || account.warning || account.needs_reconnect);
-  $("summary").textContent = failed ? `${failed} 条发送失败，需要处理 · ${connected} 个账号已连接` : attention ? `有账号需要检查 · ${pending} 条待发送` : connected ? `同步正常 · ${connected} 个账号已连接${pending ? ` · ${pending} 条待发送` : ""}` : "连接 Trakt 后，自动同步观看记录";
+  $("summary").textContent = failed ? `${failed} 条保留的失败记录 · ${connected} 个账号已连接` : attention ? `有账号需要检查 · ${pending} 条待发送` : connected ? `同步正常 · ${connected} 个账号已连接${pending ? ` · ${pending} 条待发送` : ""}` : "连接 Trakt 后，自动同步观看记录";
   $("summary").classList.toggle("attention", !!failed || attention);
   $("summary").classList.toggle("idle", !connected && !attention);
   $("account-count").textContent = `${connected} 个已连接`;
@@ -160,7 +181,7 @@ $("refresh").onclick = action(() => selectMember(readMember()));
 $("member").onkeydown = event => { if (event.key === "Enter") $("refresh").click(); };
 $("member").onchange = action(() => selectMember(readMember()));
 $("add-account").onclick = () => { $("advanced").open = true; $("member").focus(); $("advanced").scrollIntoView({behavior:"smooth",block:"nearest"}); };
-$("retry").onclick = action(async () => { const result = await api("retry", "POST"); await refresh(); notice(`已将 ${result.retried} 条记录加入待发送队列。`); });
+$("retry").onclick = action(async () => { const result = await api("retry", "POST"); await refresh(); retryNotice(result); });
 $("acknowledge-dropped").onclick = action(async () => {
   if (!confirm("确认已知这些记录未同步？此操作只清除提示，不会补发记录，累计数量仍保留。")) return;
   await api("acknowledge-dropped", "POST"); await refresh(); notice("已清除提示，累计未同步数量仍保留。");
@@ -192,3 +213,7 @@ for (const tab of tabs) {
 }
 action(refresh)();
 setInterval(() => { if (!document.hidden) refresh().then(() => showError("")).catch(error => showError(`状态暂未更新：${error.message}`)); },10000);
+
+function retryNotice(result) {
+  notice(result.retried ? `已将 ${result.retried} 条记录加入核对队列，将先检查 Trakt 历史再补传。` : "已核对：无需补传或仍待修正，请查看记录详情。");
+}

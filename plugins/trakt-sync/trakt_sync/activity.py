@@ -11,7 +11,7 @@ def error_reason(status):
         400: "Trakt 无法接受此条记录，请检查影片或季集编号",
         401: "账号授权已失效，请重新连接",
         403: "Trakt 拒绝访问，请检查账号权限",
-        404: "Trakt 未找到对应影片，请检查外部编号",
+        404: "Trakt 未匹配此影片或季集，等待核对最新编号",
         422: "Trakt 无法接受此播放记录，请检查影片或季集编号",
         429: "Trakt 请求频率受限，稍后自动重试",
     }.get(status, "Trakt 服务暂时不可用，将自动重试")
@@ -84,10 +84,12 @@ class ActivityLog:
                 job["id"],
                 **metadata,
                 occurred_at=job["occurred_at"],
-                state="skipped" if outcome == "expired" else "sent",
+                state="skipped" if outcome in ("expired", "local_deleted", "dismissed") else "sent",
                 completed_at=iso_time(self.clock()),
                 reason={
                     "expired": "实时播放事件已过期，不补报正在观看",
+                    "local_deleted": "本地条目或文件已删除，已停止此条同步；不删除 Trakt 历史",
+                    "dismissed": "用户已忽略此条记录，未补传也未删除 Trakt 历史",
                     "ignored_short_play": "已清除正在观看；短播放未记入已看历史",
                     "already_synced": "已确认 Trakt 中存在记录，未重复添加",
                 }.get(outcome),
@@ -122,18 +124,17 @@ class ActivityLog:
                         "state": visible_state,
                         "occurred_at": job["occurred_at"],
                         "error_status": code,
-                        "reason": error_reason(code)
+                        "reason": job.get("repair_reason") or error_reason(code)
                         if code is not None
-                        else (
-                            "影片匹配失败，请检查外部编号后重试"
-                            if state == "failed"
-                            else None
+                        else ("影片匹配失败，请检查外部编号后重试" if state == "failed" else None),
+                        "retry_at": iso_time(
+                            job["next_at"]
+                            if state == "queued"
+                            else job.get("retry_at", self.clock() + 600)
                         ),
-                        "retry_at": iso_time(job["next_at"])
-                        if state == "queued"
-                        else None,
                         "failures": job.get("attempt", 0),
                         "can_retry": state == "failed",
+                        "can_repair": state == "failed" and "episode" in job.get("item", {}),
                     }
                 )
         live_ids = {row["id"] for row in live}
@@ -144,7 +145,5 @@ class ActivityLog:
             and row.get("state") in ("sent", "skipped")
             and row.get("event") not in ("started", "progress")
         ]
-        rows = sorted(
-            live + finished, key=lambda row: row.get("occurred_at", ""), reverse=True
-        )
+        rows = sorted(live + finished, key=lambda row: row.get("occurred_at", ""), reverse=True)
         return {"member_id": member, "records": rows, "retained": 80}

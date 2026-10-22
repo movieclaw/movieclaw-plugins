@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import AsyncMock
 
 import httpx
+
 from trakt_sync.application import DEFAULT_CLIENT_ID, application_credentials
 from trakt_sync.client import VERSION, TraktClient, TraktError
 from trakt_sync.engine import Engine
@@ -92,9 +93,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_start_completion_and_duplicate_produce_one_watch(self):
         e = self.engine
-        await e.accept(
-            "started", {**self.event, "position_ms": 0}, "start", iso_time(self.now)
-        )
+        await e.accept("started", {**self.event, "position_ms": 0}, "start", iso_time(self.now))
         await e.drain(0)
         self.now += 100
         for kind, key in [
@@ -105,9 +104,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             await e.accept(kind, self.event, key, iso_time(self.now))
         await e.drain(0)
         await e.drain(0)
-        self.assertEqual(
-            [r.url.path for r in self.requests], ["/scrobble/start", "/scrobble/stop"]
-        )
+        self.assertEqual([r.url.path for r in self.requests], ["/scrobble/start", "/scrobble/stop"])
         self.assertEqual((await e.status(0))["pending"], 0)
 
     async def test_member_binding_never_falls_back_to_administrator(self):
@@ -116,9 +113,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
         await e.accept("completed", event, "other", iso_time(self.now))
         await e.drain(1)
         self.assertEqual(self.requests, [])
-        await e.set(
-            1, "account", {**self.account, "access_token": "member-one"}, secret=True
-        )
+        await e.set(1, "account", {**self.account, "access_token": "member-one"}, secret=True)
         await e.accept("completed", event, "other", iso_time(self.now))
         await e.drain(1)
         self.assertEqual(self.requests[0].headers["authorization"], "Bearer member-one")
@@ -154,9 +149,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             [r.url.path for r in self.requests],
             ["/sync/history/movies", "/sync/history"],
         )
-        self.assertEqual(
-            json.loads(self.requests[-1].content)["movies"][0]["watched_at"], when
-        )
+        self.assertEqual(json.loads(self.requests[-1].content)["movies"][0]["watched_at"], when)
 
     async def test_reload_preserves_queue_and_event_deduplication(self):
         e = self.engine
@@ -187,9 +180,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
                     await e.begin(0)
 
     async def test_default_app_omits_custom_secret(self):
-        self.assertEqual(
-            application_credentials("  ", "old-secret"), (DEFAULT_CLIENT_ID, "")
-        )
+        self.assertEqual(application_credentials("  ", "old-secret"), (DEFAULT_CLIENT_ID, ""))
         self.assertEqual(
             application_credentials("custom", "custom-secret"),
             ("custom", "custom-secret"),
@@ -197,9 +188,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_rejected_auth_skips_over_100_events_and_other_member_continues(self):
         e = self.engine
-        self.handler = lambda r: httpx.Response(
-            400 if r.url.path == "/oauth/token" else 401
-        )
+        self.handler = lambda r: httpx.Response(400 if r.url.path == "/oauth/token" else 401)
         await e.accept("completed", self.event, "rejected", iso_time(self.now))
         await e.drain(0)
         self.assertTrue((await e.status(0))["needs_reconnect"])
@@ -219,12 +208,8 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await e.retry_failed(0)
         self.handler = None
-        await e.set(
-            1, "account", {**self.account, "access_token": "other"}, secret=True
-        )
-        await e.accept(
-            "completed", {**self.event, "member_id": 1}, "healthy", iso_time(self.now)
-        )
+        await e.set(1, "account", {**self.account, "access_token": "other"}, secret=True)
+        await e.accept("completed", {**self.event, "member_id": 1}, "healthy", iso_time(self.now))
         await e.drain(1)
         self.assertEqual(self.requests[-1].headers["authorization"], "Bearer other")
 
@@ -240,17 +225,13 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             await e.drain(0)
         ledger = await e.ledger(0)
         self.assertLessEqual(len(ledger["queue"]), 64)
-        self.assertLessEqual(
-            len(json.dumps(ledger, ensure_ascii=False).encode()), 60000
-        )
+        self.assertLessEqual(len(json.dumps(ledger, ensure_ascii=False).encode()), 60000)
         self.assertGreater(ledger["dropped"], 0)
         self.assertIn("未同步", (await e.status(0))["warning"])
         self.assertIn("HTTP 503", (await e.status(0))["last_error"])
         self.handler = None
         await e.set(2, "account", self.account, secret=True)
-        await e.accept(
-            "completed", {**self.event, "member_id": 2}, "other", iso_time(self.now)
-        )
+        await e.accept("completed", {**self.event, "member_id": 2}, "other", iso_time(self.now))
         await e.drain(2)
         self.assertEqual((await e.status(2))["pending"], 0)
 
@@ -335,18 +316,14 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             [r.url.path for r in self.requests],
             ["/scrobble/stop", "/oauth/token", "/scrobble/stop"],
         )
-        self.assertEqual(
-            (await e.get(0, "account"))["refresh_token"], "rotated-refresh"
-        )
+        self.assertEqual((await e.get(0, "account"))["refresh_token"], "rotated-refresh")
         self.assertEqual((await e.status(0))["pending"], 0)
         self.assertTrue(self.requests[0].headers["user-agent"].endswith(VERSION))
 
     async def test_replay_rejection_does_not_overwrite_rotated_tokens(self):
         e = self.engine
         self.handler = lambda r: (
-            httpx.Response(
-                200, json={"access_token": "new", "refresh_token": "new-refresh"}
-            )
+            httpx.Response(200, json={"access_token": "new", "refresh_token": "new-refresh"})
             if r.url.path == "/oauth/token"
             else httpx.Response(401)
         )
@@ -359,9 +336,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
     async def test_rotated_tokens_survive_transient_storage_failure(self):
         e = self.engine
         self.handler = lambda r: (
-            httpx.Response(
-                200, json={"access_token": "new", "refresh_token": "new-refresh"}
-            )
+            httpx.Response(200, json={"access_token": "new", "refresh_token": "new-refresh"})
             if r.url.path == "/oauth/token"
             else httpx.Response(401)
             if r.headers.get("authorization") == "Bearer fixture-access"
@@ -434,9 +409,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
                     await e.poll(1)
                     self.assertEqual(count, len(self.requests))
                     if code == 429:
-                        self.assertEqual(
-                            (await e.get(1, "pending"))["next_poll"], self.now + 120
-                        )
+                        self.assertEqual((await e.get(1, "pending"))["next_poll"], self.now + 120)
                 else:
                     self.assertIsNone(await e.get(1, "pending"))
         await pending()
@@ -451,9 +424,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(code=code):
                 await e.set(0, "ledger", {"queue": [], "seen": [], "sessions": {}})
                 self.handler = lambda r, code=code: httpx.Response(code)
-                await e.accept(
-                    "completed", self.event, f"failed-{code}", iso_time(self.now)
-                )
+                await e.accept("completed", self.event, f"failed-{code}", iso_time(self.now))
                 await e.drain(0)
                 self.assertEqual((await e.status(0))["failed"], 1)
                 self.assertEqual((await e.status(0))["pending"], 0)
@@ -466,9 +437,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
     async def test_short_stop_422_is_not_match_failure(self):
         e = self.engine
         self.handler = lambda r: httpx.Response(422)
-        await e.accept(
-            "stopped", {**self.event, "position_ms": 0}, "short", iso_time(self.now)
-        )
+        await e.accept("stopped", {**self.event, "position_ms": 0}, "short", iso_time(self.now))
         await e.drain(0)
         self.assertEqual((await e.status(0))["failed"], 0)
         self.assertEqual((await e.status(0))["pending"], 0)
@@ -479,9 +448,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
         when = "2026-10-22T01:02:03.123456+00:00"
         await e.accept("completed", self.event, "host-time", when)
         await e.drain(0)
-        self.assertEqual(
-            json.loads(self.requests[-1].content)["movies"][0]["watched_at"], when
-        )
+        self.assertEqual(json.loads(self.requests[-1].content)["movies"][0]["watched_at"], when)
 
     async def test_scheduler_sleeps_when_idle_and_wakes_for_delivery(self):
         e = self.engine
@@ -522,9 +489,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
     async def test_market_application_configured_and_empty_override_keeps_secret_isolated(
         self,
     ):
-        self.assertEqual(
-            DEFAULT_CLIENT_ID, "aPq49pAxnq5HM6qVYY1vmKfHl6bV6S10aotXT5crbH0"
-        )
+        self.assertEqual(DEFAULT_CLIENT_ID, "aPq49pAxnq5HM6qVYY1vmKfHl6bV6S10aotXT5crbH0")
         self.engine.client.client_id = ""
         with self.assertRaisesRegex(ValueError, "配置不可用"):
             await self.engine.begin(2)
@@ -573,9 +538,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await e.get(1, "account"))["refresh_token"], "member-refresh")
         self.assertTrue(await e.get(1, "linked"))
         self.assertIsNone(await e.get(1, "pending"))
-        self.assertEqual(
-            (await e.get(0, "account"))["refresh_token"], "fixture-refresh"
-        )
+        self.assertEqual((await e.get(0, "account"))["refresh_token"], "fixture-refresh")
 
     async def test_marker_failure_cannot_persist_an_invisible_queue(self):
         e = self.engine
@@ -632,9 +595,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             for r in self.requests
             if r.url.path == "/sync/history"
         ]
-        self.assertEqual(
-            sent, [iso_time(self.now - 1 - 86400 + i * 3600) for i in range(2)]
-        )
+        self.assertEqual(sent, [iso_time(self.now - 1 - 86400 + i * 3600) for i in range(2)])
         self.assertEqual((await e.status(0))["pending"], 0)
 
     async def test_disconnect_revokes_rotated_token_after_failed_persistence(self):
@@ -738,12 +699,8 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
     async def test_corrupt_account_cannot_stop_migration_or_other_member_delivery(self):
         e = self.engine
         await e.accept("completed", self.event, "broken", iso_time(self.now))
-        await e.set(
-            1, "account", {**self.account, "access_token": "healthy"}, secret=True
-        )
-        await e.accept(
-            "completed", {**self.event, "member_id": 1}, "healthy", iso_time(self.now)
-        )
+        await e.set(1, "account", {**self.account, "access_token": "healthy"}, secret=True)
+        await e.accept("completed", {**self.event, "member_id": 1}, "healthy", iso_time(self.now))
         get = e.store.get
 
         async def broken_get(key, *, scope="global", default=None):
@@ -753,7 +710,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
 
         e.store.get = broken_get
         await e.initialize()
-        self.assertTrue(await e.store.get("delivery-index-v2"))
+        self.assertTrue(await e.store.get("delivery-index-v3"))
         self.assertNotIn("account", e.store.scans)
         await e.deliver_ready(await e.store.scopes("delivery", entity="member"))
         self.assertEqual((await e.status(1))["pending"], 0)
@@ -761,9 +718,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len((await e.accounts())["accounts"]), 2)
         count = len(self.requests)
         for i in range(80):
-            await e.accept(
-                "completed", self.event, f"unreadable-{i}", iso_time(self.now)
-            )
+            await e.accept("completed", self.event, f"unreadable-{i}", iso_time(self.now))
         self.assertEqual(count, len(self.requests))
         self.assertFalse((await e.disconnect(0))["remote_revocation_confirmed"])
         self.assertIsNone(e.store.data.get(("member:0", "account")))

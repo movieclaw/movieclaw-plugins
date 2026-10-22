@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.2.2-beta.1 (unreleased)
+## 0.2.2 (2026-10-22)
+
+- Revalidate failed deliveries using current library metadata and stable file IDs; retire deleted entries and expired live events, and retry transient metadata failures.
+- Check paginated Trakt history before replaying a completion, preserving its original watch time; add season/episode correction and dismissal for legacy failures.
+- Display retained failure counts, accurate matching errors and retry deadlines. Request only two read-only metadata operations, with no filesystem access.
+- Keep server-dependent features on dev / v0.3.0-beta.1, separate from stable main and marketplace releases.
 
 - Prevent a full queue or rejected authorization from blocking the host's shared durable consumer; bound the ledger, prefer expiring live jobs and discarding heartbeats, and show dropped completion counts.
 - Pause members with rejected authorization until reconnect, clear unusable queued work, and preserve freshly rotated credentials.

@@ -580,3 +580,6 @@ dialog::backdrop {
   .page-header { flex-wrap: wrap; }
   .header-actions { margin-left: auto; }
 }
+
+.repair-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px; }
+.repair-controls input { width:72px; min-height:44px; }

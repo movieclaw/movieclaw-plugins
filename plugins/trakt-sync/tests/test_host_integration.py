@@ -2,9 +2,9 @@
 
 import importlib
 import json
-from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import httpx
 from fastapi import APIRouter, FastAPI, Header
@@ -18,11 +18,13 @@ from movieclaw_kernel import DURABLE_EVENTS, DeliveryInfo, Origin
 from movieclaw_kernel.observe import current_delivery
 from movieclaw_kernel.testing import KernelHarness
 from movieclaw_sdk.events import PLAYBACK_COMPLETED, PLAYBACK_PROGRESS, Playback
+from movieclaw_sdk.ops import HOST_OPS
 
 from trakt_sync.application import DEFAULT_CLIENT_ID
 from trakt_sync.engine import Engine
 from trakt_sync.plugin import apply
 from trakt_sync.policy import iso_time
+
 from .test_trakt_sync import Health, Store
 
 
@@ -106,9 +108,7 @@ class HostIntegrationTests(unittest.IsolatedAsyncioTestCase):
                             },
                         )
                     if request.url.path == "/users/settings":
-                        return httpx.Response(
-                            200, json={"user": {"username": "fixture-user"}}
-                        )
+                        return httpx.Response(200, json={"user": {"username": "fixture-user"}})
                     return httpx.Response(201, json={"action": "scrobble"})
 
                 def subscribe(event, *, entry_id, listener_id, handler):
@@ -129,16 +129,18 @@ class HostIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     patch.object(service, "_changed", lambda: None),
                 ):
                     async with KernelHarness() as harness:
-                        harness.provide(
-                            PLUGIN_DATA, SimpleNamespace(scoped=lambda _: store)
-                        )
-                        harness.provide(
-                            PLUGIN_HEALTH, SimpleNamespace(reporter=lambda _: Health())
-                        )
+                        harness.provide(PLUGIN_DATA, SimpleNamespace(scoped=lambda _: store))
+                        harness.provide(PLUGIN_HEALTH, SimpleNamespace(reporter=lambda _: Health()))
                         harness.provide(PLUGIN_ROUTES, service)
                         harness.provide(
-                            DURABLE_EVENTS, SimpleNamespace(subscribe=subscribe)
+                            HOST_OPS,
+                            SimpleNamespace(
+                                client=AsyncMock(
+                                    return_value=SimpleNamespace(call=AsyncMock(return_value=[]))
+                                )
+                            ),
                         )
+                        harness.provide(DURABLE_EVENTS, SimpleNamespace(subscribe=subscribe))
                         fiber = await harness.mount(apply, config=config)
                         self.assertEqual(fiber.state.value, "active")
                         self.assertEqual(len(subscribers), 3)
@@ -160,12 +162,11 @@ class HostIntegrationTests(unittest.IsolatedAsyncioTestCase):
                                 ("POST", "/disconnect"),
                                 ("POST", "/retry"),
                                 ("POST", "/retry/missing"),
+                                ("POST", "/dismiss/missing"),
                                 ("POST", "/acknowledge-dropped"),
                             ):
                                 self.assertEqual(
-                                    (
-                                        await web.request(method, prefix + path)
-                                    ).status_code,
+                                    (await web.request(method, prefix + path)).status_code,
                                     401,
                                 )
                                 self.assertEqual(
@@ -179,6 +180,14 @@ class HostIntegrationTests(unittest.IsolatedAsyncioTestCase):
                                     403,
                                 )
                             web.headers["x-test-identity"] = "admin"
+                            self.assertEqual(
+                                (
+                                    await web.post(
+                                        prefix + "/retry/missing", json={"season": -1, "episode": 0}
+                                    )
+                                ).status_code,
+                                422,
+                            )
                             self.assertTrue(
                                 (await web.get(prefix + "/status")).json()["configured"]
                             )
@@ -228,42 +237,32 @@ class HostIntegrationTests(unittest.IsolatedAsyncioTestCase):
                             self.assertEqual(status["pending"], 0)
                             activity = (await web.get(prefix + "/activity")).json()
                             self.assertEqual(activity["records"][0]["state"], "sent")
-                            self.assertNotIn(
-                                "fixture-a", json.dumps(activity) + json.dumps(status)
-                            )
+                            self.assertNotIn("fixture-a", json.dumps(activity) + json.dumps(status))
                             ledger = await engines[0].ledger(0)
                             ledger["dropped"] = 2
                             await engines[0].save_ledger(0, ledger)
                             self.assertEqual(
-                                (
-                                    await web.post(prefix + "/acknowledge-dropped")
-                                ).json()["acknowledged"],
+                                (await web.post(prefix + "/acknowledge-dropped")).json()[
+                                    "acknowledged"
+                                ],
                                 2,
                             )
-                            self.assertIsNone(
-                                (await web.get(prefix + "/status")).json()["warning"]
-                            )
+                            self.assertIsNone((await web.get(prefix + "/status")).json()["warning"])
                             self.assertEqual(
                                 (await web.post(prefix + "/retry/missing")).status_code,
                                 409,
                             )
                             self.assertEqual(
-                                (
-                                    await web.get(prefix + "/status?member_id=-1")
-                                ).status_code,
+                                (await web.get(prefix + "/status?member_id=-1")).status_code,
                                 422,
                             )
                             self.assertEqual(
                                 sum(r.url.path == "/scrobble/stop" for r in requests), 1
                             )
                             self.assertTrue(
-                                (await web.post(prefix + "/disconnect")).json()[
-                                    "disconnected"
-                                ]
+                                (await web.post(prefix + "/disconnect")).json()["disconnected"]
                             )
                             await harness.unmount(fiber)
-                            self.assertEqual(
-                                (await web.get(prefix + "/status")).status_code, 404
-                            )
+                            self.assertEqual((await web.get(prefix + "/status")).status_code, 404)
                         self.assertFalse(subscribers)
                         self.assertFalse(harness.events.owned_by("trakt-sync"))
