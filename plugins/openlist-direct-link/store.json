@@ -1,0 +1,9 @@
+{
+  "author": "MovieClaw",
+  "author_url": "https://github.com/movieclaw",
+  "license": "见仓库许可证",
+  "origin": "official",
+  "summary": "挂载路径的 strm 借 OpenList 换出网盘直链，播放器 302 直连网盘，视频流量不经服务器。",
+  "category": "storage",
+  "screenshots": []
+}

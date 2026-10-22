@@ -1,0 +1,15 @@
+[plugin]
+id = "openlist-direct-link"
+title = "OpenList 直链"
+version = "0.1.0"
+entry = "openlist_direct_link"
+runtime = "process"
+sdk = "^1.0"
+description = "strm 指向 CloudDrive2 / rclone 挂载里的文件时，借 OpenList 换出网盘直链，播放器直接从网盘取，视频流量不经过服务器。"
+
+[requires]
+"playback.strm.direct-link" = "^1.0"
+
+[permissions]
+operations = []
+network = true

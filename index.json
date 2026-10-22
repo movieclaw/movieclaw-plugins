@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-21T08:02:59Z",
+  "generated_at": "2026-10-22T04:09:54Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -232,6 +232,68 @@
               "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/cloud-115-v0.1.0-beta.1/cloud-115-0.1.0-beta.1.mcplugin",
               "sha256": "88958b608374e8481f389bb11d113419db7e42588d81958d8cfead10e9eda5bb",
               "size": 45196
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "openlist-direct-link",
+      "name": "OpenList 直链",
+      "summary": "挂载路径的 strm 借 OpenList 换出网盘直链，播放器 302 直连网盘，视频流量不经服务器。",
+      "description": "strm 指向 CloudDrive2 / rclone 挂载里的文件时，借 OpenList 换出网盘直链，播放器直接从网盘取，视频流量不经过服务器。",
+      "category": "storage",
+      "author": {
+        "name": "MovieClaw",
+        "url": "https://github.com/movieclaw"
+      },
+      "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/openlist-direct-link",
+      "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/openlist-direct-link",
+      "license": "见仓库许可证",
+      "origin": "official",
+      "icon": null,
+      "screenshots": [],
+      "deprecated": null,
+      "latest": "0.1.0",
+      "latest_stable": "0.1.0",
+      "versions": [
+        {
+          "version": "0.1.0",
+          "prerelease": false,
+          "released_at": "2026-10-22T04:09:54Z",
+          "yanked": null,
+          "notes": "- 首次发布。strm 指向网盘挂载里的文件时，按路径规则换成 OpenList 路径，交出 OpenList 的签名下载地址；MovieClaw 带着播放器的 User-Agent 跟到网盘 CDN，再把播放器 302 过去。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/openlist-direct-link-v0.1.0",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/openlist-direct-link-v0.1.0/plugins/openlist-direct-link",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/openlist-direct-link-v0.1.0/plugins/openlist-direct-link/README.md",
+            "sha256": "e28d0419be418bf92ecdff7a2ce3129eac31b4fcefd17398f972cc331d9373a6",
+            "size": 1395
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "playback.strm.direct-link": "^1.0"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [],
+            "paths": [],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": false,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "openlist-direct-link-0.1.0.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/openlist-direct-link-v0.1.0/openlist-direct-link-0.1.0.mcplugin",
+              "sha256": "6ae34a4645581a82f87689f35dc02d007fb930b592ed7f540e3d6ec66cf1f7ea",
+              "size": 6752
             }
           ]
         }

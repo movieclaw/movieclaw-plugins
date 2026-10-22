@@ -28,10 +28,10 @@ permissions:
   contents: read
 
 env:
-  # MovieClaw v0.40.0: the first release with the lock checker
-  # (movieclaw_sdk.deps) and the drive-backends 1.4 contract (cloud-115).
+  # MovieClaw v0.42.0: the plugin market release (drive-backends 1.5 with
+  # form sign-in, ui.theme, the lock checker in movieclaw_sdk.deps).
   # Do not float this to a branch tip.
-  MOVIECLAW_REF: ae0015a8381f6f9c3b340462412cce1644b2401d
+  MOVIECLAW_REF: bd325adde24e5e035878d3fb668cd0b004c96760
   # Shipped with every server release from the one after v0.39.0.
   HOST_CONSTRAINTS_URL: https://github.com/movieclaw/MovieClaw/releases/latest/download/host-constraints.txt
 

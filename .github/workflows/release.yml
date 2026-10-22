@@ -24,8 +24,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # MovieClaw v0.40.0. The same pin as ci.yml.
-  MOVIECLAW_REF: ae0015a8381f6f9c3b340462412cce1644b2401d
+  # MovieClaw v0.42.0. The same pin as ci.yml.
+  MOVIECLAW_REF: bd325adde24e5e035878d3fb668cd0b004c96760
   CATALOG_TAG: catalog
 
 jobs:
