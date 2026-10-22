@@ -53,7 +53,7 @@ function renderAccounts(accounts) {
     const identity = el("div", "account-identity");
     identity.append(el("div", "account-name", account.username || memberLabel(account.member_id)), el("p", "account-meta", account.username ? memberLabel(account.member_id) : "连接自己的 Trakt 账号"));
     const status = el("div", "account-state");
-    status.append(el("span", `badge ${account.last_error ? "blocked" : account.connected ? "ok" : account.has_account ? "blocked" : ""}`, account.last_error ? "同步需检查" : account.connected ? "● 已连接" : account.has_account ? "需要重新连接" : "尚未连接"));
+    status.append(el("span", `badge ${account.last_error ? "blocked" : account.connected ? "ok" : account.has_account ? "blocked" : ""}`, account.needs_reconnect ? "需要重新连接" : account.last_error ? "同步需检查" : account.connected ? "● 已连接" : account.has_account ? "需要重新连接" : "尚未连接"));
     const counts = el("p");
     counts.append(el("span", "", `${account.pending} 待发送 · `), el("span", account.failed ? "has-error" : "", `${account.failed} 失败`));
     status.append(counts, el("p", "", account.last_error || (account.last_success ? `上次发送 ${time(account.last_success)}` : "暂无发送记录")));

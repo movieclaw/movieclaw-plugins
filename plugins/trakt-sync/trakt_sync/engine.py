@@ -8,7 +8,15 @@ from collections import defaultdict
 
 from .activity import ActivityLog, describe
 from .client import TraktError
-from .policy import history_body, identity, iso_time, matches, progress, session_key, timestamp
+from .policy import (
+    history_body,
+    identity,
+    iso_time,
+    matches,
+    progress,
+    session_key,
+    timestamp,
+)
 
 
 class Engine(ActivityLog):
@@ -17,6 +25,8 @@ class Engine(ActivityLog):
         self.enabled, self.clock = enabled, clock
         self.locks = defaultdict(asyncio.Lock)
         self.rotated = {}
+        self.wake = asyncio.Event()
+        self.bootstrap = asyncio.Lock()
 
     @staticmethod
     def scope(member):
@@ -27,36 +37,138 @@ class Engine(ActivityLog):
 
     async def set(self, member, key, value, secret=False):
         await self.store.set(key, value, scope=self.scope(member), secret=secret)
+        if key == "account":
+            await self.store.set("linked", True, scope=self.scope(member))
 
     async def ledger(self, member):
-        return await self.get(member, "ledger", {"queue": [], "seen": [], "sessions": {}})
+        return await self.get(
+            member, "ledger", {"queue": [], "seen": [], "sessions": {}}
+        )
+
+    @staticmethod
+    def finished(job):
+        return job["path"] == "/sync/history" or (
+            job["path"] == "/scrobble/stop" and job["body"].get("progress", 0) > 80
+        )
+
+    @staticmethod
+    def drop_warning(ledger):
+        count = ledger.get("dropped", 0)
+        return (
+            f"队列容量不足，已有 {count} 条记录未同步；请检查 Trakt 连接"
+            if count
+            else None
+        )
 
     async def save_ledger(self, member, ledger):
-        # 宿主单值上限为 64 KB；已看事件满了由可靠事件系统重试，不能丢弃。
-        if len(json.dumps(ledger, ensure_ascii=False).encode()) > 60000:
-            raise RuntimeError("Trakt 待同步队列已满，请恢复连接后重试")
+        # 宿主的可靠消费者跨成员共享。容量不足必须显式降级，不能靠抛错阻塞所有成员。
+        queue = ledger["queue"]
+        queue[:] = [
+            j
+            for j in queue
+            if self.finished(j) or self.clock() - timestamp(j["occurred_at"]) <= 300
+        ]
+        ledger["seen"] = ledger["seen"][-256:]
+        ledger["sessions"] = dict(list(ledger["sessions"].items())[-16:])
+        if ledger.get("last_error"):
+            ledger["last_error"] = ledger["last_error"][:512]
+
+        def oversized():
+            return len(json.dumps(ledger, ensure_ascii=False).encode()) > 60000
+
+        while len(queue) > 64 or oversized():
+            if queue:
+                at = next(
+                    (i for i, j in enumerate(queue) if j["path"] == "/scrobble/start"),
+                    None,
+                )
+                if at is None:
+                    at = next(
+                        (i for i, j in enumerate(queue) if not self.finished(j)), 0
+                    )
+                job = queue.pop(at)
+                if job["path"] != "/scrobble/start":
+                    ledger["dropped"] = ledger.get("dropped", 0) + 1
+            elif ledger.get("failed"):
+                ledger["failed"].pop(0)
+                ledger["dropped"] = ledger.get("dropped", 0) + 1
+            elif ledger["seen"]:
+                ledger["seen"].pop(0)
+            elif ledger["sessions"]:
+                ledger["sessions"].pop(next(iter(ledger["sessions"])))
+            else:
+                # 兼容历史数据中的异常大字段；不保留任何请求内容。
+                ledger.clear()
+                ledger.update(queue=[], seen=[], sessions={}, dropped=1)
+        if queue:
+            # 先写唤醒标记。标记写入失败时不能留下调度器永远看不到的新队列。
+            await self.set(member, "delivery", {"next_at": queue[0]["next_at"]})
         await self.set(member, "ledger", ledger)
+        if not queue:
+            await self.store.delete("delivery", scope=self.scope(member))
+        self.wake.set()
+
+    async def block_auth(self, member, account, ledger):
+        current = await self.get(member, "account", account)
+        await self.set(member, "account", {**current, "blocked": True}, secret=True)
+        ledger.update(
+            queue=[],
+            failed=[],
+            sessions={},
+            last_error="Trakt 授权或访问权限失效，请断开后重新连接；旧待发队列已清除，失效期间不记录新活动",
+        )
+        await self.save_ledger(member, ledger)
+        await self.health.degraded(f"member-{member}", ledger["last_error"])
+
+    async def initialize(self):
+        # 旧版没有明文索引，只在迁移时解密枚举一次。正常唤醒不再枚举账号。
+        async with self.bootstrap:
+            if await self.store.get("delivery-index-v1", default=False):
+                return
+            for scope in await self.store.scopes("account", entity="member"):
+                member = int(scope.split(":", 1)[1])
+                async with self.locks[member]:
+                    account = await self.get(member, "account", {})
+                    if not account:
+                        continue
+                    await self.set(member, "linked", True)
+                    ledger = await self.ledger(member)
+                    if account.get("blocked") or any(
+                        j.get("error_status") in (400, 401, 403)
+                        for j in ledger["queue"]
+                    ):
+                        await self.block_auth(member, account, ledger)
+                    else:
+                        await self.save_ledger(member, ledger)
+            await self.store.set("delivery-index-v1", True)
 
     async def status(self, member):
         account = await self.get(member, "account", {})
         ledger = await self.ledger(member)
+        warning = self.drop_warning(ledger)
+        error = ledger.get("last_error")
+        if warning and warning not in (error or ""):
+            error = f"{error}；{warning}" if error else warning
         return {
             "enabled": self.enabled,
             "configured": bool(self.client.client_id),
             "has_account": bool(account.get("access_token")),
             "connected": bool(account.get("access_token"))
-            and account.get("client_id") == self.client.client_id,
+            and account.get("client_id") == self.client.client_id
+            and not account.get("blocked"),
+            "needs_reconnect": bool(account.get("blocked")),
             "username": account.get("username"),
             "pending": len(ledger["queue"]),
             "failed": len(ledger.get("failed", [])),
             "last_success": ledger.get("last_success"),
-            "last_error": ledger.get("last_error"),
+            "last_error": error,
+            "dropped": ledger.get("dropped", 0),
             "member_id": member,
         }
 
     async def begin(self, member):
         if not self.client.client_id:
-            raise ValueError("Trakt 应用配置不可用，请检查插件安装或高级应用设置")
+            raise ValueError("官方 Trakt 应用尚未配置，请等待维护者完成配置")
         async with self.locks[member]:
             if (await self.get(member, "account", {})).get("access_token"):
                 raise ValueError("该成员已绑定，请先断开连接再更换账号")
@@ -70,7 +182,8 @@ class Engine(ActivityLog):
             }
             await self.set(member, "pending", pending, secret=True)
             return {
-                k: pending[k] for k in ("verification_url", "user_code", "expires_at", "interval")
+                k: pending[k]
+                for k in ("verification_url", "user_code", "expires_at", "interval")
             }
 
     async def poll(self, member):
@@ -78,7 +191,9 @@ class Engine(ActivityLog):
             pending = await self.get(member, "pending")
             if not pending:
                 return {
-                    "state": "connected" if (await self.status(member))["connected"] else "idle"
+                    "state": "connected"
+                    if (await self.status(member))["connected"]
+                    else "idle"
                 }
             now = self.clock()
             if now >= pending["expires_at"]:
@@ -94,7 +209,9 @@ class Engine(ActivityLog):
                 if exc.status in (400, 429):
                     if exc.status == 429:
                         pending["interval"] = min(120, pending["interval"] + 5)
-                        pending["next_poll"] = now + max(pending["interval"], exc.retry_after)
+                        pending["next_poll"] = now + max(
+                            pending["interval"], exc.retry_after
+                        )
                         await self.set(member, "pending", pending, secret=True)
                     return {"state": "pending", "interval": pending["interval"]}
                 if exc.status in (404, 409, 410, 418):
@@ -124,20 +241,38 @@ class Engine(ActivityLog):
     async def disconnect(self, member):
         async with self.locks[member]:
             account = await self.get(member, "account", {})
+            # 刷新已成功但落盘失败时，撤销最近拿到的令牌，不能再用过期的旧令牌。
+            account = self.rotated.get(member, account)
             # 先撤销本地状态，之后的事件和排队任务均不能再使用这个账号。
-            for key in ("account", "pending", "ledger", "activity"):
+            for key in (
+                "account",
+                "pending",
+                "ledger",
+                "activity",
+                "linked",
+                "delivery",
+            ):
                 await self.store.delete(key, scope=self.scope(member))
             self.rotated.pop(member, None)
+            self.wake.set()
             revoked = True
-            if account.get("access_token"):
+            if (
+                account.get("access_token")
+                and account.get("client_id") == self.client.client_id
+            ):
                 try:
                     await self.client.request(
                         "POST",
                         "/oauth/revoke",
-                        {**self.client.application_fields(), "token": account["access_token"]},
+                        {
+                            **self.client.application_fields(),
+                            "token": account["access_token"],
+                        },
                     )
                 except TraktError:
                     revoked = False
+            elif account.get("access_token"):
+                revoked = False
             return {"disconnected": True, "remote_revocation_confirmed": revoked}
 
     async def accept(self, kind, event, event_id, occurred_at):
@@ -146,9 +281,16 @@ class Engine(ActivityLog):
             return
         async with self.locks[member]:
             account = await self.get(member, "account", {})
-            if not account.get("access_token") or account.get("client_id") != self.client.client_id:
+            if (
+                not account.get("access_token")
+                or account.get("client_id") != self.client.client_id
+                or account.get("blocked")
+            ):
                 return  # 从不借用管理员或其他成员的账号。
             ledger = await self.ledger(member)
+            if any(j.get("error_status") in (400, 401, 403) for j in ledger["queue"]):
+                await self.block_auth(member, account, ledger)
+                return
             if event_id in ledger["seen"]:
                 return
             item, rate = identity(event), progress(event)
@@ -166,21 +308,33 @@ class Engine(ActivityLog):
             stale = self.clock() - at > 300
             request = None
             local_completion = bool(event.get("viewing_id")) and completed
-            if item and (stale or local_completion or (completed and at < state.get("at", 0))):
+            if item and (
+                stale or local_completion or (completed and at < state.get("at", 0))
+            ):
                 # 离线回传不能伪装成“正在观看”，完成记录保留原观看时间。
                 if kind in ("stopped", "completed") and rate is not None and rate > 80:
                     if abs(at - state.get("terminal_at", -1000)) > 10:
-                        request = {"path": "/sync/history", "body": history_body(item, occurred_at)}
+                        request = {
+                            "path": "/sync/history",
+                            "body": history_body(item, occurred_at),
+                        }
                         if local_completion:
-                            request["clear_watching"] = not stale and ledger.get("watching") == key
+                            request["clear_watching"] = (
+                                not stale and ledger.get("watching") == key
+                            )
                             state["closed"] = True
                             state["at"] = at
                         state["terminal_at"] = at
             elif item and at >= state.get("at", 0):
                 if kind == "started":
                     state = {"session": event_id, "at": at, "last_start": at}
-                    request = {"path": "/scrobble/start", "body": {**item, "progress": rate or 0}}
-                elif not state.get("closed") or (completed and "terminal_at" not in state):
+                    request = {
+                        "path": "/scrobble/start",
+                        "body": {**item, "progress": rate or 0},
+                    }
+                elif not state.get("closed") or (
+                    completed and "terminal_at" not in state
+                ):
                     state["at"] = at
                     if kind in ("stopped", "completed") and rate is not None:
                         state["closed"] = True
@@ -206,10 +360,6 @@ class Engine(ActivityLog):
                         for j in ledger["queue"]
                         if not (j["key"] == key and j["path"] == "/scrobble/start")
                     ]
-                if len(ledger["queue"]) >= 64:
-                    if kind == "progress":
-                        return
-                    raise RuntimeError("Trakt 待同步队列已满，等待可靠事件重试")
                 ledger["queue"].append(
                     {
                         **request,
@@ -233,14 +383,21 @@ class Engine(ActivityLog):
             ledger["seen"] = [*ledger["seen"], event_id][-256:]
             await self.save_ledger(member, ledger)
 
-            if request or (not item and kind != "progress"):
+            if (request and request["path"] != "/scrobble/start") or (
+                not item and kind not in ("started", "progress")
+            ):
+                retained = request and any(j["id"] == event_id for j in ledger["queue"])
                 await self.record_activity(
                     member,
                     event_id,
                     **describe(event, kind),
                     occurred_at=occurred_at,
-                    state="queued" if request else "skipped",
-                    reason=None if request else "缺少有效的外部编号，未发送到 Trakt",
+                    state="queued" if retained else "skipped",
+                    reason=None
+                    if retained
+                    else self.drop_warning(ledger)
+                    if request
+                    else "缺少有效的外部编号，未发送到 Trakt",
                 )
 
     async def authorized(self, member, account, method, path, body=None, params=None):
@@ -253,12 +410,16 @@ class Engine(ActivityLog):
         if account.get("expires_at", 0) <= self.clock() + 120:
             account = await self.refresh(member, account)
         try:
-            return await self.client.request(method, path, body, account["access_token"], params)
+            return await self.client.request(
+                method, path, body, account["access_token"], params
+            )
         except TraktError as exc:
             if exc.status != 401:
                 raise
             account = await self.refresh(member, account)
-            return await self.client.request(method, path, body, account["access_token"], params)
+            return await self.client.request(
+                method, path, body, account["access_token"], params
+            )
 
     async def refresh(self, member, account):
         tokens = await self.client.refresh(account["refresh_token"])
@@ -277,7 +438,11 @@ class Engine(ActivityLog):
             account,
             "GET",
             f"/sync/history/{kind}",
-            params={"start_at": iso_time(when - 90), "end_at": iso_time(when + 90), "limit": 100},
+            params={
+                "start_at": iso_time(when - 90),
+                "end_at": iso_time(when + 90),
+                "limit": 100,
+            },
         )
         for row in rows:
             if not matches(job["item"], row):
@@ -289,12 +454,19 @@ class Engine(ActivityLog):
     async def drain(self, member):
         async with self.locks[member]:
             account = await self.get(member, "account", {})
-            if not self.enabled or not account.get("access_token"):
-                return
-            if account.get("client_id") != self.client.client_id:
+            if (
+                not self.enabled
+                or not account.get("access_token")
+                or account.get("blocked")
+                or account.get("client_id") != self.client.client_id
+            ):
+                await self.store.delete("delivery", scope=self.scope(member))
                 return
             ledger = await self.ledger(member)
-            if not ledger["queue"] or ledger["queue"][0]["next_at"] > self.clock():
+            if not ledger["queue"]:
+                await self.store.delete("delivery", scope=self.scope(member))
+                return
+            if ledger["queue"][0]["next_at"] > self.clock():
                 return
             job = ledger["queue"][0]
             if job["generation"] != account["generation"]:
@@ -303,9 +475,7 @@ class Engine(ActivityLog):
                 return
             try:
                 late = self.clock() - timestamp(job["occurred_at"]) > 300
-                finished = job["path"] == "/sync/history" or (
-                    job["path"] == "/scrobble/stop" and job["body"].get("progress", 0) > 80
-                )
+                finished = self.finished(job)
                 uncertain = job["uncertain"]
                 if late and not finished:
                     result = {"action": "expired"}
@@ -314,7 +484,9 @@ class Engine(ActivityLog):
                     if finished:
                         job["uncertain"] = True
                         await self.save_ledger(member, ledger)
-                    if finished and (job["path"] == "/sync/history" or uncertain or late):
+                    if finished and (
+                        job["path"] == "/sync/history" or uncertain or late
+                    ):
                         if await self.history_exists(member, account, job):
                             result = {"action": "already_synced"}
                         else:
@@ -364,15 +536,14 @@ class Engine(ActivityLog):
                     # 无法匹配的一部片不能阻塞后面所有播放，保留可手动重试的失败记录。
                     ledger["queue"].pop(0)
                     ledger["failed"] = [*ledger.get("failed", []), job][-16:]
-                    ledger["last_error"] = "有影片无法在 Trakt 匹配，请检查外部编号后重试"
+                    ledger["last_error"] = (
+                        "有影片无法在 Trakt 匹配，请检查外部编号后重试"
+                    )
                     await self.save_ledger(member, ledger)
                     await self.health.degraded(f"member-{member}", ledger["last_error"])
                     return
                 elif exc.status in (400, 401, 403):
-                    ledger["last_error"] = "Trakt 授权或访问权限失效，请重新连接账号"
-                    job["next_at"] = self.clock() + 3600
-                    await self.save_ledger(member, ledger)
-                    await self.health.degraded(f"member-{member}", ledger["last_error"])
+                    await self.block_auth(member, account, ledger)
                     return
                 else:
                     job["attempt"] += 1
@@ -385,12 +556,21 @@ class Engine(ActivityLog):
                     await self.health.degraded(f"member-{member}", str(exc))
                     return
             ledger["queue"].pop(0)
-            if job["path"] != "/scrobble/start" and ledger.get("watching") == job["key"]:
+            if ledger["queue"]:
+                ledger["queue"][0]["next_at"] = max(
+                    ledger["queue"][0]["next_at"], self.clock() + 1
+                )
+            if (
+                job["path"] != "/scrobble/start"
+                and ledger.get("watching") == job["key"]
+            ):
                 ledger.pop("watching", None)
             if result.get("action") != "expired":
                 ledger["last_success"] = iso_time(self.clock())
             ledger["last_error"] = (
-                "有影片无法在 Trakt 匹配，请检查外部编号后重试" if ledger.get("failed") else None
+                "有影片无法在 Trakt 匹配，请检查外部编号后重试"
+                if ledger.get("failed")
+                else self.drop_warning(ledger)
             )
             await self.save_ledger(member, ledger)
             await self.complete_activity(member, job, result.get("action"))
@@ -401,6 +581,8 @@ class Engine(ActivityLog):
 
     async def retry_failed(self, member, delivery_id=None):
         async with self.locks[member]:
+            if (await self.get(member, "account", {})).get("blocked"):
+                raise ValueError("请先断开并重新连接 Trakt 账号")
             ledger = await self.ledger(member)
             failed = [
                 job
@@ -423,14 +605,39 @@ class Engine(ActivityLog):
             return {"retried": len(failed)}
 
     async def run(self):
+        if not self.enabled:
+            await asyncio.Future()
         while True:
+            self.wake.clear()
             try:
-                members = await self.store.scopes("account", entity="member")
-                for scope in members:
-                    await self.drain(int(scope.split(":", 1)[1]))
+                await self.initialize()
+                work = await self.store.scopes("delivery", entity="member")
+                for scope, marker in work.items():
+                    if marker["next_at"] > self.clock():
+                        continue
+                    try:
+                        await self.drain(int(scope.split(":", 1)[1]))
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        self.log.warning(
+                            "Trakt 单个成员投递暂未完成（%s）", type(exc).__name__
+                        )
+                work = await self.store.scopes("delivery", entity="member")
+                delay = (
+                    max(1, min(m["next_at"] for m in work.values()) - self.clock())
+                    if work
+                    else None
+                )
+                try:
+                    await asyncio.wait_for(self.wake.wait(), timeout=delay)
+                except TimeoutError:
+                    pass
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 # 不输出异常内容：HTTP 或存储异常可能包含凭据、参数和账号数据。
-                self.log.warning("Trakt 后台同步暂未完成（%s），稍后重试", type(exc).__name__)
-            await asyncio.sleep(5)
+                self.log.warning(
+                    "Trakt 后台同步暂未完成（%s），稍后重试", type(exc).__name__
+                )
+                await asyncio.sleep(5)

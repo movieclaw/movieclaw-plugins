@@ -15,8 +15,8 @@
 <p class="footnote">保留近期发送记录；较早记录及升级前的已发送记录不会补录。<span id="updated"></span></p></section>
 <details id="advanced" class="advanced"><summary>高级设置</summary><div class="advanced-body">
 <h2>成员与账号连接</h2><div class="member-controls"><label for="member">MovieClaw 成员 ID</label><input id="member" type="number" min="0" step="1" value="0" inputmode="numeric"><button id="refresh">查看状态</button><button id="connect">连接 Trakt</button><button id="disconnect" class="danger-button" disabled>断开连接</button></div>
-<p class="muted">管理员的成员 ID 为 0。每个成员独立绑定自己的 Trakt 账号，未绑定的成员不会同步。此页面仅向管理员开放。</p>
-<p class="muted">已内置 Trakt 应用，无需填写 Client ID。仅需使用自己的应用时，前往<a href="/settings/plugins" target="_top">插件设置</a>配置。</p></div></details>
+<p class="muted">管理员的成员 ID 为 0。每个成员独立绑定自己的 Trakt 账号，未绑定的成员不会同步。此页面仅向管理员开放。删除成员前，请先断开该成员的 Trakt。</p>
+<p class="muted">官方应用仍待维护者配置，完成前无法直接连接。自行部署者可前往<a href="/settings/plugins" target="_top">插件设置</a>配置。</p></div></details>
 <footer>MovieClaw Trakt 是独立社区插件，未获 Trakt 背书或认证。</footer>
 </main>
 <dialog id="authorization" aria-labelledby="auth-title"><div class="dialog-body"><div class="section-heading"><h2 id="auth-title">连接 Trakt</h2><button id="cancel-auth" class="icon-button" aria-label="关闭授权窗口">×</button></div>

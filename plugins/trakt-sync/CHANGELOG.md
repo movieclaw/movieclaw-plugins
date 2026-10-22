@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2-beta.1 (unreleased)
+
+- Prevent a full queue or rejected authorization from blocking the host's shared durable consumer; bound the ledger, prefer expiring live jobs and discarding heartbeats, and show dropped completion counts.
+- Pause members with rejected authorization until reconnect, clear unusable queued work, and preserve freshly rotated credentials.
+- Wake delivery only for pending work using a plaintext scheduling index; keep heartbeat requests out of the activity log.
+- Use the manifest version in User-Agent and add mocked OAuth, overflow, migration and retry regression coverage.
+- Install/update guidance now follows the official plugin market. Remove server-fork recommendations and unsupported offline-history guarantees.
+- Remove the personal default Trakt application. Organization app configuration and real secretless refresh/revoke acceptance remain release blockers; see APPLICATION.md.
+
 ## 0.2.1
 
 - 账号与同步活动面板采用 MovieClaw 活动页的宽栏、分组列表及主题变量。
@@ -30,9 +39,7 @@
 ## 0.1.3
 
 - Honor explicit completion events even when MovieClaw resets the resume position to zero.
-- Preserve the original timestamp for local viewing completions identified by `viewing_id`, including recent uploads.
-- Isolate local viewing sessions by UUID; clear matching live watching without creating a second completed record.
-- Document the generic v0.41.0 server compatibility fix required for complete offline rewatch and out-of-order replay support.
+- Add optional handling for host extensions carrying `viewing_id`; the public playback contract does not guarantee that field. Complete offline rewatch and out-of-order history are not supported guarantees.
 
 ## 0.1.2
 

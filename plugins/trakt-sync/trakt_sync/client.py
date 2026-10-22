@@ -1,15 +1,22 @@
 """Trakt 的官方 HTTPS 接口；错误只带状态码，不回显账号凭据或响应正文。"""
 
 import time
+import tomllib
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
 
 API_URL = "https://api.trakt.tv"
+VERSION = tomllib.loads(
+    (Path(__file__).resolve().parents[1] / "movieclaw-plugin.toml").read_text()
+)["plugin"]["version"]
 
 
 class TraktError(Exception):
-    def __init__(self, status: int, *, retry_after: float = 60, uncertain: bool = False):
+    def __init__(
+        self, status: int, *, retry_after: float = 60, uncertain: bool = False
+    ):
         self.status = status
         self.retry_after = max(1, min(retry_after, 86400))
         self.uncertain = uncertain
@@ -26,7 +33,7 @@ class TraktClient:
         headers = {
             "trakt-api-version": "2",
             "trakt-api-key": self.client_id,
-            "User-Agent": "MovieClaw-Trakt/0.2.1",
+            "User-Agent": f"MovieClaw-Trakt/{VERSION}",
         }
         if token:
             headers["Authorization"] = f"Bearer {token}"
@@ -58,7 +65,9 @@ class TraktClient:
         return fields
 
     async def begin(self):
-        result = await self.request("POST", "/oauth/device/code", {"client_id": self.client_id})
+        result = await self.request(
+            "POST", "/oauth/device/code", {"client_id": self.client_id}
+        )
         url = urlparse(result.get("verification_url", ""))
         if url.scheme != "https" or url.hostname not in {
             "trakt.tv",
@@ -89,7 +98,8 @@ class TraktClient:
     @staticmethod
     def credentials(tokens: dict, *, now=None):
         if not all(
-            isinstance(tokens.get(k), str) and tokens[k] for k in ("access_token", "refresh_token")
+            isinstance(tokens.get(k), str) and tokens[k]
+            for k in ("access_token", "refresh_token")
         ):
             raise TraktError(502)
         now = time.time() if now is None else now

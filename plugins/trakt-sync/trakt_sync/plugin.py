@@ -24,17 +24,19 @@ PLUGIN_ID = "trakt-sync"
 
 
 class Settings(BaseModel):
-    enabled: bool = Field(True, title="启用自动追踪", description="只同步已明确绑定的成员")
+    enabled: bool = Field(
+        True, title="启用自动追踪", description="只同步已明确绑定的成员"
+    )
     client_id: str = Field(
         "",
         title="自定义 Trakt Client ID（高级，可留空）",
         max_length=256,
-        description="默认使用插件专用应用，无需填写。仅部署自己的 Trakt 应用时覆盖此项",
+        description="发行前由维护者配置官方公共应用。仅自有部署可用自己注册的应用覆盖",
     )
     client_secret: SecretStr = Field(
         SecretStr(""),
         title="自定义 Trakt Client Secret（高级，可留空）",
-        description="默认应用不需要。仅配合自定义 Client ID 使用，由宿主加密保存",
+        description="仅配合自定义应用使用，由宿主加密保存；不得填入他人的 Secret",
     )
 
 
@@ -80,17 +82,25 @@ async def apply(ctx: Context):
     ctx.task(engine.run(), name="trakt-delivery")
     router = APIRouter()
 
-    @router.get("/status", operation_id="plugins.trakt-sync.status", summary="Trakt 同步状态")
+    @router.get(
+        "/status", operation_id="plugins.trakt-sync.status", summary="Trakt 同步状态"
+    )
     async def status(member_id: int = Query(0, ge=0)) -> dict:
         return await engine.status(member_id)
 
     @router.get(
-        "/accounts", operation_id="plugins.trakt-sync.accounts", summary="查看 Trakt 账号总览"
+        "/accounts",
+        operation_id="plugins.trakt-sync.accounts",
+        summary="查看 Trakt 账号总览",
     )
     async def accounts() -> dict:
         return await engine.accounts()
 
-    @router.get("/activity", operation_id="plugins.trakt-sync.activity", summary="查看成员发送记录")
+    @router.get(
+        "/activity",
+        operation_id="plugins.trakt-sync.activity",
+        summary="查看成员发送记录",
+    )
     async def activity(member_id: int = Query(0, ge=0)) -> dict:
         return await engine.activity(member_id)
 
@@ -108,7 +118,9 @@ async def apply(ctx: Context):
             raise HTTPException(502, str(exc)) from None
 
     @router.post(
-        "/auth/poll", operation_id="plugins.trakt-sync.auth.poll", summary="查询 Trakt 设备授权结果"
+        "/auth/poll",
+        operation_id="plugins.trakt-sync.auth.poll",
+        summary="查询 Trakt 设备授权结果",
     )
     async def poll(member_id: int = Query(0, ge=0)) -> dict:
         try:
@@ -125,7 +137,9 @@ async def apply(ctx: Context):
     async def disconnect(member_id: int = Query(0, ge=0)) -> dict:
         return await engine.disconnect(member_id)
 
-    @router.post("/retry", operation_id="plugins.trakt-sync.retry", summary="重试匹配失败的记录")
+    @router.post(
+        "/retry", operation_id="plugins.trakt-sync.retry", summary="重试匹配失败的记录"
+    )
     async def retry(member_id: int = Query(0, ge=0)) -> dict:
         try:
             return await engine.retry_failed(member_id)
