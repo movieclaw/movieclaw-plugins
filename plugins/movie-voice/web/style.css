@@ -55,6 +55,8 @@ input[readonly] { color: var(--muted); }
 .setup-grid h3 { font-size: var(--text-ui); font-weight: 600; margin: 0 0 14px; }
 .setup-install { border-right: 1px solid var(--line); padding-right: 28px; min-width: 0; }
 .setup-install > .button, #download-personal { width: 100%; white-space: normal; }
+.share-downloads { display: flex; flex-wrap: wrap; gap: 8px; }
+.share-downloads > .button { flex: 1 1 150px; white-space: normal; }
 #download-personal { margin-top: 8px; }
 .setup-pair { min-width: 0; }
 .setup-pair > p { font-size: var(--text-sub); line-height: 1.8; color: var(--muted); }

@@ -16,7 +16,7 @@
 
 1. 在 MovieClaw“设置 → 插件”安装寻映，或上传 Release 中的 `movie-voice-0.1.0.mcplugin`，核对申请的操作、联网和网页权限后批准。
 2. 打开侧栏**寻映**，或访问自己服务器的 `/apps/movie-voice`。手机须能访问这台服务器；建议先配置有效的 HTTPS 外部地址。元数据来源、订阅线路、下载器和默认规则由服务器管理员提前配置。
-3. 点击**下载分享版快捷指令**，在 iPhone / iPad 的“文件”App 或 Mac 中打开 `.shortcut`，按提示添加。然后在寻映页面点击**生成 SEARCH_URL → 复制链接**。
+3. 点击下载按钮旁的 **iCloud 一键添加**，进入 Apple 页面并确认添加；也可点击**下载分享版快捷指令**，在 iPhone / iPad 的“文件”App 或 Mac 中打开 `.shortcut` 添加。然后在寻映页面点击**生成 SEARCH_URL → 复制链接**。
 4. 编辑快捷指令顶部的 SEARCH_URL“文本”框，整段替换占位文字后保存；可将“找电影·分享版”改名为“找电影”。首次运行按系统提示允许连接自己的服务器。
 5. 说“嘿 Siri，找电影”，再说电影或电视剧名，可带年份。核对候选后确认。未确认不会订阅；取消输入或确认会结束。
 
@@ -26,9 +26,9 @@
 https://media.example.com/api/v1/plugins/movie-voice/shortcut/search?epoch=EXAMPLE_EPOCH_NOT_VALID&sig=EXAMPLE_SIGNATURE_NOT_VALID
 ```
 
-插件安装并批准后，下载入口就在寻映页面，无需另找快捷指令文件。通用分享版随安装包提供；个人版由本服务器管理员完成 Mac 签名准备后提供。点击下载后打开 `.shortcut` 文件，再在系统界面确认添加；当前按钮提供文件下载，不是 iCloud 跳转安装。安装插件本身不会自动在手机或电脑上安装快捷指令。
+插件安装并批准后，下载入口就在寻映页面，无需另找快捷指令文件。通用分享版随安装包提供；个人版由本服务器管理员完成 Mac 签名准备后提供。通用分享版同时提供 [iCloud 一键添加](https://www.icloud.com/shortcuts/9ac6a6f2612744d3bb9acf4a4d102661)和文件下载；iCloud 入口位于下载按钮旁，打开 Apple 添加页面后仍需用户确认，并填写自己的 SEARCH_URL。浏览器未能跳转时，下载并打开 `.shortcut` 文件添加。安装插件本身不会自动在手机或电脑上安装快捷指令。
 
-若后续提供直接跳到添加界面的入口，可另行发布不含服务器授权的通用分享版 iCloud 链接；仍需用户确认添加。该入口目前未提供。文件导入及 iCloud 分享流程见 [Apple 文件导入说明](https://support.apple.com/zh-cn/guide/shortcuts-mac/apd02bffbaac/mac)和 [Apple iCloud 分享说明](https://support.apple.com/zh-cn/guide/shortcuts/apdf01f8c054/ios)。
+iCloud 链接中的通用分享版仍保留配置占位，不含作者服务器或授权；个人版继续通过管理员专用下载接口分发，不使用公开 iCloud 链接。外部入口禁止发送来源地址，也不附加当前服务器信息。文件导入及 iCloud 分享流程见 [Apple 文件导入说明](https://support.apple.com/zh-cn/guide/shortcuts-mac/apd02bffbaac/mac)和 [Apple iCloud 分享说明](https://support.apple.com/zh-cn/guide/shortcuts/apdf01f8c054/ios)。
 
 观看通知需要在官方 App 登录同一管理员账号并允许通知；没有 App 或推送不可用时，使用结果中的网页入口。通知打开的是影片详情，播放还需用户点击。
 

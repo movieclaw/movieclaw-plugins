@@ -6,12 +6,16 @@
 <div class="setup-grid">
 <aside class="setup-install" aria-labelledby="install-title">
 <h3 id="install-title">安装与配置步骤</h3>
+<div class="share-downloads">
 <a id="download-shortcut" class="button secondary" href="/api/v1/plugins/movie-voice/web/downloads/find-movie-share.shortcut" download="找电影·分享版.shortcut">下载分享版快捷指令</a>
+<a id="add-icloud-shortcut" class="button" href="https://www.icloud.com/shortcuts/9ac6a6f2612744d3bb9acf4a4d102661" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" aria-describedby="icloud-note">iCloud 一键添加</a>
+</div>
 <p class="note">已签名 · 保留配置占位 · 可公开分享</p>
+<p id="icloud-note" class="note">iCloud 入口打开 Apple 添加页面，仍需确认添加并填写自己的 SEARCH_URL；未能跳转时可下载文件添加。</p>
 <button id="download-personal" type="button" disabled>下载已配置个人版</button>
 <p id="personal-status" class="note" role="status" aria-live="polite">正在检查当前服务器的已签名个人版……</p>
 <ol class="install-steps">
-<li><strong>下载并添加</strong><p>在 iPhone / iPad 的“文件”App 或 Mac 中打开下载的 .shortcut 文件，按提示添加。个人版跳到第 4 步；分享版继续配置。</p></li>
+<li><strong>添加快捷指令</strong><p>通用分享版可点击“iCloud 一键添加”，也可下载并打开 .shortcut 文件，按系统提示添加。已配置个人版下载添加后跳到第 4 步；分享版继续配置。</p></li>
 <li><strong>仅分享版：生成并复制</strong><p>在本页点击“生成 SEARCH_URL”，再点击“复制链接”。</p></li>
 <li><strong>仅分享版：填写 SEARCH_URL</strong><p>编辑“找电影·分享版”，将顶部 <strong>SEARCH_URL 配置框</strong>中的整段占位文字替换成复制的链接，保存。</p></li>
 <li><strong>运行测试</strong><p>可将快捷指令改名为“找电影”。首次运行允许连接自己的服务器，再说出电影名，核对海报、片名与年份后确认。</p></li>
