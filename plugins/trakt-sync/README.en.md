@@ -40,7 +40,7 @@ MovieClaw Trakt uses Trakt but is not endorsed or certified by Trakt.
 
 ## Release tracks and recovery
 
-`main` and the marketplace use stable 0.2.2. The separate `dev` / `v0.3.0-beta.1` track depends on unmerged host APIs and is not a production update.
+`main` and the marketplace use stable 0.2.3. The separate `dev` / `v0.3.0-beta.1` track depends on unmerged host APIs and is not a production update.
 
 Retries read current media metadata via `library.list` and `library.items.get`, using the original file ID when available. Completed views are checked against nearby Trakt history before adding a missing view with its original timestamp. Deleted media/file records retire the task; temporarily missing files wait. No media file access or writes are granted. Failed jobs retry with 10-minute to 6-hour backoff. Expired live events are retired, never converted into watched history.
 

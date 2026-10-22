@@ -1,6 +1,6 @@
 # 源码来源与维护
 
-本目录与 [movieclaw-trakt 正式版 v0.2.2](https://github.com/o1xhack/movieclaw-trakt/releases/tag/v0.2.2) 的运行时代码、清单和网页一致，使用本目录的 MIT LICENSE。市场评审修复已回移源仓库，后续不会被旧版源码覆盖。
+本目录与 [movieclaw-trakt 正式版 v0.2.3](https://github.com/o1xhack/movieclaw-trakt/releases/tag/v0.2.3) 的运行时代码、清单和网页一致，使用本目录的 MIT LICENSE。市场评审修复已回移源仓库，后续不会被旧版源码覆盖。
 
 这是兼容 MovieClaw v0.42.0 的播放追踪正式版。不含 dev / v0.3.0-beta.1 的手动已看、收藏或双向历史导入，不依赖尚未合并的 #973。两项新增宿主操作只读元数据，paths 为空，不访问媒体文件。
 

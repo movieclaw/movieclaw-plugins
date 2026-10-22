@@ -1,7 +1,7 @@
 [plugin]
 id = "trakt-sync"
 title = "Trakt 自动追踪"
-version = "0.2.2"
+version = "0.2.3"
 entry = "trakt_sync"
 runtime = "process"
 sdk = "^1.0"

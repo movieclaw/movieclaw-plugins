@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3 (2026-10-22)
+
+- Prevent a completion evicted by capacity trimming after metadata revalidation from being sent without a persisted recovery record.
+- Remove delivered or failed jobs by identity, so capacity trimming cannot silently discard the following completion or pop an empty queue.
+- Add regressions for near-limit two-job and single-job queues, plus remote-success/process-exit recovery while capacity trimming removes a heartbeat. Capacity evictions retain the existing explicit loss count.
+
 ## 0.2.2 (2026-10-22)
 
 - Revalidate failed deliveries using current library metadata and stable file IDs; retire deleted entries and expired live events, and retry transient metadata failures.

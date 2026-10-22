@@ -548,7 +548,7 @@ class Engine(ActivityLog, Recovery):
                 return
             job = ledger["queue"][0]
             if job["generation"] != account["generation"]:
-                ledger["queue"].pop(0)
+                ledger["queue"][:] = [j for j in ledger["queue"] if j["id"] != job["id"]]
                 await self.save_ledger(member, ledger)
                 return
             try:
@@ -565,6 +565,10 @@ class Engine(ActivityLog, Recovery):
                     if finished:
                         job["uncertain"] = True
                         await self.save_ledger(member, ledger)
+                        # 容量清理可能淘汰重新校验后变大的任务。已计入丢弃提示的
+                        # 任务不能继续远端写入，否则既无重试凭据，也会误删下一项。
+                        if not any(j["id"] == job["id"] for j in ledger["queue"]):
+                            return
                     if finished and (job["path"] == "/sync/history" or uncertain or late):
                         if await self.history_exists(member, account, job):
                             result = {"action": "already_synced"}
@@ -604,7 +608,7 @@ class Engine(ActivityLog, Recovery):
                 if exc.deleted:
                     result = {"action": "local_deleted"}
                 else:
-                    ledger["queue"].pop(0)
+                    ledger["queue"][:] = [j for j in ledger["queue"] if j["id"] != job["id"]]
                     job.update(repair_reason=exc.reason, retry_at=self.clock() + 600)
                     ledger["failed"] = [*ledger.get("failed", []), job][-64:]
                     await self.save_ledger(member, ledger)
@@ -632,7 +636,7 @@ class Engine(ActivityLog, Recovery):
                     result = {"action": "already_synced"}
                 elif exc.status in (400, 404, 422):
                     # 无法匹配的一部片不能阻塞后面所有播放，保留可手动重试的失败记录。
-                    ledger["queue"].pop(0)
+                    ledger["queue"][:] = [j for j in ledger["queue"] if j["id"] != job["id"]]
                     job["retry_at"] = self.clock() + self.recovery_delay(job)
                     job["repair_attempt"] = job.get("repair_attempt", 0) + 1
                     ledger["failed"] = [*ledger.get("failed", []), job][-64:]
@@ -652,7 +656,7 @@ class Engine(ActivityLog, Recovery):
                     await self.save_ledger(member, ledger)
                     await self.health.degraded(f"member-{member}", str(exc))
                     return
-            ledger["queue"].pop(0)
+            ledger["queue"][:] = [j for j in ledger["queue"] if j["id"] != job["id"]]
             if ledger["queue"]:
                 ledger["queue"][0]["next_at"] = max(ledger["queue"][0]["next_at"], self.clock() + 1)
             if job["path"] != "/scrobble/start" and ledger.get("watching") == job["key"]:
