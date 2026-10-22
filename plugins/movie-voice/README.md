@@ -26,13 +26,15 @@
 https://media.example.com/api/v1/plugins/movie-voice/shortcut/search?epoch=EXAMPLE_EPOCH_NOT_VALID&sig=EXAMPLE_SIGNATURE_NOT_VALID
 ```
 
-插件安装并批准后，下载入口就在寻映页面，无需另找快捷指令文件。通用分享版随安装包提供；个人版由本服务器管理员完成 Mac 签名准备后提供。通用分享版同时提供 [iCloud 一键添加](https://www.icloud.com/shortcuts/9ac6a6f2612744d3bb9acf4a4d102661)和文件下载；iCloud 入口位于下载按钮旁，打开 Apple 添加页面后仍需用户确认，并填写自己的 SEARCH_URL。浏览器未能跳转时，下载并打开 `.shortcut` 文件添加。安装插件本身不会自动在手机或电脑上安装快捷指令。
+插件安装并批准后，下载入口就在寻映页面，无需另找快捷指令文件。通用分享版随安装包提供；个人版由本服务器管理员完成 Mac 签名准备后提供。通用分享版同时提供 [iCloud 一键添加](https://www.icloud.com/shortcuts/2d45713166744376803113f728896e52)和文件下载；iCloud 入口位于下载按钮旁，打开 Apple 添加页面后仍需用户确认，并填写自己的 SEARCH_URL。浏览器未能跳转时，下载并打开 `.shortcut` 文件添加。安装插件本身不会自动在手机或电脑上安装快捷指令。
 
 iCloud 链接中的通用分享版仍保留配置占位，不含作者服务器或授权；个人版继续通过管理员专用下载接口分发，不使用公开 iCloud 链接。外部入口禁止发送来源地址，也不附加当前服务器信息。文件导入及 iCloud 分享流程见 [Apple 文件导入说明](https://support.apple.com/zh-cn/guide/shortcuts-mac/apd02bffbaac/mac)和 [Apple iCloud 分享说明](https://support.apple.com/zh-cn/guide/shortcuts/apdf01f8c054/ios)。
 
 观看通知需要在官方 App 登录同一管理员账号并允许通知；没有 App 或推送不可用时，使用结果中的网页入口。通知打开的是影片详情，播放还需用户点击。
 
 ## 分享版与个人版
+
+两版图标与当前 Mac 设置一致：个人版为青色波形（`waveform.path`），通用分享版为青色慢动作（`slowmo`）；只修改图标元数据，流程动作保持一致。
 
 **通用分享版**随插件放在 `web/downloads/find-movie-share.shortcut`，已签名但保留配置占位，可以公开转发。源码位于 [`tools/shortcut_source.py`](tools/shortcut_source.py)。候选使用临时 vCard 影片卡，不读写通讯录；系统可能把它称为“联系人”。
 

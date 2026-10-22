@@ -119,5 +119,5 @@ def workflow(shareable=False,test=False,search_url=None):
     return {'WFWorkflowActions':actions,'WFWorkflowName':'找电影·分享版' if shareable else '找电影',
             'WFWorkflowClientVersion':'4011.0.5','WFWorkflowClientRelease':'26.0',
             'WFWorkflowMinimumClientVersion':900,'WFWorkflowMinimumClientVersionString':'900',
-            'WFWorkflowIcon':{'WFWorkflowIconStartColor':4251333119,'WFWorkflowIconGlyphNumber':61829} if shareable else {'WFWorkflowIconStartColor':4282601983,'WFWorkflowIconGlyphNumber':59511},
+            'WFWorkflowIcon':{'WFWorkflowIconStartColor':1440408063,'WFWorkflowIconGlyphNumber':61508} if shareable else {'WFWorkflowIconStartColor':1440408063,'WFWorkflowIconGlyphNumber':61505},
             'WFWorkflowTypes':[],'WFWorkflowInputContentItemClasses':['WFStringContentItem'],'WFWorkflowImportQuestions':[]}
