@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trakt 自动追踪</title><link rel="stylesheet" href="style.css"></head>
+<body><main>
+<header class="page-header"><div><h1>Trakt 自动追踪</h1><p id="summary" class="summary" role="status" aria-live="polite">正在读取同步状态…</p></div>
+<div class="header-actions"><button id="refresh-all" class="icon-button" aria-label="刷新全部状态" title="刷新状态">↻</button><button id="add-account">＋ 连接账号</button></div></header>
+<p id="error" class="error" role="alert" hidden></p>
+<p id="notice" class="notice" role="status" hidden></p>
+<section class="section" aria-labelledby="accounts-title"><div class="section-heading"><h2 id="accounts-title">账号</h2><span id="account-count" class="muted"></span></div>
+<div id="accounts" class="card account-list" aria-label="Trakt 账号列表"><p class="empty">正在读取账号…</p></div></section>
+<section class="section" aria-labelledby="activity-title"><div class="section-heading"><div><h2 id="activity-title">同步活动</h2><p id="activity-owner" class="muted"></p></div><button id="retry" hidden>重试失败记录</button></div>
+<div class="filters" role="tablist" aria-label="发送状态筛选"><button role="tab" data-filter="all" aria-selected="true">全部</button><button role="tab" data-filter="pending" aria-selected="false">待发送</button><button role="tab" data-filter="failed" aria-selected="false">失败</button><button role="tab" data-filter="sent" aria-selected="false">已发送</button></div>
+<div id="records" class="card" aria-live="polite"><p class="empty">正在读取发送记录…</p></div>
+<p class="footnote">保留近期发送记录；较早记录及升级前的已发送记录不会补录。<span id="updated"></span></p></section>
+<details id="advanced" class="advanced"><summary>高级设置</summary><div class="advanced-body">
+<h2>成员与账号连接</h2><div class="member-controls"><label for="member">MovieClaw 成员 ID</label><input id="member" type="number" min="0" step="1" value="0" inputmode="numeric"><button id="refresh">查看状态</button><button id="connect">连接 Trakt</button><button id="disconnect" class="danger-button" disabled>断开连接</button></div>
+<p class="muted">管理员的成员 ID 为 0。每个成员独立绑定自己的 Trakt 账号，未绑定的成员不会同步。此页面仅向管理员开放。</p>
+<p class="muted">已内置 Trakt 应用，无需填写 Client ID。仅需使用自己的应用时，前往<a href="/settings/plugins" target="_top">插件设置</a>配置。</p></div></details>
+<footer>MovieClaw Trakt 是独立社区插件，未获 Trakt 背书或认证。</footer>
+</main>
+<dialog id="authorization" aria-labelledby="auth-title"><div class="dialog-body"><div class="section-heading"><h2 id="auth-title">连接 Trakt</h2><button id="cancel-auth" class="icon-button" aria-label="关闭授权窗口">×</button></div>
+<p id="auth-member" class="muted"></p><p>打开 Trakt 授权页面，登录自己的账号并输入下方代码。</p><strong id="code" class="auth-code">…</strong>
+<div class="dialog-actions"><a id="verify" class="primary-button" target="_blank" rel="noopener noreferrer">前往 Trakt 授权 ↗</a><button id="copy-code">复制代码</button></div>
+<p id="auth-state" role="status" aria-live="polite">正在生成授权码…</p></div></dialog>
+<script src="app.js"></script></body></html>

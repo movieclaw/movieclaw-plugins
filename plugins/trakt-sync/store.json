@@ -1,0 +1,9 @@
+{
+  "author": "o1xhack",
+  "author_url": "https://github.com/o1xhack",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "将 MovieClaw 播放活动同步到各成员自己的 Trakt 账号（测试版）",
+  "homepage": "https://github.com/o1xhack/movieclaw-trakt",
+  "category": "tools"
+}
