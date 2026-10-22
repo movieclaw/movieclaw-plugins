@@ -27,6 +27,7 @@ class Engine(ActivityLog):
         self.rotated = {}
         self.wake = asyncio.Event()
         self.bootstrap = asyncio.Lock()
+        self.delivery_failures = {}
 
     @staticmethod
     def scope(member):
@@ -53,7 +54,7 @@ class Engine(ActivityLog):
 
     @staticmethod
     def drop_warning(ledger):
-        count = ledger.get("dropped", 0)
+        count = max(0, ledger.get("dropped", 0) - ledger.get("acknowledged_dropped", 0))
         return (
             f"队列容量不足，已有 {count} 条记录未同步；请检查 Trakt 连接"
             if count
@@ -120,35 +121,78 @@ class Engine(ActivityLog):
         await self.save_ledger(member, ledger)
         await self.health.degraded(f"member-{member}", ledger["last_error"])
 
+    @staticmethod
+    def auth_failed(job):
+        return job.get("auth_error", False) or job.get("error_status") in (401, 403)
+
     async def initialize(self):
-        # 旧版没有明文索引，只在迁移时解密枚举一次。正常唤醒不再枚举账号。
+        # scopes(account) 会一次解密全部账号。先从明文 ledger/linked 找出成员，再逐个读凭据。
         async with self.bootstrap:
-            if await self.store.get("delivery-index-v1", default=False):
+            if await self.store.get("delivery-index-v2", default=False):
                 return
-            for scope in await self.store.scopes("account", entity="member"):
-                member = int(scope.split(":", 1)[1])
-                async with self.locks[member]:
-                    account = await self.get(member, "account", {})
-                    if not account:
-                        continue
+            ledgers = await self.store.scopes("ledger", entity="member")
+            linked = await self.store.scopes("linked", entity="member")
+            scopes = set(ledgers) | set(linked) | {self.scope(0)}
+            for scope in scopes:
+                value = scope.split(":", 1)[-1]
+                if not value.isdigit():
+                    continue
+                member = int(value)
+                try:
+                    async with self.locks[member]:
+                        # 先建立任务标记，单个损坏凭据不能阻断其他账号的迁移和投递。
+                        if ledgers.get(scope, {}).get("queue"):
+                            await self.set(
+                                member, "delivery", {"next_at": self.clock()}
+                            )
+                        account = await self.get(member, "account", {})
+                        if not account:
+                            continue
+                        await self.set(member, "linked", True)
+                        ledger = await self.ledger(member)
+                        if account.get("blocked") or any(
+                            self.auth_failed(j) for j in ledger["queue"]
+                        ):
+                            await self.block_auth(member, account, ledger)
+                        else:
+                            await self.save_ledger(member, ledger)
+                        await self.store.delete("storage_error", scope=scope)
+                except Exception as exc:
+                    self.log.warning(
+                        "Trakt 单个成员数据暂不可读（%s）", type(exc).__name__
+                    )
                     await self.set(member, "linked", True)
-                    ledger = await self.ledger(member)
-                    if account.get("blocked") or any(
-                        j.get("error_status") in (400, 401, 403)
-                        for j in ledger["queue"]
-                    ):
-                        await self.block_auth(member, account, ledger)
-                    else:
-                        await self.save_ledger(member, ledger)
-            await self.store.set("delivery-index-v1", True)
+                    await self.set(member, "storage_error", True)
+            await self.store.set("delivery-index-v2", True)
 
     async def status(self, member):
-        account = await self.get(member, "account", {})
-        ledger = await self.ledger(member)
+        try:
+            account = await self.get(member, "account", {})
+            ledger = await self.ledger(member)
+        except Exception:
+            return {
+                "enabled": self.enabled,
+                "configured": bool(self.client.client_id),
+                "has_account": True,
+                "connected": False,
+                "needs_reconnect": True,
+                "username": None,
+                "pending": 0,
+                "failed": 0,
+                "last_success": None,
+                "last_error": "该成员的本地连接数据无法读取，请断开本地连接后重新授权；远端授权需在 Trakt 确认",
+                "warning": None,
+                "dropped": 0,
+                "unacknowledged_dropped": 0,
+                "member_id": member,
+            }
+        if account.get("access_token") and not await self.get(member, "linked", False):
+            await self.set(member, "linked", True)
         warning = self.drop_warning(ledger)
         error = ledger.get("last_error")
-        if warning and warning not in (error or ""):
-            error = f"{error}；{warning}" if error else warning
+        # 旧版把容量提示写进 last_error；迁移时保留 warning，恢复真实的连接健康状态。
+        if error and error.startswith("队列容量不足，已有 "):
+            error = None
         return {
             "enabled": self.enabled,
             "configured": bool(self.client.client_id),
@@ -156,19 +200,38 @@ class Engine(ActivityLog):
             "connected": bool(account.get("access_token"))
             and account.get("client_id") == self.client.client_id
             and not account.get("blocked"),
-            "needs_reconnect": bool(account.get("blocked")),
+            "needs_reconnect": bool(account.get("blocked"))
+            or bool(
+                account.get("access_token")
+                and account.get("client_id") != self.client.client_id
+            ),
             "username": account.get("username"),
             "pending": len(ledger["queue"]),
             "failed": len(ledger.get("failed", [])),
             "last_success": ledger.get("last_success"),
             "last_error": error,
+            "warning": warning,
             "dropped": ledger.get("dropped", 0),
+            "unacknowledged_dropped": max(
+                0, ledger.get("dropped", 0) - ledger.get("acknowledged_dropped", 0)
+            ),
             "member_id": member,
         }
 
+    async def acknowledge_dropped(self, member):
+        async with self.locks[member]:
+            ledger = await self.ledger(member)
+            ledger["acknowledged_dropped"] = ledger.get("dropped", 0)
+            if (ledger.get("last_error") or "").startswith("队列容量不足，已有 "):
+                ledger["last_error"] = None
+            await self.save_ledger(member, ledger)
+            if not ledger.get("last_error") and not ledger.get("failed"):
+                await self.health.ok(f"member-{member}")
+            return {"acknowledged": ledger["acknowledged_dropped"]}
+
     async def begin(self, member):
         if not self.client.client_id:
-            raise ValueError("官方 Trakt 应用尚未配置，请等待维护者完成配置")
+            raise ValueError("Trakt 应用配置不可用，请检查插件设置")
         async with self.locks[member]:
             if (await self.get(member, "account", {})).get("access_token"):
                 raise ValueError("该成员已绑定，请先断开连接再更换账号")
@@ -240,7 +303,11 @@ class Engine(ActivityLog):
 
     async def disconnect(self, member):
         async with self.locks[member]:
-            account = await self.get(member, "account", {})
+            readable = True
+            try:
+                account = await self.get(member, "account", {})
+            except Exception:
+                account, readable = {}, False
             # 刷新已成功但落盘失败时，撤销最近拿到的令牌，不能再用过期的旧令牌。
             account = self.rotated.get(member, account)
             # 先撤销本地状态，之后的事件和排队任务均不能再使用这个账号。
@@ -251,11 +318,13 @@ class Engine(ActivityLog):
                 "activity",
                 "linked",
                 "delivery",
+                "storage_error",
             ):
                 await self.store.delete(key, scope=self.scope(member))
             self.rotated.pop(member, None)
+            self.delivery_failures.pop(member, None)
             self.wake.set()
-            revoked = True
+            revoked = readable
             if (
                 account.get("access_token")
                 and account.get("client_id") == self.client.client_id
@@ -269,10 +338,12 @@ class Engine(ActivityLog):
                             "token": account["access_token"],
                         },
                     )
+                    revoked = True
                 except TraktError:
                     revoked = False
             elif account.get("access_token"):
                 revoked = False
+            await self.health.ok(f"member-{member}")
             return {"disconnected": True, "remote_revocation_confirmed": revoked}
 
     async def accept(self, kind, event, event_id, occurred_at):
@@ -280,15 +351,23 @@ class Engine(ActivityLog):
         if not self.enabled or not isinstance(member, int) or member < 0:
             return
         async with self.locks[member]:
-            account = await self.get(member, "account", {})
+            try:
+                account = await self.get(member, "account", {})
+            except ValueError:
+                # 损坏凭据是单成员故障，不能让共享可靠消费者反复重试此成员的事件。
+                await self.set(member, "linked", True)
+                await self.set(member, "storage_error", True)
+                return
             if (
                 not account.get("access_token")
                 or account.get("client_id") != self.client.client_id
                 or account.get("blocked")
             ):
                 return  # 从不借用管理员或其他成员的账号。
+            if not await self.get(member, "linked", False):
+                await self.set(member, "linked", True)
             ledger = await self.ledger(member)
-            if any(j.get("error_status") in (400, 401, 403) for j in ledger["queue"]):
+            if any(self.auth_failed(j) for j in ledger["queue"]):
                 await self.block_auth(member, account, ledger)
                 return
             if event_id in ledger["seen"]:
@@ -462,6 +541,7 @@ class Engine(ActivityLog):
             ):
                 await self.store.delete("delivery", scope=self.scope(member))
                 return
+            await self.store.delete("storage_error", scope=self.scope(member))
             ledger = await self.ledger(member)
             if not ledger["queue"]:
                 await self.store.delete("delivery", scope=self.scope(member))
@@ -523,6 +603,10 @@ class Engine(ActivityLog):
                             raise TraktError(404)
             except TraktError as exc:
                 job["error_status"] = exc.status
+                job["auth_error"] = exc.auth_error
+                if exc.auth_error:
+                    await self.block_auth(member, account, ledger)
+                    return
                 if (
                     exc.status == 422
                     and job["path"] in ("/scrobble/stop", "/scrobble/pause")
@@ -532,7 +616,7 @@ class Engine(ActivityLog):
                     result = {"action": "ignored_short_play"}
                 elif exc.status == 409 and job["path"] == "/scrobble/stop":
                     result = {"action": "already_synced"}
-                elif exc.status in (404, 422):
+                elif exc.status in (400, 404, 422):
                     # 无法匹配的一部片不能阻塞后面所有播放，保留可手动重试的失败记录。
                     ledger["queue"].pop(0)
                     ledger["failed"] = [*ledger.get("failed", []), job][-16:]
@@ -541,9 +625,6 @@ class Engine(ActivityLog):
                     )
                     await self.save_ledger(member, ledger)
                     await self.health.degraded(f"member-{member}", ledger["last_error"])
-                    return
-                elif exc.status in (400, 401, 403):
-                    await self.block_auth(member, account, ledger)
                     return
                 else:
                     job["attempt"] += 1
@@ -570,7 +651,7 @@ class Engine(ActivityLog):
             ledger["last_error"] = (
                 "有影片无法在 Trakt 匹配，请检查外部编号后重试"
                 if ledger.get("failed")
-                else self.drop_warning(ledger)
+                else None
             )
             await self.save_ledger(member, ledger)
             await self.complete_activity(member, job, result.get("action"))
@@ -596,6 +677,7 @@ class Engine(ActivityLog):
             for job in failed:
                 job["next_at"] = self.clock()
                 job.pop("error_status", None)
+                job.pop("auth_error", None)
             ledger["queue"].extend(failed)
             selected = {job["id"] for job in failed}
             ledger["failed"] = [
@@ -604,31 +686,54 @@ class Engine(ActivityLog):
             await self.save_ledger(member, ledger)
             return {"retried": len(failed)}
 
+    def due_at(self, member, marker):
+        return max(marker["next_at"], self.delivery_failures.get(member, (0, 0))[1])
+
+    async def deliver_ready(self, work):
+        for scope, marker in work.items():
+            member = int(scope.split(":", 1)[1])
+            if self.due_at(member, marker) > self.clock():
+                continue
+            try:
+                await self.drain(member)
+                self.delivery_failures.pop(member, None)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                attempt = self.delivery_failures.get(member, (0, 0))[0] + 1
+                delay = min(300, 5 * 2 ** min(attempt, 6))
+                self.delivery_failures[member] = (attempt, self.clock() + delay)
+                self.log.warning(
+                    "Trakt 单个成员投递暂未完成（%s），%s 秒后重试",
+                    type(exc).__name__,
+                    delay,
+                )
+
     async def run(self):
         if not self.enabled:
             await asyncio.Future()
+        failures = 0
         while True:
             self.wake.clear()
             try:
                 await self.initialize()
-                work = await self.store.scopes("delivery", entity="member")
-                for scope, marker in work.items():
-                    if marker["next_at"] > self.clock():
-                        continue
-                    try:
-                        await self.drain(int(scope.split(":", 1)[1]))
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception as exc:
-                        self.log.warning(
-                            "Trakt 单个成员投递暂未完成（%s）", type(exc).__name__
-                        )
+                await self.deliver_ready(
+                    await self.store.scopes("delivery", entity="member")
+                )
                 work = await self.store.scopes("delivery", entity="member")
                 delay = (
-                    max(1, min(m["next_at"] for m in work.values()) - self.clock())
+                    max(
+                        1,
+                        min(
+                            self.due_at(int(s.split(":", 1)[1]), m)
+                            for s, m in work.items()
+                        )
+                        - self.clock(),
+                    )
                     if work
                     else None
                 )
+                failures = 0
                 try:
                     await asyncio.wait_for(self.wake.wait(), timeout=delay)
                 except TimeoutError:
@@ -636,8 +741,11 @@ class Engine(ActivityLog):
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                # 不输出异常内容：HTTP 或存储异常可能包含凭据、参数和账号数据。
+                failures += 1
+                delay = min(300, 5 * 2 ** min(failures, 6))
                 self.log.warning(
-                    "Trakt 后台同步暂未完成（%s），稍后重试", type(exc).__name__
+                    "Trakt 后台同步暂未完成（%s），%s 秒后重试",
+                    type(exc).__name__,
+                    delay,
                 )
-                await asyncio.sleep(5)
+                await asyncio.sleep(delay)

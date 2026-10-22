@@ -7,7 +7,10 @@
 - Wake delivery only for pending work using a plaintext scheduling index; keep heartbeat requests out of the activity log.
 - Use the manifest version in User-Agent and add mocked OAuth, overflow, migration and retry regression coverage.
 - Install/update guidance now follows the official plugin market. Remove server-fork recommendations and unsupported offline-history guarantees.
-- Remove the personal default Trakt application. Organization app configuration and real secretless refresh/revoke acceptance remain release blockers; see APPLICATION.md.
+- Use the MovieClaw-owned public application with secretless device authorization and OOB refresh.
+- Treat item-write 400 as a retryable item failure; distinguish OAuth refresh rejection. Add loss-warning acknowledgement with preserved totals and independent connection health.
+- Isolate corrupt legacy credentials and back off unexpected delivery errors per member. Specify UTF-8 manifest decoding.
+- Validate against the repository's pinned MovieClaw v0.42.0 host; see APPLICATION.md for application maintenance.
 
 ## 0.2.1
 

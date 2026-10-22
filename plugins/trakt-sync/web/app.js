@@ -56,7 +56,7 @@ function renderAccounts(accounts) {
     status.append(el("span", `badge ${account.last_error ? "blocked" : account.connected ? "ok" : account.has_account ? "blocked" : ""}`, account.needs_reconnect ? "需要重新连接" : account.last_error ? "同步需检查" : account.connected ? "● 已连接" : account.has_account ? "需要重新连接" : "尚未连接"));
     const counts = el("p");
     counts.append(el("span", "", `${account.pending} 待发送 · `), el("span", account.failed ? "has-error" : "", `${account.failed} 失败`));
-    status.append(counts, el("p", "", account.last_error || (account.last_success ? `上次发送 ${time(account.last_success)}` : "暂无发送记录")));
+    status.append(counts, el("p", "", [account.last_error, account.warning].filter(Boolean).join("；") || (account.last_success ? `上次发送 ${time(account.last_success)}` : "暂无发送记录")));
     button.append(identity,status,el("span", "chevron", "›")); row.append(button);
     if (!account.has_account) {
       const connect = el("button", "", "连接 Trakt"); connect.disabled = busy || !account.configured;
@@ -111,13 +111,14 @@ async function refresh() {
   const connected = accounts.filter(account => account.connected).length;
   const pending = accounts.reduce((sum, account) => sum + account.pending,0);
   const failed = accounts.reduce((sum, account) => sum + account.failed,0);
-  const attention = accounts.some(account => account.last_error);
+  const attention = accounts.some(account => account.last_error || account.warning || account.needs_reconnect);
   $("summary").textContent = failed ? `${failed} 条发送失败，需要处理 · ${connected} 个账号已连接` : attention ? `有账号需要检查 · ${pending} 条待发送` : connected ? `同步正常 · ${connected} 个账号已连接${pending ? ` · ${pending} 条待发送` : ""}` : "连接 Trakt 后，自动同步观看记录";
   $("summary").classList.toggle("attention", !!failed || attention);
   $("summary").classList.toggle("idle", !connected && !attention);
   $("account-count").textContent = `${connected} 个已连接`;
   $("activity-owner").textContent = `${current.username || memberLabel(id)}${current.username ? ` · ${memberLabel(id)}` : ""}的发送情况`;
   $("retry").hidden = !current.failed;
+  $("acknowledge-dropped").hidden = !current.unacknowledged_dropped;
   $("connect").disabled = busy || !current.configured || current.has_account;
   $("disconnect").disabled = !current.has_account || busy;
   records = detail.records;
@@ -160,6 +161,10 @@ $("member").onkeydown = event => { if (event.key === "Enter") $("refresh").click
 $("member").onchange = action(() => selectMember(readMember()));
 $("add-account").onclick = () => { $("advanced").open = true; $("member").focus(); $("advanced").scrollIntoView({behavior:"smooth",block:"nearest"}); };
 $("retry").onclick = action(async () => { const result = await api("retry", "POST"); await refresh(); notice(`已将 ${result.retried} 条记录加入待发送队列。`); });
+$("acknowledge-dropped").onclick = action(async () => {
+  if (!confirm("确认已知这些记录未同步？此操作只清除提示，不会补发记录，累计数量仍保留。")) return;
+  await api("acknowledge-dropped", "POST"); await refresh(); notice("已清除提示，累计未同步数量仍保留。");
+});
 $("connect").onclick = action(async () => { await selectMember(readMember()); await connectAccount(); });
 function closeAuth() { cancelAuth(); action(refresh)(); }
 $("cancel-auth").onclick = closeAuth;

@@ -31,7 +31,7 @@ class Settings(BaseModel):
         "",
         title="自定义 Trakt Client ID（高级，可留空）",
         max_length=256,
-        description="发行前由维护者配置官方公共应用。仅自有部署可用自己注册的应用覆盖",
+        description="默认使用 MovieClaw 维护的公开应用，无需填写；自行部署者可用自己的应用覆盖",
     )
     client_secret: SecretStr = Field(
         SecretStr(""),
@@ -103,6 +103,14 @@ async def apply(ctx: Context):
     )
     async def activity(member_id: int = Query(0, ge=0)) -> dict:
         return await engine.activity(member_id)
+
+    @router.post(
+        "/acknowledge-dropped",
+        operation_id="plugins.trakt-sync.acknowledge-dropped",
+        summary="确认已知的未同步记录提示（不会补发记录）",
+    )
+    async def acknowledge_dropped(member_id: int = Query(0, ge=0)) -> dict:
+        return await engine.acknowledge_dropped(member_id)
 
     @router.post(
         "/auth/begin",

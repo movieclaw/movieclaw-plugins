@@ -1,16 +1,19 @@
-# 官方 Trakt 应用与真实授权验收（发行阻塞项）
+# Trakt 应用维护 / Application maintenance
 
-官方市场版本不再内置个人名下的 Client ID。默认应用配置暂时留空，需 MovieClaw 维护者提供由项目长期管理的应用，或与 Trakt 确认受支持的转移方式后补入。在此之前，不应发布这个版本。高级设置仍支持用户自己的应用。
+默认应用「MovieClaw」由 MovieClaw 的 Trakt 项目账号持有，Production 类型，公开 Client ID 为 `aPq49pAxnq5HM6qVYY1vmKfHl6bV6S10aotXT5crbH0`。它不依赖插件作者的个人应用，不需要向作者授予 Manager 或 Owner。
 
-本次没有转移、删除或修改作者已有的 Trakt 应用，也没有刷新、撤销或覆盖现有用户授权。Client Secret 不得提交进仓库。
+## 授权与配置
 
-自动化测试覆盖无 Secret 请求结构、401 → 刷新 → 重放、单次刷新令牌轮换和撤销路径，但所有请求均为模拟。**正式应用的无 Secret 刷新与撤销尚未经过真实验收**，不能据此承诺可用。真实 iPhone 离线播放再恢复联网也未完成端到端验收。
+- 使用设备码授权，不携带 Client Secret。新应用未签发 Secret，不把 Secret 或用户令牌打包进插件。
+- 默认无需用户填写应用配置。自有部署仍可覆盖为自己的 Client ID；只在使用自定义应用时读取对应的自定义 Secret。
+- `/oauth/token` 刷新带 `redirect_uri: urn:ietf:wg:oauth:2.0:oob`。应用登记的 `https://movieclaw.io/trakt/callback` 不用于设备码流程；Allowed origins 留空，不需要浏览器直接调用 Trakt API。
+- 更换 Client ID 前断开旧绑定，新应用需重新授权；不能拿新应用的凭据刷新或撤销旧应用的授权。
+- 收到撤销成功后立即清除本地状态；Trakt 的缓存可能让令牌短时间仍可用，不因即时探测结果恢复连接。刷新后始终使用新令牌。
 
-正式应用确定后，使用经授权的专用临时测试绑定执行以下验收；先核对账号已连接应用数量，避免影响已有绑定，不得借用生产令牌：
+上游已报告完成两轮无 Secret 的设备授权、读取、刷新和撤销测试，见 [验收回复](https://github.com/movieclaw/movieclaw-plugins/pull/17#issuecomment-6334211735)。本插件的独立真实接口验收与本地回归见 [2026-10-22 验证记录](docs/validation-2026-10-22.md)。
 
-1. 完成设备码授权，核对绑定身份。
-2. 不带 Client Secret 调用 `/oauth/token` 刷新，确认新令牌可读取该账号，刷新令牌已轮换。
-3. 不带 Client Secret 调用 `/oauth/revoke`，确认仅该临时测试授权失效，其他账号绑定不受影响。
-4. 清理临时凭据，记录日期、公开应用 ID、接口、HTTP 状态和结论；不保存令牌、Secret 或响应正文。
+## 后续验收
 
-如果正式应用必须携带 Secret，需先与维护者确定安全交付方案，再调整实现；不能把私密 Secret 打包进公开插件。
+应用配置或授权协议变化时，使用专门的临时测试授权验证连接、播放同步、刷新轮换与断开。先核对应用名额及已有绑定，不撤销其他应用；只清理本次新建的测试观看记录和授权。日志只记录接口、状态和结论，不记录令牌、Secret、设备码或响应正文。离线真机回传需单独验收，OAuth 成功不代表离线播放链路已经验证。
+
+The default Production application is owned by the MovieClaw Trakt account. Device authorization, refresh and revoke omit the Client Secret; refresh uses the OOB redirect URI above. Custom application overrides remain isolated. Disconnect locally immediately after revoke and allow for remote revocation delay. Validate protocol changes with a dedicated test grant and preserve all existing grants and watch history.

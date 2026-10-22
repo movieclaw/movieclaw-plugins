@@ -8,7 +8,7 @@ from .policy import iso_time
 def error_reason(status):
     return {
         0: "网络连接失败，将自动重试",
-        400: "授权请求未被接受，请检查账号连接",
+        400: "Trakt 无法接受此条记录，请检查影片或季集编号",
         401: "账号授权已失效，请重新连接",
         403: "Trakt 拒绝访问，请检查账号权限",
         404: "Trakt 未找到对应影片，请检查外部编号",
@@ -96,8 +96,11 @@ class ActivityLog:
             self.log.warning("Trakt 发送详情暂未保存，投递队列不受影响")
 
     async def activity(self, member):
-        ledger = await self.ledger(member)
-        history = await self.get(member, "activity", [])
+        try:
+            ledger = await self.ledger(member)
+            history = await self.get(member, "activity", [])
+        except ValueError:
+            return {"member_id": member, "records": [], "retained": 80}
         by_id = {row["id"]: row for row in history}
         live = []
         for state, jobs in (
@@ -110,7 +113,7 @@ class ActivityLog:
                 code = job.get("error_status")
                 visible_state = state
                 if state == "queued" and code is not None:
-                    visible_state = "blocked" if code in (400, 401, 403) else "retrying"
+                    visible_state = "blocked" if self.auth_failed(job) else "retrying"
                 live.append(
                     {
                         **fallback(job),

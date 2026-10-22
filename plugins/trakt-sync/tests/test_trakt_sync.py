@@ -5,6 +5,7 @@ import copy
 import json
 import logging
 import unittest
+from unittest.mock import AsyncMock
 
 import httpx
 from trakt_sync.application import DEFAULT_CLIENT_ID, application_credentials
@@ -243,9 +244,8 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             len(json.dumps(ledger, ensure_ascii=False).encode()), 60000
         )
         self.assertGreater(ledger["dropped"], 0)
-        self.assertIn(
-            "未同步", (await e.status(0))["last_error"] or e.drop_warning(ledger)
-        )
+        self.assertIn("未同步", (await e.status(0))["warning"])
+        self.assertIn("HTTP 503", (await e.status(0))["last_error"])
         self.handler = None
         await e.set(2, "account", self.account, secret=True)
         await e.accept(
@@ -492,7 +492,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             scans = list(e.store.scans)
             await asyncio.sleep(0.02)
             self.assertEqual(e.store.scans, scans)
-            self.assertEqual(scans.count("account"), 1)
+            self.assertEqual(scans.count("account"), 0)
             await e.accept("completed", self.event, "wake", iso_time(self.now))
             for _ in range(100):
                 if (await e.status(0))["pending"] == 0:
@@ -506,7 +506,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
                 await task
         reloaded = Engine(e.store, e.client, e.health, e.log, clock=e.clock)
         await reloaded.initialize()
-        self.assertEqual(e.store.scans.count("account"), 1)
+        self.assertEqual(e.store.scans.count("account"), 0)
 
     async def test_legacy_rejected_queue_migrates_to_reconnect_state(self):
         e = self.engine
@@ -519,10 +519,14 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await e.get(0, "delivery"))
         self.assertEqual((await e.status(0))["pending"], 0)
 
-    async def test_market_default_application_is_explicitly_unconfigured(self):
-        self.assertEqual(DEFAULT_CLIENT_ID, "")
+    async def test_market_application_configured_and_empty_override_keeps_secret_isolated(
+        self,
+    ):
+        self.assertEqual(
+            DEFAULT_CLIENT_ID, "aPq49pAxnq5HM6qVYY1vmKfHl6bV6S10aotXT5crbH0"
+        )
         self.engine.client.client_id = ""
-        with self.assertRaisesRegex(ValueError, "尚未配置"):
+        with self.assertRaisesRegex(ValueError, "配置不可用"):
             await self.engine.begin(2)
         self.assertEqual(self.requests, [])
 
@@ -643,3 +647,201 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await e.disconnect(0))["remote_revocation_confirmed"])
         self.assertEqual(json.loads(self.requests[-1].content)["token"], "newest")
         self.assertNotIn(0, e.rotated)
+
+    async def test_write_400_is_item_failure_and_next_member_job_can_continue(self):
+        e = self.engine
+        self.handler = lambda r: httpx.Response(400)
+        await e.accept("completed", self.event, "bad-body", iso_time(self.now))
+        await e.drain(0)
+        self.assertTrue((await e.status(0))["connected"])
+        self.assertFalse((await e.status(0))["needs_reconnect"])
+        self.assertEqual((await e.status(0))["failed"], 1)
+        self.assertEqual((await e.activity(0))["records"][0]["state"], "failed")
+        self.handler = None
+        await e.accept(
+            "completed",
+            {**self.event, "media": {"id": 10, "kind": "movie", "tmdb_id": 10}},
+            "next",
+            iso_time(self.now),
+        )
+        await e.drain(0)
+        self.assertEqual((await e.status(0))["pending"], 0)
+        self.assertEqual((await e.status(0))["failed"], 1)
+
+    async def test_legacy_write_400_is_not_migrated_into_blocked_auth(self):
+        e = self.engine
+        await e.accept("completed", self.event, "old-400", iso_time(self.now))
+        ledger = await e.ledger(0)
+        ledger["queue"][0]["error_status"] = 400
+        await e.set(0, "ledger", ledger)
+        await e.initialize()
+        await e.accept(
+            "started",
+            {**self.event, "media": {"id": 8, "kind": "movie", "tmdb_id": 8}},
+            "allowed",
+            iso_time(self.now),
+        )
+        self.assertTrue((await e.status(0))["connected"])
+        self.assertEqual((await e.status(0))["pending"], 2)
+
+    async def test_auth_source_is_distinguished_from_item_400(self):
+        self.handler = lambda r: httpx.Response(400)
+        with self.assertRaises(TraktError) as token:
+            await self.engine.client.refresh("fixture")
+        self.assertTrue(token.exception.auth_error)
+        with self.assertRaises(TraktError) as item:
+            await self.engine.client.request("POST", "/sync/history", {})
+        self.assertFalse(item.exception.auth_error)
+        for code in (401, 403):
+            self.assertTrue(TraktError(code).auth_error)
+
+    async def test_loss_acknowledgement_keeps_totals_queue_and_future_warnings(self):
+        e = self.engine
+        e.health.ok = AsyncMock()
+        e.health.degraded = AsyncMock()
+        await e.accept("completed", self.event, "kept", iso_time(self.now))
+        ledger = await e.ledger(0)
+        ledger["dropped"] = 4
+        await e.save_ledger(0, ledger)
+        await e.drain(0)
+        self.assertIn("4", (await e.status(0))["warning"])
+        self.assertIsNone((await e.status(0))["last_error"])
+        e.health.degraded.assert_not_awaited()
+        await e.accept(
+            "completed",
+            {**self.event, "media": {"id": 9, "kind": "movie", "tmdb_id": 9}},
+            "pending",
+            iso_time(self.now),
+        )
+        self.assertEqual((await e.acknowledge_dropped(0))["acknowledged"], 4)
+        status = await e.status(0)
+        self.assertEqual(status["dropped"], 4)
+        self.assertEqual(status["unacknowledged_dropped"], 0)
+        self.assertEqual(status["pending"], 1)
+        self.assertIsNone(status["warning"])
+        ledger = await e.ledger(0)
+        ledger["dropped"] = 6
+        await e.save_ledger(0, ledger)
+        self.assertEqual((await e.status(0))["unacknowledged_dropped"], 2)
+        self.assertIn("2", (await e.status(0))["warning"])
+
+    async def test_acknowledgement_does_not_clear_real_failure(self):
+        e = self.engine
+        ledger = await e.ledger(0)
+        ledger.update(dropped=2, last_error="真实网络故障")
+        await e.save_ledger(0, ledger)
+        e.health.ok = AsyncMock()
+        await e.acknowledge_dropped(0)
+        self.assertEqual((await e.status(0))["last_error"], "真实网络故障")
+        e.health.ok.assert_not_awaited()
+
+    async def test_corrupt_account_cannot_stop_migration_or_other_member_delivery(self):
+        e = self.engine
+        await e.accept("completed", self.event, "broken", iso_time(self.now))
+        await e.set(
+            1, "account", {**self.account, "access_token": "healthy"}, secret=True
+        )
+        await e.accept(
+            "completed", {**self.event, "member_id": 1}, "healthy", iso_time(self.now)
+        )
+        get = e.store.get
+
+        async def broken_get(key, *, scope="global", default=None):
+            if scope == "member:0" and key == "account":
+                raise ValueError("fixture corrupt encrypted value")
+            return await get(key, scope=scope, default=default)
+
+        e.store.get = broken_get
+        await e.initialize()
+        self.assertTrue(await e.store.get("delivery-index-v2"))
+        self.assertNotIn("account", e.store.scans)
+        await e.deliver_ready(await e.store.scopes("delivery", entity="member"))
+        self.assertEqual((await e.status(1))["pending"], 0)
+        self.assertTrue((await e.status(0))["needs_reconnect"])
+        self.assertEqual(len((await e.accounts())["accounts"]), 2)
+        count = len(self.requests)
+        for i in range(80):
+            await e.accept(
+                "completed", self.event, f"unreadable-{i}", iso_time(self.now)
+            )
+        self.assertEqual(count, len(self.requests))
+        self.assertFalse((await e.disconnect(0))["remote_revocation_confirmed"])
+        self.assertIsNone(e.store.data.get(("member:0", "account")))
+
+    async def test_unexpected_member_errors_back_off_without_delaying_others(self):
+        e = self.engine
+        original = e.drain
+        calls = []
+
+        async def failing(member):
+            calls.append(member)
+            if member == 0:
+                raise OSError("fixture")
+            await original(member)
+
+        e.drain = failing
+        work = {"member:0": {"next_at": self.now}, "member:1": {"next_at": self.now}}
+        with self.assertLogs("test", level="WARNING") as logs:
+            await e.deliver_ready(work)
+            self.assertEqual(e.delivery_failures[0][1], self.now + 10)
+            for _ in range(8):
+                await e.deliver_ready(work)
+            self.assertEqual(calls.count(0), 1)
+            self.assertEqual(calls.count(1), 9)
+            self.now += 10
+            await e.deliver_ready(work)
+            self.assertEqual(e.delivery_failures[0][1], self.now + 20)
+        self.assertEqual(len(logs.output), 2)
+        self.assertNotIn("fixture", " ".join(logs.output))
+
+    async def test_cancelled_delivery_is_not_swallowed_or_backed_off(self):
+        e = self.engine
+        e.drain = AsyncMock(side_effect=asyncio.CancelledError)
+        with self.assertRaises(asyncio.CancelledError):
+            await e.deliver_ready({"member:0": {"next_at": self.now}})
+        self.assertEqual(e.delivery_failures, {})
+
+    async def test_secretless_refresh_contains_oob_redirect_and_rotates(self):
+        self.engine.client.client_secret = ""
+        self.handler = lambda r: httpx.Response(
+            200, json={"access_token": "new", "refresh_token": "new-r"}
+        )
+        await self.engine.client.refresh("old-r")
+        self.assertEqual(
+            json.loads(self.requests[-1].content),
+            {
+                "client_id": "fixture-client",
+                "refresh_token": "old-r",
+                "grant_type": "refresh_token",
+                "redirect_uri": "urn:ietf:wg:oauth:2.0:oob",
+            },
+        )
+
+    async def test_explicit_official_application_never_sends_stale_custom_secret(self):
+        self.assertEqual(
+            application_credentials(DEFAULT_CLIENT_ID, "stale"), (DEFAULT_CLIENT_ID, "")
+        )
+
+    async def test_legacy_account_without_index_is_discovered_by_status_or_playback(
+        self,
+    ):
+        e = self.engine
+        e.store.data["member:3", "account"] = copy.deepcopy(self.account)
+        await e.initialize()
+        self.assertIsNone(await e.get(3, "linked"))
+        self.assertTrue((await e.status(3))["connected"])
+        self.assertTrue(await e.get(3, "linked"))
+        e.store.data["member:4", "account"] = copy.deepcopy(self.account)
+        await e.accept(
+            "completed",
+            {**self.event, "member_id": 4},
+            "legacy-discovery",
+            iso_time(self.now),
+        )
+        self.assertTrue(await e.get(4, "linked"))
+        self.assertIsNotNone(await e.get(4, "delivery"))
+
+    async def test_disconnect_clears_stale_member_health(self):
+        self.engine.health.ok = AsyncMock()
+        await self.engine.disconnect(0)
+        self.engine.health.ok.assert_awaited_once_with("member-0")
