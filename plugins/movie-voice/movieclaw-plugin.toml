@@ -22,7 +22,7 @@ network = true
 
 [[events]]
 name = "movie-voice.movie.found"
-title = "找到库内电影"
+title = "找到库内影片"
 
 [[notifications]]
 event = "movie-voice.movie.found"

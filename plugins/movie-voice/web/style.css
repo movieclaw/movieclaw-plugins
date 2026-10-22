@@ -120,3 +120,6 @@ dialog::backdrop { background: #000c; }
   .actions > * { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.season-selection { border:1px solid var(--border,#333); border-radius:8px; padding:16px; margin:16px 0; }
+.season-selection label { display:flex; align-items:center; gap:10px; margin:10px 0; }
+.season-selection input { width:auto; accent-color:currentColor; }

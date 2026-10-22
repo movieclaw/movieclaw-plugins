@@ -7,8 +7,8 @@ export function parseQuery(raw) {
 export function titleKey(row) { return row.title_ref || `library:${row.library_id}:${row.media_item_id}`; }
 export function nativePath(row) {
   if (row.library_id && row.media_item_id) return `/library/${Number(row.library_id)}/item/${Number(row.media_item_id)}`;
-  const parts = /^(tmdb):(movie):([1-9]\d*)$/.exec(row.title_ref || '');
-  if (parts) return `/media/movie/${parts[3]}`;
+  const parts = /^(tmdb):(movie|tv):([1-9]\d*)$/.exec(row.title_ref || '');
+  if (parts) return `/media/${parts[2]}/${parts[3]}`;
   const douban = /^douban:([1-9]\d*)$/.exec(row.title_ref || '');
   return douban ? `/media/douban/${douban[1]}` : '/';
 }
@@ -16,14 +16,15 @@ export function mergeCandidates(library, titles, raw) {
   const {query, year} = parseQuery(raw), rows = new Map();
   for (const hit of library || []) {
     const item = hit.item;
-    if (item?.kind !== 'movie') continue;
-    const row = {...item, title_ref:item.tmdb_id ? `tmdb:movie:${item.tmdb_id}` : null,
+    if (!['movie','tv'].includes(item?.kind)) continue;
+    const row = {...item, title_ref:item.tmdb_id ? `tmdb:${item.kind}:${item.tmdb_id}` : null,
       release_year:item.year, owned:true, library_id:item.library_id || hit.library_ids?.[0]};
     rows.set(titleKey(row), row);
   }
   for (const item of titles || []) {
-    if (item.media_type !== 'movie') continue;
     const key = titleKey(item), previous = rows.get(key);
+    if (!(['movie','tv'].includes(item.media_type) && new RegExp(`^tmdb:${item.media_type}:[1-9]\\d*$`).test(item.title_ref)) &&
+        !([null,undefined,'movie','tv'].includes(item.media_type) && /^douban:[1-9]\d*$/.test(item.title_ref))) continue;
     rows.set(key, previous ? {...item, ...previous} : {...item, owned:false});
   }
   const normalized = s => String(s || '').normalize('NFKC').toLowerCase().replace(/[\s\p{P}]/gu, '');
@@ -42,4 +43,8 @@ export function shortcutURL(value) {
       !url.searchParams.get('epoch') || !url.searchParams.get('sig'))
     throw new Error('服务器返回的 SEARCH_URL 格式不正确');
   return value;
+}
+
+export function mediaTypeLabel(row) {
+  return ({movie:'电影',tv:'剧集'})[row.kind || row.media_type] || '类型待核对';
 }

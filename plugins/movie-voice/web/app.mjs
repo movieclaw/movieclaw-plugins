@@ -1,4 +1,4 @@
-import {parseQuery, mergeCandidates, nativePath, shortcutURL} from './core.mjs';
+import {parseQuery, mergeCandidates, nativePath, shortcutURL, mediaTypeLabel} from './core.mjs';
 const $ = id => document.getElementById(id), dialog = $('detail');
 let searchVersion=0, detailVersion=0;
 const el = (tag, text, cls) => { const e=document.createElement(tag); if(text)e.textContent=text; if(cls)e.className=cls; return e; };
@@ -33,7 +33,7 @@ function action(label, fn, cls) {
   });return b;
 }
 function showOwned(row, root, actions, message) {
-  message.textContent='此影片已在媒体服务器上。';
+  message.textContent=mediaTypeLabel(row)==='剧集'?'此剧集已在媒体服务器上，可能仅有部分季集；可进入详情查看。':'此影片已在媒体服务器上。';
   actions.replaceChildren(link('网页观看',nativePath(row),'secondary'));
   actions.prepend(action('发送到 MovieClaw App',async()=>{
     const state=await api('/push/me');
@@ -49,30 +49,51 @@ async function showDetail(row) {
   const version=++detailVersion;
   const root=$('detail-content');root.replaceChildren();
   const grid=el('div',null,'detail-grid'), info=el('div'), wide=el('div',null,'wide');
-  info.append(el('h2',row.title),el('p',`${row.release_year || '年份待确认'} · ${row.provider==='douban'?'豆瓣':'TMDB / 媒体库'}`,'meta'));
+  info.append(el('h2',row.title),el('p',`${row.release_year || '年份待确认'} · ${mediaTypeLabel(row)} · ${row.provider==='douban'?'豆瓣':'TMDB / 媒体库'}`,'meta'));
   const overview=el('p',row.overview || '正在核对影片资料与库存……','overview');
   const message=el('p','正在核对库存，请稍候……','result-message'), actions=el('div',null,'actions');
   wide.append(overview,message,actions);grid.append(poster(row.poster_url,row.title),info,wide);root.append(grid);
   if(!dialog.open) dialog.showModal();
   try {
-    if(row.owned) {showOwned(row,wide,actions,message);overview.textContent='请核对片名、年份和海报，避免选到同名电影。';return;}
+    if(row.owned) {showOwned(row,wide,actions,message);overview.textContent='请核对片名、年份和海报，避免选到同名影片。';return;}
     const details=await api('/discover/titles/'+encodeURIComponent(row.title_ref));
     if(version!==detailVersion)return;
     if(details.title?.title_ref!==row.title_ref)throw new Error('影片身份未能核实，请重新搜索');
+    if(!['movie','tv'].includes(details.title.media_type))throw new Error('影片类型暂时无法确认，请前往影片资料页核对');
+    row={...row,media_type:details.title.media_type};
+    info.querySelector('.meta').textContent=`${details.title.release_year || row.release_year || '年份待确认'} · ${mediaTypeLabel(row)} · ${row.provider==='douban'?'豆瓣':'TMDB / 媒体库'}`;
     overview.textContent=details.title.overview || '暂无简介，请通过海报、片名和年份确认。';
     const directors=details.metadata?.directors;
     if(directors?.length)info.append(el('p','导演：'+directors.join(' / '),'meta'));
     const owned=details.title.library_status, library=details.library_links?.[0];
     if(owned?.file_count>0 && library){showOwned({...row,...library,owned:true},wide,actions,message);return;}
-    message.textContent='尚未在当前账号可见的媒体库找到这部电影。';
-    actions.append(action('确认这部电影，订阅并自动下载',async()=>{
+    const isTV=row.media_type==='tv', seasonInputs=[];
+    if(isTV) {
+      const preview=await api('/subscriptions/title-preview',{title_ref:row.title_ref});
+      if(version!==detailVersion)return;
+      if(preview.status!=='ready' || preview.media?.kind!=='tv')throw new Error('剧集身份或季数未能唯一确认，请前往影片资料页选择');
+      const fieldset=el('fieldset',null,'season-selection');fieldset.append(el('legend','选择要订阅的季数（不自动续订未来新季）'));
+      for(const season of preview.seasons || []) {
+        if(!Number.isInteger(season.season_number) || season.season_number<0)continue;
+        const label=el('label'), input=el('input');input.type='checkbox';input.value=String(season.season_number);
+        label.append(input,document.createTextNode(`${season.season_number===0?'特别篇':`第${season.season_number}季`} · 已有${season.owned_count ?? 0}/${season.episode_count ?? '?'}集`));
+        fieldset.append(label);seasonInputs.push(input);
+      }
+      if(!seasonInputs.length)throw new Error('尚无可核验的季数，请前往影片资料页查看');
+      wide.insertBefore(fieldset,message);
+    }
+    message.textContent=isTV?'请核对剧集与季数，再确认订阅。':'尚未在当前账号可见的媒体库找到这部电影。';
+    actions.append(action(isTV?'确认所选季，订阅并自动下载':'确认这部电影，订阅并自动下载',async()=>{
+      const selected_seasons=seasonInputs.filter(input=>input.checked).map(input=>Number(input.value));
+      if(isTV && !selected_seasons.length)throw new Error('请至少选择一季，再确认订阅');
       // 订阅前再查库存，避免等待确认期间已入库后重复订阅。
       const latest=await api('/discover/titles/'+encodeURIComponent(row.title_ref));
       if(latest.title?.title_ref!==row.title_ref)throw new Error('影片身份未能核实');
+      if(latest.title.media_type!==row.media_type)throw new Error('影片类型发生变化，请重新搜索');
       if(latest.title?.library_status?.file_count>0 && latest.library_links?.[0]) {
         showOwned({...row,...latest.library_links[0],owned:true},wide,actions,message);return;
       }
-      const result=await api('/subscriptions',{title_ref:row.title_ref});
+      const result=await api('/subscriptions',{title_ref:row.title_ref,...(isTV?{selected_seasons,follow_future:false}:{})});
       message.textContent='已加入订阅，服务器将按现有规则自动搜索、下载和入库。有新进展时沿用你的 MovieClaw 通知设置。';
       actions.replaceChildren(link('查看订阅进度','/subscriptions/'+result.subscription.id,''));
     }));
@@ -97,10 +118,12 @@ async function search(raw) {
   if(remote.status==='fulfilled')for(const provider of remote.value.providers || [])if(!provider.success)
     $('warnings').append(el('p',`${provider.provider==='tmdb'?'TMDB':'豆瓣'}暂不可用，已保留其他来源结果。`,'warning'));
   if(local.value?.next_cursor)$('warnings').append(el('p','库存结果较多，仅展示前 100 条。可加年份缩小候选；点击影片后仍会精确核对库存。','note'));
-  $('status').textContent=rows.length?`找到 ${rows.length} 个电影候选。请核对海报与年份，点击确认。`:'没有找到电影候选。试试原名、别名，或去掉年份后重搜。';
+  if(local.value?.index_pending)$('warnings').append(el('p','媒体库索引正在更新，当前结果可能不完整，请稍后重试。','note'));
+  $('status').textContent=rows.length?`找到 ${rows.length} 个影片候选。请核对类型、海报与年份，点击确认。`:
+    (local.status==='rejected' && remote.status==='rejected' ? '搜索暂不可用，尚未能确认媒体库中是否存在此影片。' : '没有找到电影或剧集候选。试试原名、别名，或去掉年份后重搜。');
   for(const row of rows) {
     const card=action('',()=>showDetail(row),'card');card.setAttribute('aria-label',`${row.title} ${row.release_year || ''}`);
-    card.append(poster(row.poster_url,row.title),el('h2',row.title),el('p',`${row.release_year || '年份待确认'} · ${row.provider==='douban'?'豆瓣':'TMDB / 媒体库'}`,'meta'),
+    card.append(poster(row.poster_url,row.title),el('h2',row.title),el('p',`${row.release_year || '年份待确认'} · ${mediaTypeLabel(row)} · ${row.provider==='douban'?'豆瓣':'TMDB / 媒体库'}`,'meta'),
       el('p',row.owned?'已在媒体服务器上':'点击核对库存与订阅','badge'));
     $('results').append(card);
   }

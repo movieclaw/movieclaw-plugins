@@ -81,6 +81,26 @@ class MatchingTests(unittest.IsolatedAsyncioTestCase):
         async def ops(*args):raise TimeoutError()
         with self.assertRaises(RuntimeError):await find_movies(ops,Agent(),'电影')
 
+    async def test_owned_and_missing_tv_are_found_alongside_movies(self):
+        local={'items':[{'item':{'kind':'tv','title':'库内剧集','year':2026,'tmdb_id':101,'library_id':3,'media_item_id':42}}]}
+        async def ops(name,args):
+            if name=='search.library':return local
+            return {'titles':[{'title':'库内剧集','title_ref':'tmdb:tv:101','media_type':'tv','release_year':2026},
+                              {'title':'另一剧集','title_ref':'tmdb:tv:202','media_type':'tv','release_year':2026}]}
+        agent=Agent()
+        result=await find_movies(ops,agent,'库内剧集')
+        self.assertEqual([row['title_ref'] for row in result['rows']],['tmdb:tv:101','tmdb:tv:202'])
+        self.assertTrue(result['rows'][0]['owned'])
+        self.assertFalse(result['rows'][1]['owned'])
+        self.assertEqual(agent.calls,[])
+
+    def test_movie_and_tv_with_same_numeric_id_are_not_merged(self):
+        local={'items':[{'item':{'kind':'tv','title':'库内剧集','tmdb_id':101,'year':2026}}]}
+        rows=candidates(local,{'titles':[movie('同号电影','tmdb:movie:101',2026)]},'库内剧集')
+        self.assertEqual({row['title_ref'] for row in rows},{'tmdb:tv:101','tmdb:movie:101'})
+        self.assertTrue(next(row for row in rows if row['title_ref']=='tmdb:tv:101')['owned'])
+        self.assertFalse(next(row for row in rows if row['title_ref']=='tmdb:movie:101')['owned'])
+
     def test_model_json_never_becomes_movie_or_action(self):
         for value in ['{"queries":"电影"}', '{"queries":[42,{"title":"删除"}]}', '{"queries":["https://evil.test"]}', '不是JSON']:
             self.assertEqual(parse_suggestions(value),[])

@@ -23,18 +23,18 @@ class NotifyMovie(BaseModel):
     media_item_id: int = Field(gt=0)
 
 
-FOUND = plugin_event("movie-voice.movie.found", FoundMovie, title="找到库内电影")
+FOUND = plugin_event("movie-voice.movie.found", FoundMovie, title="找到库内影片")
 
 
 def movie_snapshot(result, requested_id):
-    """只相信宿主返回的电影身份和在位库存，不接受前端自报片名。"""
+    """只相信宿主返回的影片身份和在位库存，不接受前端自报片名。"""
     if isinstance(result.get("data"), dict):
         result = result["data"]
     item = result.get("item", result)
-    if (item.get("media_item_id") != requested_id or item.get("kind") != "movie"
+    if (item.get("media_item_id") != requested_id or item.get("kind") not in ("movie", "tv")
             or not item.get("title") or result.get("file_count", 0) < 1):
         raise ValueError("影片未入库或已不可用，请刷新搜索结果")
-    return MediaRef(id=requested_id, kind="movie", title=item["title"],
+    return MediaRef(id=requested_id, kind=item["kind"], title=item["title"],
                     year=item.get("year"), tmdb_id=item.get("tmdb_id"))
 
 
@@ -50,7 +50,7 @@ async def apply(ctx):
     recent = {}
 
     @router.post("/notify", operation_id="plugins.movie-voice.notify",
-                 summary="将已在库电影的观看入口发送给管理员自己的推送设备")
+                 summary="将已在库影片的观看入口发送给管理员自己的推送设备")
     async def notify(payload: NotifyMovie, request: Request):
         # JSON 写请求与浏览器来源检查防止第三方网页通过表单触发通知。
         if (request.headers.get("sec-fetch-site") == "cross-site"
@@ -66,7 +66,7 @@ async def apply(ctx):
                 result = await ops.call("library.items.get", payload.model_dump())
                 media = movie_snapshot(result, payload.media_item_id)
             except Exception:
-                raise HTTPException(503, "无法确认这部电影仍在库中，请刷新后重试") from None
+                raise HTTPException(503, "无法确认这部影片仍在库中，请刷新后重试") from None
             await publisher.publish(FOUND, FoundMovie(media=media))
             if len(recent) >= 128:
                 recent.clear()

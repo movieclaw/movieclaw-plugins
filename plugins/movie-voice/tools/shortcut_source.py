@@ -26,9 +26,9 @@ HELP = '''找电影 · 配置与使用说明（v0.1.0）
 配置：服务器安装“寻映”（movie-voice）插件（已验证 MovieClaw 0.41 / 0.42，管理员使用），批准搜索、订阅、通知及 agent:none 权限。智能纠错使用服务器已配置的模型；未配置时普通、同音和库存别名搜索仍可用。
 用自己的管理员账号打开服务器上的“寻映”插件页面（/apps/movie-voice），点击“生成 SEARCH_URL” → “复制链接”，粘贴到本快捷指令顶部“文本”的 SEARCH_URL 配置框；个人版已填好。只替换这一框，其他动作无需改动。首次使用允许连接自己的服务器。
 
-用法：说“嘿 Siri，找电影”，再说电影名，可加年份。核对海报、片名、年份后选择并确认。列表底部可重新说、手动输入、补充导演/演员/剧情，或查看本说明。连续搜索最多 20 轮；取消系统输入或确认会结束。
-已有电影：确认后向自己的 MovieClaw App 发观看通知；结果同时提供网页入口，未安装 App 时可登录网页观看。
-缺少电影：只有确认后才按服务器现有规则订阅并自动搜索下载。找到资源的时间取决于线路和规则。
+用法：说“嘿 Siri，找电影”，再说电影或电视剧名，可加年份。核对海报、片名、年份后选择并确认。列表底部可重新说、手动输入、补充导演/演员/剧情，或查看本说明。连续搜索最多 20 轮；取消系统输入或确认会结束。
+已有电影或剧集：确认后向自己的 MovieClaw App 发观看通知；结果同时提供网页入口，未安装 App 时可登录网页观看。
+缺少影片：电影确认后按服务器现有规则订阅并自动搜索下载；剧集先说出或输入明确的季数（如第1季、1,2，特别篇填0），再核对并确认。不默认全季，不自动续订未来新季。季号由服务器核验，不存在时不创建订阅。旧版快捷指令需要重新下载新版才能选择季数。找到资源的时间取决于线路和规则。
 候选是临时影片卡，不写入通讯录。系统可能将影片卡称作“联系人”。
 
 授权：无需把账号密码、管理员令牌或 PT Cookie 放入快捷指令。search_url 是可撤销的专用凭据，配置后的快捷指令请勿分享。对外只分享未配置的“找电影·分享版”。
@@ -80,27 +80,33 @@ def workflow(shareable=False,test=False,search_url=None):
     missing=uid();add('conditional',WFControlFlowMode=0,GroupingIdentifier=missing,
                      WFInput={'Type':'Variable','Variable':typed_config},WFCondition=101)
     add('showresult',Text=text('请先配置 SEARCH_URL。\n\n'+help_text));add('exit');end(missing)
-    query=add('gettext',WFTextActionText='沙丘 2021') if test else add('ask',WFAskActionPrompt='想看哪部电影？可以说电影名加年份，也能输入文字。',WFInputType='Text')
+    query=add('gettext',WFTextActionText='沙丘 2021') if test else add('ask',WFAskActionPrompt='想看哪部电影或电视剧？可以说片名加年份，也能输入文字。',WFInputType='Text')
     save(query,'电影名')
     empty=add('gettext',WFTextActionText='');save(empty,'补充线索')
     loop=uid();add('repeat.count',WFControlFlowMode=0,GroupingIdentifier=loop,WFRepeatCount=20)
     search=add('downloadurl',WFURL=token(config,'SEARCH_URL'),WFHTTPMethod='POST',WFJSONValues=dictionary({'query':vartoken('电影名'),'clues':vartoken('补充线索')}))
     message=get(search,'message');speak(message)
-    vcard=get(search,'vcard');file=add('setitemname',WFInput=ref(vcard),WFName='电影候选.vcf')
+    vcard=get(search,'vcard');file=add('setitemname',WFInput=ref(vcard),WFName='影片候选.vcf')
     contacts=add('detect.contacts',WFInput=ref(file))
-    selected=add('choosefromlist',WFInput=ref(contacts,'电影和搜索工具'),WFChooseFromListPrompt='核对海报、片名与年份；列表底部可重说或修改',WFChooseFromListSelectMultiple=False)
+    selected=add('choosefromlist',WFInput=ref(contacts,'影片和搜索工具'),WFChooseFromListPrompt='核对海报、片名与年份；列表底部可重说或修改',WFChooseFromListSelectMultiple=False)
     address=add('properties.contacts',WFInput=ref(selected),WFContentItemPropertyName='URLs')
     detail=add('downloadurl',WFURL=token(address));kind=get(detail,'kind')
     group=condition(kind,'movie')
-    prompt=get(detail,'message');action=get(detail,'action_url');web=get(detail,'web_url')
-    add('alert',WFAlertActionTitle='确认电影',WFAlertActionMessage=token(prompt),WFAlertActionCancelButtonShown=True)
+    save(detail,'确认结果')
+    needs_seasons=get(detail,'needs_seasons');season_group=condition(needs_seasons,'yes')
+    season_url=get(detail,'seasons_url')
+    season_input=add('ask',WFAskActionPrompt='这是剧集。想订阅第几季？例如：第1季，或1,2；特别篇填0。不知道季数可取消，先在影片资料页核对。',WFInputType='Text')
+    plan=add('downloadurl',WFURL=token(season_url),WFHTTPMethod='POST',WFJSONValues=dictionary({'seasons':token(season_input)}))
+    save(plan,'确认结果');end(season_group)
+    prompt,action,web=[add('getvalueforkey',WFInput=variable('确认结果'),WFDictionaryKey=key,WFGetDictionaryValueType='Value') for key in ('message','action_url','web_url')]
+    add('alert',WFAlertActionTitle='确认影片',WFAlertActionMessage=token(prompt),WFAlertActionCancelButtonShown=True)
     result=add('downloadurl',WFURL=token(action),WFHTTPMethod='POST',WFJSONValues=dictionary({'confirm':text('true')}))
     final=get(result,'message');speak(final)
     display={'Value':{'string':'\ufffc\n\n网页观看入口（未入库时为空）：\n\ufffc','attachmentsByRange':{'{0, 1}':ref(final)['Value'],'{25, 1}':ref(web)['Value']}},'WFSerializationType':'WFTextTokenString'}
     # token 位置以实际字符串计算，避免中英文提示改动破坏魔法变量。
     st=display['Value']['string'];display['Value']['attachmentsByRange']={'{0, 1}':ref(final)['Value'],'{'+str(st.rfind('\ufffc'))+', 1}':ref(web)['Value']}
     add('showresult',Text=display);add('exit');end(group)
-    for mode,prompt in [('voice','请重新说一次电影名，可加年份。'),('manual','请用键盘手动输入正确电影名，可加年份。'),('clues','补充年份、导演、演员或剧情，例如：诺兰导演，太空和黑洞。')]:
+    for mode,prompt in [('voice','请重新说一次片名，可加年份。'),('manual','请用键盘手动输入正确片名，可加年份。'),('clues','补充年份、导演、演员或剧情，例如：诺兰导演，太空和黑洞。')]:
         group=condition(kind,mode)
         answer=add('ask',WFAskActionPrompt=prompt,WFInputType='Text',WFAskActionDefaultAnswer=vartoken('补充线索' if mode=='clues' else '电影名'))
         save(answer,'补充线索' if mode=='clues' else '电影名')

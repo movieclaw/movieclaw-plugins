@@ -12,6 +12,14 @@ URL = 'https://media.example.com/api/v1/plugins/movie-voice/shortcut/search?epoc
 
 
 class MaintainerToolTests(unittest.TestCase):
+    def test_shortcut_asks_for_tv_seasons_before_final_confirmation(self):
+        actions=workflow(shareable=True)['WFWorkflowActions']
+        season_index=next(i for i,a in enumerate(actions) if a['WFWorkflowActionParameters'].get('WFDictionaryKey')=='needs_seasons')
+        alert_index=next(i for i,a in enumerate(actions) if a['WFWorkflowActionIdentifier']=='is.workflow.actions.alert')
+        between=actions[season_index:alert_index]
+        self.assertTrue(any('第几季' in a['WFWorkflowActionParameters'].get('WFAskActionPrompt','') for a in between))
+        self.assertTrue(any(a['WFWorkflowActionIdentifier']=='is.workflow.actions.downloadurl' and a['WFWorkflowActionParameters'].get('WFHTTPMethod')=='POST' for a in between))
+
     def test_share_cannot_receive_a_private_configuration(self):
         with self.assertRaises(ValueError):
             workflow(shareable=True, search_url=URL)

@@ -14,6 +14,7 @@ from movieclaw_sdk import net
 from movieclaw_sdk.ops import HOST_OPS
 from movieclaw_sdk.agent import AGENT
 from movie_match import find_movies
+from season_selection import parse_seasons, season_label
 from movieclaw_api.plugins.keys import PLUGIN_ROUTES, PLUGIN_DATA
 
 
@@ -26,6 +27,11 @@ class SearchMovie(BaseModel):
 class Confirmation(BaseModel):
     model_config = ConfigDict(extra='forbid')
     confirm: bool
+
+
+class SeasonSelection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    seasons: str = Field(min_length=1, max_length=180)
 
 
 def escape_vcard(value):
@@ -44,8 +50,13 @@ def fold_vcard(line):
     return '\r\n'.join(out)
 
 
-def card(row, url, photo=''):
+def media_label(row):
     label=f"{row['title']}（{row.get('release_year') or '年份待确认'}）"
+    return label+' · '+({'movie':'电影','tv':'剧集'}.get(row.get('kind') or row.get('media_type'),'类型待核对'))
+
+
+def card(row, url, photo=''):
+    label=media_label(row)
     lines=['BEGIN:VCARD','VERSION:3.0','FN:'+escape_vcard(label),
            'N:;'+escape_vcard(label)+';;;', 'ORG:'+('已在媒体服务器上' if row.get('owned') else '确认后检查库存与订阅'),
            'URL:'+url, 'NOTE:'+escape_vcard(url)]
@@ -163,6 +174,10 @@ async def mount_shortcut(ctx,publisher,found_event,found_model,snapshot):
             return row,media
         details=await ops('discover.get-title-details',{'title_ref':row['title_ref']})
         if details.get('title',{}).get('title_ref')!=row['title_ref']:raise HTTPException(503,'影片身份暂时无法确认')
+        kind=details['title'].get('media_type')
+        if kind not in ('movie','tv') or (row.get('media_type') and row['media_type']!=kind):
+            raise HTTPException(503,'影片类型暂时无法确认')
+        row={**row, 'media_type':kind};item['row']=row
         links=details.get('library_links') or []
         if details['title'].get('library_status',{}):
             if details['title']['library_status'].get('file_count',0)>0 and links:
@@ -177,11 +192,26 @@ async def mount_shortcut(ctx,publisher,found_event,found_model,snapshot):
         if item.get('control'):return {'kind':item['control']}
         try:row,media=await resolve(item)
         except Exception:raise HTTPException(503,'暂时无法核对库存，尚未执行订阅') from None
-        token=request.query_params['ticket'];name=f"{row['title']}（{row.get('release_year') or '年份待确认'}）"
+        token=request.query_params['ticket'];name=media_label(row)
+        needs_seasons=not media and (row.get('kind') or row.get('media_type'))=='tv'
         return {'kind':'movie','owned':bool(media),'name':name,
-                'message':name+('已在媒体服务器上。是否发送到 MovieClaw App？' if media else '还没有入库。是否按默认规则订阅并自动下载？'),
+                'needs_seasons':'yes' if needs_seasons else 'no',
+                'seasons_url':await signed('/shortcut/seasons',ticket=token) if needs_seasons else '',
+                'message':name+('已在媒体服务器上（剧集可能仅有部分集数）。是否发送到 MovieClaw App？' if media and (row.get('kind') or row.get('media_type'))=='tv' else '已在媒体服务器上。是否发送到 MovieClaw App？' if media else '还没有入库。请先指定要订阅的季数；旧版快捷指令请下载新版后重试。' if needs_seasons else '还没有入库。是否按默认规则订阅并自动下载？'),
                 'action_url':await signed('/shortcut/notify' if media else '/shortcut/subscribe',ticket=token),
                 'web_url':'{uri.scheme}://{uri.netloc}'.format(uri=urlsplit(await signed('/shortcut/search')))+f"/library/{row['library_id']}/item/{row['media_item_id']}" if media else ''}
+
+    @public.post('/shortcut/seasons',operation_id='plugins.movie-voice.shortcut-seasons')
+    async def seasons(payload:SeasonSelection,request:Request):
+        item=ticket_for(request)
+        if item.get('control') or (item['row'].get('kind') or item['row'].get('media_type'))!='tv':
+            raise HTTPException(400,'请先选择并核对剧集')
+        try:selected=parse_seasons(payload.seasons)
+        except ValueError as error:raise HTTPException(400,str(error)) from None
+        token=secrets.token_urlsafe(24)
+        tickets[token]={'row':dict(item['row']),'expires':item['expires'],'subscribed':None,'notified':False,'selected_seasons':selected}
+        return {'message':media_label(item['row'])+'：仅订阅'+season_label(selected)+'，不自动续订未来新季。季号将由服务器核验。是否按默认规则订阅并自动下载？',
+                'action_url':await signed('/shortcut/subscribe',ticket=token),'web_url':''}
 
     @public.post('/shortcut/subscribe',operation_id='plugins.movie-voice.shortcut-subscribe')
     async def subscribe(payload:Confirmation,request:Request):
@@ -189,12 +219,17 @@ async def mount_shortcut(ctx,publisher,found_event,found_model,snapshot):
         if item.get('control'):raise HTTPException(400,'请选择电影')
         if not payload.confirm:raise HTTPException(400,'需要先确认影片')
         async with gate:
-            if item['subscribed']:return {'message':'这部电影已提交订阅，请等待服务器自动搜索与入库。'}
+            if item['subscribed']:return {'message':'此影片已提交订阅，请等待服务器自动搜索与入库。'}
             try:
                 row,media=await resolve(item)
                 if media:return {'message':f"{media.title}已经入库，无需再订阅。请重新选择，获取观看通知入口。"}
-                result=await ops('subscriptions.create',{'title_ref':row['title_ref']})
+                args={'title_ref':row['title_ref']}
+                if (row.get('kind') or row.get('media_type'))=='tv':
+                    if not item.get('selected_seasons'):raise HTTPException(400,'请使用新版快捷指令明确选择季数并确认后再订阅')
+                    args.update(selected_seasons=item['selected_seasons'],follow_future=False)
+                result=await ops('subscriptions.create',args)
                 item['subscribed']=result['subscription']['id']
+            except HTTPException:raise
             except Exception:raise HTTPException(503,'订阅未能确认成功。请先在 MovieClaw 查看订阅状态，再重试。') from None
             return {'message':f"{row['title']}已加入订阅，将按现有规则自动搜索、下载并入库。找到资源后会通过原有通知提醒你。"}
 

@@ -16,7 +16,7 @@ from movie_voice import movie_snapshot,FoundMovie
 
 class RoutesTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.actions=[];self.published=[];self.effects=[];self.data={};app=FastAPI()
+        self.actions=[];self.arguments=[];self.remote_titles=None;self.published=[];self.effects=[];self.data={};self.library_items=[];self.inventory={};app=FastAPI()
         test=self
         class Store:
             def scoped(self,ctx):return self
@@ -28,11 +28,13 @@ class RoutesTest(unittest.IsolatedAsyncioTestCase):
         class Ops:
             async def client(self,ctx):return self
             async def call(self,name,args,**kwargs):
-                test.actions.append(name)
-                if name=='search.library':return {'items':[]}
+                test.actions.append(name);test.arguments.append((name,args))
+                if name=='search.library':return {'items':test.library_items}
+                if name=='library.items.get':return test.inventory
                 if name=='search.titles' and args['query']=='没有的电影':return {'titles':[]}
+                if name=='search.titles' and test.remote_titles is not None:return {'titles':test.remote_titles}
                 if name=='search.titles':return {'titles':[{'title':'测试电影','title_ref':'tmdb:movie:123','media_type':'movie','release_year':2020}]}
-                if name=='discover.get-title-details':return {'title':{'title_ref':'tmdb:movie:123'},'library_links':[]}
+                if name=='discover.get-title-details':return {'title':{'title_ref':args['title_ref'],'media_type':'tv' if ':tv:' in args['title_ref'] else 'movie'},'library_links':[]}
                 if name=='subscriptions.create':return {'subscription':{'id':9}}
                 raise AssertionError(name)
         class Agent:
@@ -134,3 +136,51 @@ class RoutesTest(unittest.IsolatedAsyncioTestCase):
         denied=await self.client.post('/shortcut/revoke',headers={'sec-fetch-site':'cross-site'})
         self.assertEqual(denied.status_code,403)
         self.assertEqual((await self.client.post('/shortcut/pair')).json()['search_url'],self.search_url)
+
+
+    async def test_owned_tv_can_be_selected_and_notified_but_never_subscribed(self):
+        self.library_items=[{'item':{'kind':'tv','title':'库内剧集','year':2026,'tmdb_id':101,'library_id':3,'media_item_id':42}}]
+        self.inventory={'kind':'tv','title':'库内剧集','year':2026,'tmdb_id':101,'media_item_id':42,'file_count':34}
+        body,urls=await self.search('库内剧集')
+        self.assertIn('剧集',body['vcard'])
+        selected=(await self.client.get(urls[0].strip())).json()
+        self.assertTrue(selected['owned'])
+        self.assertIn('剧集',selected['name'])
+        self.assertTrue(selected['web_url'].endswith('/library/3/item/42'))
+        self.assertIn('/shortcut/notify?',selected['action_url'])
+        denied=await self.client.post(selected['action_url'].replace('/notify?','/subscribe?'),json={'confirm':True})
+        self.assertEqual(denied.status_code,200)
+        self.assertIn('已经入库',denied.json()['message'])
+        self.assertNotIn('subscriptions.create',self.actions)
+        self.assertEqual((await self.client.post(selected['action_url'],json={'confirm':True})).status_code,200)
+        self.assertEqual(self.published[0][1].media.kind,'tv')
+
+    async def test_missing_tv_requires_explicit_seasons_then_confirmation(self):
+        self.remote_titles=[{'title':'测试剧集','title_ref':'tmdb:tv:123','media_type':'tv','release_year':2026}]
+        body,urls=await self.search('测试剧集')
+        self.assertEqual(body['count'],1)
+        selected=(await self.client.get(urls[0].strip())).json()
+        self.assertEqual(selected['needs_seasons'],'yes')
+        self.assertEqual((await self.client.post(selected['action_url'],json={'confirm':True})).status_code,400)
+        self.assertNotIn('subscriptions.create',self.actions)
+        self.assertEqual((await self.client.post(selected['seasons_url'],json={'seasons':'全部'})).status_code,400)
+        planned=await self.client.post(selected['seasons_url'],json={'seasons':'第一季和第二季'})
+        self.assertEqual(planned.status_code,200)
+        self.assertIn('第1季、第2季',planned.json()['message'])
+        self.assertNotIn('subscriptions.create',self.actions)
+        url=planned.json()['action_url']
+        self.assertEqual((await self.client.post(url,json={'confirm':False})).status_code,400)
+        for _ in range(2):self.assertEqual((await self.client.post(url,json={'confirm':True})).status_code,200)
+        calls=[args for name,args in self.arguments if name=='subscriptions.create']
+        self.assertEqual(calls,[{'title_ref':'tmdb:tv:123','selected_seasons':[1,2],'follow_future':False}])
+
+    async def test_season_plans_have_separate_tickets_so_confirmation_cannot_change(self):
+        self.remote_titles=[{'title':'测试剧集','title_ref':'tmdb:tv:123','media_type':'tv','release_year':2026}]
+        _,urls=await self.search('测试剧集')
+        selected=(await self.client.get(urls[0].strip())).json()
+        first=(await self.client.post(selected['seasons_url'],json={'seasons':'1'})).json()
+        second=(await self.client.post(selected['seasons_url'],json={'seasons':'2'})).json()
+        self.assertNotEqual(first['action_url'],second['action_url'])
+        await self.client.post(first['action_url'],json={'confirm':True})
+        args=next(args for name,args in self.arguments if name=='subscriptions.create')
+        self.assertEqual(args['selected_seasons'],[1])
