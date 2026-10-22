@@ -26,6 +26,10 @@
 https://media.example.com/api/v1/plugins/movie-voice/shortcut/search?epoch=EXAMPLE_EPOCH_NOT_VALID&sig=EXAMPLE_SIGNATURE_NOT_VALID
 ```
 
+插件安装并批准后，下载入口就在寻映页面，无需另找快捷指令文件。通用分享版随安装包提供；个人版由本服务器管理员完成 Mac 签名准备后提供。点击下载后打开 `.shortcut` 文件，再在系统界面确认添加；当前按钮提供文件下载，不是 iCloud 跳转安装。安装插件本身不会自动在手机或电脑上安装快捷指令。
+
+若后续提供直接跳到添加界面的入口，可另行发布不含服务器授权的通用分享版 iCloud 链接；仍需用户确认添加。该入口目前未提供。文件导入及 iCloud 分享流程见 [Apple 文件导入说明](https://support.apple.com/zh-cn/guide/shortcuts-mac/apd02bffbaac/mac)和 [Apple iCloud 分享说明](https://support.apple.com/zh-cn/guide/shortcuts/apdf01f8c054/ios)。
+
 观看通知需要在官方 App 登录同一管理员账号并允许通知；没有 App 或推送不可用时，使用结果中的网页入口。通知打开的是影片详情，播放还需用户点击。
 
 ## 分享版与个人版
