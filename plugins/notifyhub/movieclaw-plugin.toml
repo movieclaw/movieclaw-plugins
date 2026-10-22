@@ -1,0 +1,29 @@
+[plugin]
+id = "notifyhub"
+title = "企业微信直推"
+version = "2.3.0"
+entry = "wecom_notify"
+runtime = "process"
+sdk = "^1.0"
+description = "直连企业微信自建应用，支持海报图文、文本卡片和 Jinja2 中文模板，补充评分、类型、演员及简介。"
+
+[requires]
+"plugin-data" = "^1.0"
+"kernel/durable-events" = "^1.0"
+"plugin-callbacks" = "^1.0"
+"plugin-routes" = "^1.0"
+"im-channels" = "^1.0"
+"host-ops" = "^1.0"
+"subscription.created" = "^2.0"
+"subscription.download_started" = "^1.0"
+"subscription.fulfilled" = "^2.0"
+"subscription.upgraded" = "^1.0"
+"download.completed" = "^2.0"
+"library.ingest.completed" = "^1.0"
+"library.items.arrived" = "^1.0"
+"library.files.added" = "^2.0"
+
+[permissions]
+operations = ["discover.get-title-details", "library.items.get", "subscriptions.get", "members.show", "jobs.list", "jobs.events", "library.list"]
+network = true
+callbacks = ["playback"]
