@@ -1,0 +1,34 @@
+[plugin]
+id = "movie-voice"
+title = "寻映"
+# 按用户要求暂时保持此版本，不自动递增。
+version = "0.1.0"
+entry = "movie_voice"
+runtime = "process"
+sdk = "^1.0"
+description = "寻映配合「找电影」快捷指令使用，插件页面生成并复制 SEARCH_URL；Siri 找电影：海报、片名和年份确认；已有影片发送可打开官方 App 影片详情的原生通知，缺片由用户确认后沿用默认规则订阅。网页使用当前登录账号；通知仅发给管理员账号。"
+
+[requires]
+agent = "^1.0"
+host-ops = "^1.0"
+plugin-routes = "^1.0"
+plugin-events = "^1.0"
+plugin-data = "^1.0"
+
+[permissions]
+operations = ["agent:none", "library.items.get", "search.library", "search.titles", "discover.get-title-details", "subscriptions.create"]
+paths = []
+network = true
+
+[[events]]
+name = "movie-voice.movie.found"
+title = "找到库内电影"
+
+[[notifications]]
+event = "movie-voice.movie.found"
+title = "{media.title}（{media.year}）已在媒体服务器上"
+body = "点击打开 MovieClaw 影片详情并观看。"
+audience = "admins"
+open = "media"
+level = "active"
+default = true

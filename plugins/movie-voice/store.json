@@ -1,0 +1,10 @@
+{
+  "author": "sexyfeifan",
+  "author_url": "https://github.com/sexyfeifan",
+  "license": "见仓库许可证",
+  "origin": "official",
+  "category": "tools",
+  "summary": "Siri 语音找电影，纠正片名、核对库存，确认后观看或订阅。",
+  "icon": "icon.svg",
+  "screenshots": []
+}

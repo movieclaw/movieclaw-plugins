@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'"><title>寻映 · MovieClaw</title><link rel="stylesheet" href="/api/v1/plugins/movie-voice/web/style.css"><script type="module" src="/api/v1/plugins/movie-voice/web/app.mjs"></script></head>
+<body><main><header><div class="page-title"><span class="page-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11h16v9H4zM3 6l16-3 1 5-16 3zM7 5l3 4M13 4l3 4"/></svg></span><div><h1>寻映</h1><p>配合「找电影」快捷指令，确认后观看或订阅。</p></div></div><div class="page-meta"><span class="pill">v0.1.0</span><span class="pill">仅管理员</span></div></header>
+<section id="shortcut-setup" class="setup" aria-labelledby="setup-title">
+<div class="setup-heading"><div><h2 id="setup-title">快捷指令配置</h2><p>个人版添加后直接使用；通用分享版填写一次服务器链接。</p></div></div>
+<div class="setup-grid">
+<aside class="setup-install" aria-labelledby="install-title">
+<h3 id="install-title">安装与配置步骤</h3>
+<a id="download-shortcut" class="button secondary" href="/api/v1/plugins/movie-voice/web/downloads/find-movie-share.shortcut" download="找电影·分享版.shortcut">下载分享版快捷指令</a>
+<p class="note">已签名 · 保留配置占位 · 可公开分享</p>
+<button id="download-personal" type="button" disabled>下载已配置个人版</button>
+<p id="personal-status" class="note" role="status" aria-live="polite">正在检查当前服务器的已签名个人版……</p>
+<ol class="install-steps">
+<li><strong>下载并添加</strong><p>在 iPhone / iPad 的“文件”App 或 Mac 中打开下载的 .shortcut 文件，按提示添加。个人版跳到第 4 步；分享版继续配置。</p></li>
+<li><strong>仅分享版：生成并复制</strong><p>在本页点击“生成 SEARCH_URL”，再点击“复制链接”。</p></li>
+<li><strong>仅分享版：填写 SEARCH_URL</strong><p>编辑“找电影·分享版”，将顶部 <strong>SEARCH_URL 配置框</strong>中的整段占位文字替换成复制的链接，保存。</p></li>
+<li><strong>运行测试</strong><p>可将快捷指令改名为“找电影”。首次运行允许连接自己的服务器，再说出电影名，核对海报、片名与年份后确认。</p></li>
+</ol>
+<p class="note">通用分享版不含服务器授权，可直接分享；个人版已配置专用授权，只供自己使用。</p>
+</aside>
+<div class="setup-pair" aria-labelledby="pair-title">
+<h3 id="pair-title">通用分享版的服务器配置</h3>
+<p>使用你当前登录的这台服务器，无需命令行。下载分享版后，只需填写这一项 <strong>SEARCH_URL</strong>，不用填写账号密码或管理员 API 令牌。</p>
+<div class="actions"><button id="generate-shortcut" type="button">生成 SEARCH_URL</button><button id="copy-shortcut" type="button" class="secondary" disabled>复制链接</button><button id="toggle-shortcut" type="button" class="secondary" aria-pressed="false" disabled>显示链接</button></div>
+<label for="shortcut-url">SEARCH_URL（生成后可复制）</label>
+<input id="shortcut-url" type="password" readonly autocomplete="off" spellcheck="false" placeholder="点击上方“生成 SEARCH_URL”" aria-describedby="shortcut-status shortcut-note">
+<p id="shortcut-status" role="status" aria-live="polite">尚未生成。只复制完整链接，不要修改链接里的参数。</p>
+<p id="shortcut-note" class="note">链接允许找电影、确认订阅和向管理员本人发送观看通知。请保存在自己的快捷指令中，配置后的文件不要公开分享。重新生成不会撤销已有链接。</p>
+<p class="note">没有安装 MovieClaw App 时，可使用结果中的网页入口观看；使用 App 观看通知时，请登录同一账号并允许通知。</p>
+</div>
+</div>
+</section>
+<section class="intro"><h2>搜索电影</h2><p>也可以在这里输入片名，核对海报和年份后观看或订阅。</p></section>
+<form id="search"><label class="sr" for="query">电影名，可加年份</label><input id="query" name="q" type="search" maxlength="180" placeholder="例如：沙丘 2021" required autocomplete="off"><button type="submit">找电影</button></form>
+<p id="status" role="status" aria-live="polite">可以输入中文名、原名或片名加年份。</p><div id="warnings"></div><section id="results" class="grid" aria-label="电影候选"></section>
+<footer>搜索与订阅使用你当前的 MovieClaw 账号。确认前不会创建订阅。</footer></main>
+<dialog id="detail"><button id="close" class="close" aria-label="关闭详情">×</button><div id="detail-content"></div></dialog>
+</body></html>
