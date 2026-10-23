@@ -12,7 +12,7 @@ from movieclaw_sdk.ops import OpsError
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 ASSETS = Path(__file__).parent / "assets"
-ASSET_TYPES = {"ambient-settings.js": "application/javascript", "ambient.js": "application/javascript", "workspace.js": "application/javascript", "workspace.css": "text/css", "theater.js": "application/javascript", "wall-tools.js": "application/javascript", "page.css": "text/css", "page.js": "application/javascript", "personal.js": "application/javascript", "posters.js": "application/javascript", "subscription.js": "application/javascript", "transport.js": "application/javascript", "navigation.js": "application/javascript", "tmdb-logo.svg": "image/svg+xml"}
+ASSET_TYPES = {"yingyu-icon.svg": "image/svg+xml", "ambient-settings.js": "application/javascript", "ambient.js": "application/javascript", "workspace.js": "application/javascript", "workspace.css": "text/css", "theater.js": "application/javascript", "wall-tools.js": "application/javascript", "page.css": "text/css", "page.js": "application/javascript", "personal.js": "application/javascript", "posters.js": "application/javascript", "subscription.js": "application/javascript", "transport.js": "application/javascript", "navigation.js": "application/javascript", "tmdb-logo.svg": "image/svg+xml"}
 PROXY_LABELS = {"host": "跟随服务器代理", "direct": "直接连接", "custom": "独立代理"}
 TITLE_REF = re.compile(r"^(?:tmdb:(?:movie|tv):[1-9]\d*|douban:[1-9]\d*)$")
 SECURITY_HEADERS = {

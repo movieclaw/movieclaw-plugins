@@ -11,7 +11,7 @@ def render():
     # Absolute same-origin paths work at every native subroute, LAN and WAN.
     prefix = '/api/v1/plugins/platform-discovery/'
     import re
-    return re.sub(r'((?:src|href)=")((?:assets/)?[a-z-]+\.(?:js|css))"',
+    return re.sub(r'((?:src|href)=")((?:assets/)?[a-z-]+\.(?:js|css|svg))"',
                   lambda match: match[1] + prefix + match[2] + '"', source)
 
 

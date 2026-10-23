@@ -1,8 +1,10 @@
 # 映屿 · Yingyu
 
+<img src="web/icon-color.svg" width="80" height="80" alt="映屿图标">
+
 属于你的电影小岛。
 
-MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.11.0**，兼容独立入口，并为 **MovieClaw Server 0.41.0** 提供正式原生菜单适配。完整操作见 [使用教程](docs/USER_GUIDE.md)。
+MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.11.1**，兼容独立入口，并为 **MovieClaw Server 0.41.0** 提供正式原生菜单适配。完整操作见 [使用教程](docs/USER_GUIDE.md)。
 
 Yingyu (formerly Platform Discovery) adds an account-scoped recommendation wall, a library theater, platform feeds and regional TV discovery to MovieClaw. It runs as an explicitly approved inline plugin. It does not modify the host application. The plugin UI and documentation are currently in Simplified Chinese.
 
@@ -43,7 +45,7 @@ Yingyu (formerly Platform Discovery) adds an account-scoped recommendation wall,
 管理员可用已配对的 CLI 上传安装包：
 
 ```sh
-mclaw app plugins packages upload --file platform-discovery-0.11.0.mcplugin
+mclaw app plugins packages upload --file platform-discovery-0.11.1.mcplugin
 ```
 
 然后回到 MovieClaw 网页的「设置 → 插件」审阅并批准本版本的主进程运行、网页信任及菜单可见性。不要让代理或命令行代替网页信任确认。安装后可用 `mclaw app plugins show platform-discovery` 查看状态。
@@ -129,7 +131,7 @@ for test in plugins/platform-discovery/tests/*.cjs; do node "$test" || exit; don
 使用本仓库可重现打包脚本：
 
 ```sh
-python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.11.0.mcplugin
+python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.11.1.mcplugin
 ```
 
 测试覆盖账号隔离、版本冲突、缓存与图片失败、预载不计展示、轮替取消、完整视口、选季及显式订阅确认。测试中的凭据、代理和账号均是虚构夹具，不包含运行实例的数据。版本演进见 [CHANGELOG.md](CHANGELOG.md)。

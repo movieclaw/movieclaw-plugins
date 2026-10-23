@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-23T03:41:04Z",
+  "generated_at": "2026-10-23T12:39:42Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -480,9 +480,9 @@
       "license": "GPL-3.0-only",
       "origin": "official",
       "icon": {
-        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/platform-discovery-icon-526beedfa9b38991.svg",
-        "sha256": "526beedfa9b38991f0216cd54fe6b8ea2f64b8ee3f0805644d9964df1ebae530",
-        "size": 258
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/platform-discovery-icon-b7ef10993b583dd7.svg",
+        "sha256": "b7ef10993b583dd7afbb63ea6c7ae2e85e298cdf6385877162f682a97f3b7c96",
+        "size": 767
       },
       "screenshots": [],
       "deprecated": null,
