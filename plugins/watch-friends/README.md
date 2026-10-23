@@ -220,3 +220,7 @@ python -m pytest plugins/watch-friends/tests
 - 官方 CI 运行 `python -m unittest discover -s plugins/watch-friends/tests -t plugins/watch-friends -v`。`tests.load_tests` 只加载 `ci_smoke.py` 中不依赖 pytest/浏览器的核心回归，包含真实隔离入口的两次加载、路由登记与释放、图片白名单、授权默认关闭、端点约束和私有密钥存储。完整 pytest 和 Chromium 回归另按上节执行，不能以 CI 核心检查冒充完整浏览器验收。
 - 静态产物检查：`python plugins/watch-friends/tools/build_web.py --check`。投稿打包使用仓库统一工具：`python scripts/pack.py plugins/watch-friends --output /tmp/watch-friends-0.1.0.mcplugin`。
 - 插件自有源码采用 **GPL-3.0-only**，完整文本见 `LICENSE`。随包 Lucide 图标遵循独立的 ISC 许可证，见 `web/lucide-LICENSE.txt`；电影元数据和图片不属于本插件授权。
+
+## 品牌图标
+
+「胶片交汇成 Y」为映迹的独立品牌标志。插件市场、网页品牌、浏览器与手机快捷方式使用银白／冰蓝彩色版；宿主导航使用透明单色版，随主题变色。SVG 母版、各尺寸导出方法与预览见 [品牌图标说明](docs/BRANDING.md)。

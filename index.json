@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-23T03:41:04Z",
+  "generated_at": "2026-10-23T12:40:24Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -714,9 +714,9 @@
       "license": "GPL-3.0-only",
       "origin": "official",
       "icon": {
-        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/watch-friends-icon-b21a535dccc013d7.svg",
-        "sha256": "b21a535dccc013d7822b4981a7d884532af98233ea4e8712b202219c57da0e97",
-        "size": 290
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/watch-friends-icon-8dac3ad36e1994cb.svg",
+        "sha256": "8dac3ad36e1994cb027241cbb680efb8976e5c8dad4ea1029f0d63740a81bcab",
+        "size": 2001
       },
       "screenshots": [],
       "deprecated": null,

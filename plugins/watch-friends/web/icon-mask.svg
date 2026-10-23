@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="100 90 312 324" fill="none" role="img" aria-labelledby="yingji-mask-title">
+  <title id="yingji-mask-title">映迹</title>
+  <defs>
+    <mask id="yingji-cutouts" x="100" y="90" width="312" height="324" maskUnits="userSpaceOnUse">
+      <rect x="100" y="90" width="312" height="324" fill="white"/>
+      <g fill="black">
+        <rect x="152" y="132" width="17" height="18" rx="4" transform="rotate(-33 160.5 141)"/>
+        <rect x="177" y="171" width="17" height="18" rx="4" transform="rotate(-33 185.5 180)"/>
+        <rect x="202" y="210" width="17" height="18" rx="4" transform="rotate(-33 210.5 219)"/>
+        <path d="M243 319C243 316 246 315 248 317L265 328C268 330 268 333 265 335L248 346C246 348 243 347 243 344V319Z"/>
+      </g>
+    </mask>
+  </defs>
+  <path d="M140 112H200L256 202L302 117C304 114 308 112 312 112H372C381 112 387 122 382 130L280 286V386C280 396 272 404 262 404H240C230 404 222 396 222 386V270L130 130C125 122 131 112 140 112Z" fill="black" mask="url(#yingji-cutouts)"/>
+</svg>
