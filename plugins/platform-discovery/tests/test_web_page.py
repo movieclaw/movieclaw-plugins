@@ -17,8 +17,8 @@ class NativePageTests(unittest.TestCase):
         self.assertNotIn('<iframe', native)
         self.assertIn('src="/api/v1/plugins/platform-discovery/navigation.js"', native)
         self.assertIn('href="/api/v1/plugins/platform-discovery/assets/workspace.css"', native)
-        self.assertIn('href="/api/v1/plugins/platform-discovery/assets/yingyu-icon.svg"', native)
-        self.assertIn('src="/api/v1/plugins/platform-discovery/assets/yingyu-icon.svg"', native)
+        self.assertIn('href="/api/v1/plugins/platform-discovery/yingyu-icon.svg"', native)
+        self.assertIn('src="/api/v1/plugins/platform-discovery/yingyu-icon.svg"', native)
 
     def test_stable_official_menu_contract(self):
         manifest = json.loads((ROOT / 'web/manifest.webmanifest').read_text())

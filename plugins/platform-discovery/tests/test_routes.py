@@ -257,7 +257,7 @@ class RoutesTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["ok"])
 
     async def test_assets_have_security_headers_and_whitelist(self):
-        for path, media in (("/assets/yingyu-icon.svg", "image/svg+xml"), ("/workspace.js", "application/javascript"), ("/assets/workspace.css", "text/css"), ("/wall-tools.js", "application/javascript"), ("/assets/wall-tools.js", "application/javascript"), ("/panel", "text/html"), ("/page.css", "text/css"), ("/page.js", "application/javascript"), ("/assets/subscription.js", "application/javascript"), ("/assets/transport.js", "application/javascript"), ("/transport.js", "application/javascript"), ("/personal.js", "application/javascript"), ("/posters.js", "application/javascript"), ("/assets/posters.js", "application/javascript")):
+        for path, media in (("/yingyu-icon.svg", "image/svg+xml"), ("/assets/yingyu-icon.svg", "image/svg+xml"), ("/workspace.js", "application/javascript"), ("/assets/workspace.css", "text/css"), ("/wall-tools.js", "application/javascript"), ("/assets/wall-tools.js", "application/javascript"), ("/panel", "text/html"), ("/page.css", "text/css"), ("/page.js", "application/javascript"), ("/assets/subscription.js", "application/javascript"), ("/assets/transport.js", "application/javascript"), ("/transport.js", "application/javascript"), ("/personal.js", "application/javascript"), ("/posters.js", "application/javascript"), ("/assets/posters.js", "application/javascript")):
             response = await self.client.get(BASE + path)
             self.assertEqual(response.status_code, 200)
             self.assertIn(media, response.headers["content-type"])
