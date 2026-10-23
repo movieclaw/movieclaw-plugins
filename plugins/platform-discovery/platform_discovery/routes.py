@@ -81,6 +81,10 @@ def build_routers(entry_id, config, sources, get_ops, recommendations=None, upda
     async def panel():
         return HTMLResponse(read_asset("page.html"), headers=SECURITY_HEADERS)
 
+    @pages.get("/yingyu-icon.svg", operation_id=operation + "brand-icon", openapi_extra=hidden)
+    async def brand_icon():
+        return static_asset("yingyu-icon.svg")
+
     @pages.get("/page.css", operation_id=operation + "style", openapi_extra=hidden)
     async def style():
         return static_asset("page.css")
