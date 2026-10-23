@@ -1,0 +1,9 @@
+{
+  "author": "DongShu",
+  "author_url": "https://github.com/DongShull",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "自动转种 + IYUU 辅种 + 死种清理，保种三件事一个插件全管。",
+  "category": "downloader",
+  "icon": "icon.svg"
+}

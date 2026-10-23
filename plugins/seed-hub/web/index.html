@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>保种管家</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>保种管家</h1>
+    <span class="pill" id="state-pill">加载中…</span>
+    <span class="muted small" id="updated"></span>
+    <span style="flex:1"></span>
+    <a class="small" href="/settings/plugins" target="_top">插件设置</a>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="overview">概览</button>
+    <button class="tab" data-tab="sweep">待清理 <span class="muted" id="tab-sweep-count"></span></button>
+    <button class="tab" data-tab="logs">运行日志 <span class="muted" id="tab-log-count"></span></button>
+  </nav>
+
+  <!-- ==================== 概览 ==================== -->
+  <div class="tabpane" id="pane-overview">
+    <div class="grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>转种</h2>
+          <span class="pill" id="transfer-flow">—</span>
+        </div>
+        <div id="transfer-rows"><div class="empty">加载中…</div></div>
+        <div class="small muted" id="transfer-next" style="margin-top:8px"></div>
+        <div class="actions">
+          <button id="btn-transfer-run">立即执行</button>
+          <button class="ghost" id="btn-transfer-scan">种子明细</button>
+          <button class="ghost" id="btn-transfer-log">实时日志</button>
+        </div>
+        <div id="transfer-live-log" hidden style="margin-top:12px">
+          <ul class="loglist" id="transfer-loglist"><li class="muted">展开后实时滚动本模块日志</li></ul>
+        </div>
+        <div id="transfer-scan" hidden style="margin-top:12px">
+          <div class="toolbar" style="margin:0 0 10px">
+            <button class="ghost" id="ts-all">全部 <span class="muted" id="tsc-all"></span></button>
+            <button class="ghost" id="ts-transfer">待转移 <span class="muted" id="tsc-transfer"></span></button>
+            <button class="ghost" id="ts-exists">目标已有 <span class="muted" id="tsc-exists"></span></button>
+            <button class="ghost" id="ts-excluded">排除标签 <span class="muted" id="tsc-excluded"></span></button>
+            <button class="ghost" id="ts-missing">数据不在 <span class="muted" id="tsc-missing"></span></button>
+            <button class="ghost" id="ts-small">体积不足 <span class="muted" id="tsc-small"></span></button>
+            <span class="spacer"></span>
+            <button class="ghost" id="btn-transfer-scan-close">收起</button>
+          </div>
+          <div class="tablewrap" style="max-height:46vh">
+            <table>
+              <thead>
+                <tr><th style="width:52%">种子</th><th style="width:12%">体积</th><th>结论</th></tr>
+              </thead>
+              <tbody id="transfer-scan-rows"><tr><td colspan="3" class="empty">点「种子明细」扫描源下载器</td></tr></tbody>
+            </table>
+          </div>
+          <p class="small muted" id="transfer-scan-note" style="margin:8px 0 0"></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>IYUU 辅种</h2>
+          <span class="pill" id="reseed-state">—</span>
+        </div>
+        <div id="reseed-rows"><div class="empty">加载中…</div></div>
+        <div class="small muted" id="reseed-next" style="margin-top:8px"></div>
+        <div class="actions">
+          <button id="btn-reseed-run">立即执行</button>
+          <button class="ghost" id="btn-ledger-toggle">辅种台账</button>
+          <button class="ghost" id="btn-reseed-log">实时日志</button>
+        </div>
+        <div id="reseed-live-log" hidden style="margin-top:12px">
+          <ul class="loglist" id="reseed-loglist"><li class="muted">展开后实时滚动本模块日志</li></ul>
+        </div>
+        <div id="ledger-panel" hidden style="margin-top:12px">
+          <div class="small muted" style="margin-bottom:8px">种子名下面是辅过的站点按钮：<b>点一下 = 删除该站的辅种</b>（不删文件，之后不会再自动加回）；空心 = 任务已不在下载器里</div>
+          <div id="ledger-rows"><div class="empty">点「辅种台账」展开加载</div></div>
+          <div class="actions">
+            <button class="ghost" id="btn-ledger-refresh">刷新台账</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card wide">
+        <div class="card-head">
+          <h2>保活守护</h2>
+          <span class="pill" id="sweep-mode">—</span>
+        </div>
+        <div id="sweep-rows"><div class="empty">加载中…</div></div>
+        <div class="small muted" id="sweep-rules" style="margin-top:8px"></div>
+        <div class="actions">
+          <button class="ghost" id="btn-sweep-scan">重新扫描</button>
+          <button class="danger" id="btn-sweep-clean">立即清理</button>
+          <a class="small" href="#sweep" id="link-sweep-full" style="align-self:center">查看完整清单 →</a>
+        </div>
+      </section>
+
+      <section class="card wide">
+        <div class="card-head">
+          <h2>最近日志</h2>
+          <a class="small" href="#logs" id="link-logs-full">全部 →</a>
+        </div>
+        <ul class="loglist" id="loglist"><li class="muted">加载中…</li></ul>
+      </section>
+    </div>
+  </div>
+
+  <!-- ==================== 待清理 ==================== -->
+  <div class="tabpane" id="pane-sweep" hidden>
+    <div class="toolbar">
+      <button class="ghost" id="f-all">全部 <span class="muted" id="c-all"></span></button>
+      <button class="ghost" id="f-nodata">数据丢失 <span class="muted" id="c-nodata"></span></button>
+      <button class="ghost" id="f-dead">站点删种 <span class="muted" id="c-dead"></span></button>
+      <button class="ghost" id="f-warn">告警 <span class="muted" id="c-warn"></span></button>
+      <span class="spacer"></span>
+      <span class="pill" id="mode-pill">—</span>
+      <span class="muted small" id="scanned-at"></span>
+      <button id="btn-scan">重新扫描</button>
+      <button class="danger" id="btn-clean">立即清理…</button>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th style="width:34%">种子</th><th style="width:20%">下载器</th><th>原因</th></tr>
+        </thead>
+        <tbody id="rows"><tr><td colspan="3" class="empty">切到本标签时加载</td></tr></tbody>
+      </table>
+    </div>
+
+    <p class="small muted" style="margin-top:14px">
+      这些种已经被判定为「无意义」：站点侧已删种，或本地数据丢失且校验不过。
+      清理只从下载器移除<b>任务条目</b>，<b>绝不删除磁盘文件</b>；
+      MovieClaw 主种（movieclaw-* 标签）与保护标签的种永远不会出现在这里。
+    </p>
+  </div>
+
+  <!-- ==================== 运行日志 ==================== -->
+  <div class="tabpane" id="pane-logs" hidden>
+    <div class="toolbar">
+      <label class="small muted">级别
+        <select id="level">
+          <option value="info">全部</option>
+          <option value="warning">警告及以上</option>
+          <option value="error">只看错误</option>
+        </select>
+      </label>
+      <label class="small muted">条数
+        <select id="limit">
+          <option>50</option>
+          <option selected>100</option>
+          <option>300</option>
+          <option>500</option>
+        </select>
+      </label>
+      <label class="small muted"><input type="checkbox" id="auto" checked> 自动刷新（5 秒）</label>
+      <label class="small muted"><input type="checkbox" id="history"> 含历史文件</label>
+      <span class="spacer"></span>
+      <span class="pill" id="count-pill">—</span>
+      <button class="ghost" id="btn-clear">清空日志</button>
+    </div>
+
+    <div class="card" style="padding:12px 16px">
+      <ul class="loglist" id="loglist-full"><li class="muted">切到本标签时加载</li></ul>
+    </div>
+  </div>
+
+  <script src="common.js"></script>
+  <script>
+    (function () {
+      var L = window.SEEDHUB.LOGIC, S = window.SEEDHUB;
+      var state = { status: null, tasks: {} };
+      var fastTimer = null;
+
+      /* ---------------- 标签切换 ---------------- */
+      var sweepLoaded = false, logsLoaded = false, logsTimer = null;
+
+      function showTab(name) {
+        ["overview", "sweep", "logs"].forEach(function (t) {
+          document.getElementById("pane-" + t).hidden = (t !== name);
+        });
+        document.querySelectorAll("#tabs .tab").forEach(function (b) {
+          b.classList.toggle("active", b.getAttribute("data-tab") === name);
+        });
+        if (name === "sweep" && !sweepLoaded) { sweepLoaded = true; loadSweep(); }
+        if (name === "logs") { logsLoaded = true; loadFullLogs(); ensureLogsTimer(); }
+        if (name !== "logs" && logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+      }
+
+      document.querySelectorAll("#tabs .tab").forEach(function (b) {
+        b.addEventListener("click", function () { showTab(b.getAttribute("data-tab")); });
+      });
+      document.getElementById("link-sweep-full").addEventListener("click", function (e) {
+        e.preventDefault(); showTab("sweep");
+      });
+      document.getElementById("link-logs-full").addEventListener("click", function (e) {
+        e.preventDefault(); showTab("logs");
+      });
+
+      /* ---------------- 概览 ---------------- */
+      function runOf(kind) {
+        return (state.status && state.status.runs && state.status.runs[kind]) || { running: false };
+      }
+
+      async function refresh() {
+        try {
+          state.status = await S.pluginGet("/status");
+          state.tasks = await S.loadTasks();
+          render();
+          document.getElementById("updated").textContent =
+            "更新于 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
+          var busy = ["transfer", "reseed", "sweep"].some(function (k) { return runOf(k).running; });
+          S.setPill(document.getElementById("state-pill"), busy ? "有任务在执行" : "运行中", busy ? "warn" : "ok");
+          if (busy) ensureFast(); else stopFast();
+        } catch (e) {
+          S.setPill(document.getElementById("state-pill"), e.message || "加载失败", "bad");
+        }
+        try {
+          var logs = await S.loadLogs(8, "info");
+          renderLogs(logs.logs || []);
+        } catch (e) { /* 日志失败不挡主页面 */ }
+      }
+
+      function ensureFast() {
+        if (!fastTimer) fastTimer = setInterval(refresh, 4000);
+      }
+      function stopFast() {
+        if (fastTimer) { clearInterval(fastTimer); fastTimer = null; }
+      }
+
+      function busyButtons(kind, ids) {
+        var running = runOf(kind).running;
+        ids.forEach(function (id) {
+          var b = document.getElementById(id);
+          if (b) b.disabled = running;
+        });
+      }
+
+      function render() {
+        var st = state.status || {};
+        var t = st.transfer || {}, r = st.reseed || {}, w = st.sweep || {};
+
+        // 转种
+        var flow = document.getElementById("transfer-flow");
+        var tRun = runOf("transfer");
+        if (t.enabled === false) { S.setPill(flow, "已关闭", "warn"); }
+        else if (tRun.running) { S.setPill(flow, "执行中…", "warn"); }
+        else if (t.from && t.to && t.from !== "（未配置）") { S.setPill(flow, t.from + " → " + t.to, "ok"); }
+        else { S.setPill(flow, "未配置", "warn"); }
+        S.renderRows(document.getElementById("transfer-rows"), L.transferRows(t.last_report));
+        var tLine = taskLine("seed-hub.transfer");
+        if (tRun.error) tLine += " · 上次手动执行失败：" + tRun.error;
+        document.getElementById("transfer-next").textContent = tLine;
+        busyButtons("transfer", ["btn-transfer-run"]);
+
+        // 辅种
+        var rs = document.getElementById("reseed-state");
+        var rRun = runOf("reseed");
+        if (rRun.running) S.setPill(rs, "执行中…", "warn");
+        else S.setPill(rs, r.configured ? "IYUU 已配置" : "未填令牌", r.configured ? "ok" : "warn");
+        S.renderRows(document.getElementById("reseed-rows"), L.reseedRows(r.last_report));
+        var rLine = "站点 " + ((r.sid_list || []).length || "全部") + " · 成功缓存 " +
+          L.fmtNum(r.ok_cache_size || 0) + " · " + taskLine("seed-hub.reseed");
+        if (rRun.error) rLine += " · 上次手动执行失败：" + rRun.error;
+        document.getElementById("reseed-next").textContent = rLine;
+        busyButtons("reseed", ["btn-reseed-run"]);
+
+        // 守护
+        var mode = document.getElementById("sweep-mode");
+        var wRun = runOf("sweep");
+        if (w.enabled === false) S.setPill(mode, "已关闭", "warn");
+        else if (wRun.running) S.setPill(mode, "执行中…", "warn");
+        else if (w.dry_run) S.setPill(mode, "只报告（不删）", "warn");
+        else S.setPill(mode, "真删模式", "ok");
+        S.renderRows(document.getElementById("sweep-rows"), L.sweepRows(w.last_report));
+        document.getElementById("sweep-rules").textContent =
+          "永不清理：MovieClaw 主种（movieclaw-*）与保护标签「" +
+          ((w.protected_labels || []).join("、") || "—") + "」；只删任务，不删文件。 " + taskLine("seed-hub.sweep");
+        busyButtons("sweep", ["btn-sweep-scan", "btn-sweep-clean"]);
+      }
+
+      function taskLine(key) {
+        var task = state.tasks[key];
+        if (!task) return "定时任务未登记";
+        if (!task.enabled) return "定时任务已暂停";
+        return "每 " + L.fmtInterval(task.interval_seconds) + " · 下次 " + L.fmtWhen(task.next_run_at);
+      }
+
+      function renderLogs(logs) {
+        var el = document.getElementById("loglist");
+        if (!logs.length) { el.innerHTML = '<li class="muted">还没有日志</li>'; return; }
+        el.innerHTML = logs.map(function (l) {
+          return '<li><span class="ts">' + L.htmlEscape(l.ts) + '</span>' +
+                 '<span class="lv ' + L.levelClass(l.level) + '">' + L.levelLabel(l.level) + '</span>' +
+                 '<span class="msg">' + L.htmlEscape(l.message) + '</span></li>';
+        }).join("");
+      }
+
+      /* ---------------- 模块实时日志：展开后 3 秒拉一次，只滚本模块相关行 ---------------- */
+      var liveLogTimers = {};
+
+      function logMatchesModule(message, kind) {
+        if (kind === "transfer")
+          return message.indexOf("转种") >= 0;
+        if (kind === "reseed")
+          return message.indexOf("辅种") >= 0 || message.indexOf("IYUU") >= 0 || message.indexOf("凭据库") >= 0;
+        return false;
+      }
+
+      function renderLiveLog(kind, logs) {
+        var el = document.getElementById(kind === "transfer" ? "transfer-loglist" : "reseed-loglist");
+        if (!el) return;
+        var rows = (logs || []).filter(function (l) { return logMatchesModule(l.message || "", kind); });
+        if (!rows.length) { el.innerHTML = '<li class="muted">暂无本模块日志</li>'; return; }
+        el.innerHTML = rows.map(function (l) {
+          return '<li><span class="ts">' + L.htmlEscape(l.ts) + '</span>' +
+                 '<span class="lv ' + L.levelClass(l.level) + '">' + L.levelLabel(l.level) + '</span>' +
+                 '<span class="msg">' + L.htmlEscape(l.message) + '</span></li>';
+        }).join("");
+      }
+
+      async function pullLiveLog(kind) {
+        try {
+          var res = await S.pluginGet("/logs?level=info&limit=60");
+          renderLiveLog(kind, res.logs || []);
+        } catch (e) { /* 静默：不打扰概览 */ }
+      }
+
+      function toggleLiveLog(kind, btn) {
+        var paneId = kind === "transfer" ? "transfer-live-log" : "reseed-live-log";
+        var pane = document.getElementById(paneId);
+        pane.hidden = !pane.hidden;
+        btn.textContent = pane.hidden ? "实时日志" : "收起日志";
+        if (pane.hidden) {
+          if (liveLogTimers[kind]) { clearInterval(liveLogTimers[kind]); delete liveLogTimers[kind]; }
+        } else {
+          pullLiveLog(kind);
+          liveLogTimers[kind] = setInterval(function () { pullLiveLog(kind); }, 3000);
+        }
+      }
+
+      document.getElementById("btn-transfer-log").addEventListener("click", function () {
+        toggleLiveLog("transfer", this);
+      });
+      document.getElementById("btn-reseed-log").addEventListener("click", function () {
+        toggleLiveLog("reseed", this);
+      });
+
+      async function startRun(kind, dryRun, btn) {
+        btn.disabled = true;
+        try {
+          var res = await S.pluginPost("/run?kind=" + kind + "&dry_run=" + dryRun + "&background=true");
+          S.toast(res.message || "已开始执行");
+          ensureFast();
+          await new Promise(function (r) { setTimeout(r, 900); });
+          await refresh();
+        } catch (e) {
+          S.toast(e.message || "启动失败", true);
+          btn.disabled = false;
+        }
+      }
+
+      document.getElementById("btn-transfer-run").addEventListener("click", function () {
+        var logBtn = document.getElementById("btn-transfer-log");
+        if (logBtn && document.getElementById("transfer-live-log").hidden) logBtn.click();
+        startRun("transfer", false, this);
+      });
+
+      /* ---------------- 转种明细（懒加载） ---------------- */
+      var scanData = { items: [], counts: {}, source: "", target: "", total: 0 };
+      var scanFilter = "all";
+
+      function renderScan() {
+        var counts = L.countScanVerdicts(scanData.items);
+        ["transfer", "exists", "excluded", "missing", "small"].forEach(function (k) {
+          var el = document.getElementById("tsc-" + k);
+          if (el) el.textContent = L.fmtNum(counts[k]);
+        });
+        document.getElementById("tsc-all").textContent = L.fmtNum(scanData.items.length);
+        var items = L.filterScanItems(scanData.items, scanFilter);
+        var body = document.getElementById("transfer-scan-rows");
+        if (!items.length) {
+          body.innerHTML = '<tr><td colspan="3" class="empty">' +
+            (scanData.items.length ? "这个筛选下没有条目" : "源下载器里没有已完成的种子") + "</td></tr>";
+          return;
+        }
+        var cls = { transfer: "ok", exists: "", excluded: "warn", missing: "bad", small: "warn" };
+        body.innerHTML = items.map(function (it) {
+          return "<tr>" +
+            '<td class="name">' + L.htmlEscape(it.name || it.hash) + "</td>" +
+            '<td class="small muted">' + (it.size_gb ? it.size_gb + " GB" : "—") + "</td>" +
+            '<td class="small"><span class="tag ' + (cls[it.verdict] || "") + '">' + L.verdictLabel(it.verdict) + "</span> " +
+            '<span class="muted">' + L.htmlEscape(it.reason || "") + "</span></td>" +
+            "</tr>";
+        }).join("");
+      }
+
+      function bindScanFilter(id, kind) {
+        document.getElementById(id).addEventListener("click", function () {
+          scanFilter = kind;
+          ["ts-all", "ts-transfer", "ts-exists", "ts-excluded", "ts-missing", "ts-small"].forEach(function (b) {
+            document.getElementById(b).style.borderColor = "";
+          });
+          this.style.borderColor = "var(--mc-accent, #6ea8fe)";
+          renderScan();
+        });
+      }
+      bindScanFilter("ts-all", "all");
+      bindScanFilter("ts-transfer", "transfer");
+      bindScanFilter("ts-exists", "exists");
+      bindScanFilter("ts-excluded", "excluded");
+      bindScanFilter("ts-missing", "missing");
+      bindScanFilter("ts-small", "small");
+
+      async function runScan(btn) {
+        btn.disabled = true;
+        try {
+          S.toast("正在扫描源下载器…");
+          scanData = await S.pluginGet("/transfer/scan");
+          renderScan();
+          var c = scanData.counts || {};
+          document.getElementById("transfer-scan-note").textContent =
+            scanData.source + " → " + scanData.target + " · 共 " + L.fmtNum(scanData.total) + " 个：待转移 " +
+            L.fmtNum(c.transfer) + " · 目标已有 " + L.fmtNum(c.exists) + " · 排除标签 " + L.fmtNum(c.excluded) +
+            " · 数据不在 " + L.fmtNum(c.missing) + " · 体积不足 " + L.fmtNum(c.small);
+          S.toast("扫描完成：待转移 " + L.fmtNum((scanData.counts || {}).transfer) + " 个");
+        } catch (e) {
+          S.toast(e.message || "扫描失败", true);
+          document.getElementById("transfer-scan-rows").innerHTML =
+            '<tr><td colspan="3" class="empty">' + L.htmlEscape(e.message || "扫描失败") + "</td></tr>";
+        } finally { btn.disabled = false; }
+      }
+
+      document.getElementById("btn-transfer-scan").addEventListener("click", function () {
+        var panel = document.getElementById("transfer-scan");
+        panel.hidden = !panel.hidden;
+        if (!panel.hidden && !scanData.items.length) runScan(this);
+      });
+      document.getElementById("btn-transfer-scan-close").addEventListener("click", function () {
+        document.getElementById("transfer-scan").hidden = true;
+      });
+      document.getElementById("btn-reseed-run").addEventListener("click", function () {
+        var logBtn = document.getElementById("btn-reseed-log");
+        if (logBtn && document.getElementById("reseed-live-log").hidden) logBtn.click();
+        startRun("reseed", false, this);
+      });
+
+      document.getElementById("btn-sweep-scan").addEventListener("click", function () {
+        var btn = this;
+        btn.disabled = true;
+        (async function () {
+          try {
+            S.toast("正在扫描两台下载器…");
+            await S.pluginPost("/run?kind=sweep&dry_run=true");
+            await refresh();
+            S.toast("扫描完成");
+          } catch (e) { S.toast(e.message || "扫描失败", true); }
+          finally { btn.disabled = false; }
+        })();
+      });
+
+      document.getElementById("btn-sweep-clean").addEventListener("click", function () {
+        var n = state.status && state.status.sweep && state.status.sweep.last_report
+          ? L.num(state.status.sweep.last_report.scanned_deletable) : 0;
+        if (!confirm("确认清理 " + n + " 个已无意义的任务？\n\n只从下载器移除任务条目，绝不删除磁盘文件；" +
+                     "站点已删种与数据丢失的任务会一起清掉。")) return;
+        startRun("sweep", false, this);
+      });
+
+      /* ---------------- 辅种台账（默认收起，展开时懒加载） ---------------- */
+      var ledgerLoaded = false;
+
+      document.getElementById("btn-ledger-toggle").addEventListener("click", function () {
+        var panel = document.getElementById("ledger-panel");
+        panel.hidden = !panel.hidden;
+        this.textContent = panel.hidden ? "展开" : "收起";
+        if (!panel.hidden && !ledgerLoaded) { ledgerLoaded = true; loadLedger(); }
+      });
+
+      async function loadLedger() {
+        var box = document.getElementById("ledger-rows");
+        var pill = document.getElementById("ledger-pill");
+        try {
+          var data = await S.pluginGet("/reseed/ledger");
+          S.setPill(pill, L.fmtNum(data.total) + " 条 · " + L.fmtNum(data.alive) + " 在做种", data.total ? "ok" : "");
+          if (!data.groups || !data.groups.length) {
+            box.innerHTML = '<div class="empty">还没有辅种记录：成功辅种后会记在这里</div>';
+            return;
+          }
+          box.innerHTML = data.groups.map(function (g) {
+            var chips = g.entries.map(function (e) {
+              return '<button class="site-chip' + (e.alive ? "" : " dead") +
+                '" data-th="' + L.htmlEscape(e.target_hash) + '" data-site="' + L.htmlEscape(e.site_name || "") +
+                '" title="' + L.htmlEscape((e.site_name || "") + " · " + L.fmtEpoch(e.ts) + " · " +
+                  (e.target_hash || "").slice(0, 12) + "… · 点击删除") + '">' +
+                L.htmlEscape(e.site_name || e.site_id || "?") + "</button>";
+            }).join("");
+            return '<div class="ledger-group"><div class="ledger-src">' +
+              '<b>' + L.htmlEscape(g.source_name) + '</b> <span class="muted small">辅 ' + g.entries.length + " 个站</span></div>" +
+              '<div class="ledger-sites">' + chips + "</div></div>";
+          }).join("");
+          box.querySelectorAll("button.site-chip").forEach(function (b) {
+            b.addEventListener("click", async function () {
+              var th = this.getAttribute("data-th");
+              var site = this.getAttribute("data-site") || "该站";
+              if (!confirm("把「" + site + "」的这个辅种从下载器里移除？\n\n只删任务不删文件；之后也不会再自动加回。")) return;
+              this.disabled = true;
+              try {
+                await S.pluginPost("/reseed/ledger/delete?target_hash=" + encodeURIComponent(th));
+                S.toast("已删除辅种（" + site + "）");
+                loadLedger();
+              } catch (e) {
+                S.toast(e.message || "删除失败", true);
+                this.disabled = false;
+              }
+            });
+          });
+        } catch (e) {
+          S.setPill(pill, e.message || "加载失败", "bad");
+          box.innerHTML = '<div class="empty">' + L.htmlEscape(e.message || "加载失败") + "</div>";
+        }
+      }
+
+      document.getElementById("btn-ledger-refresh").addEventListener("click", function () {
+        loadLedger();
+      });
+
+      /* ---------------- 待清理（懒加载） ---------------- */
+      var sweepData = { items: [], total: 0, scanned_at: null, deletable: 0, warned: 0, dry_run: true };
+      var sweepFilter = "all";
+      var sweepPoll = null;
+
+      async function loadSweep() {
+        try {
+          sweepData = await S.pluginGet("/sweep/candidates?limit=10000");
+          renderSweep();
+        } catch (e) {
+          S.setPill(document.getElementById("mode-pill"), e.message || "加载失败", "bad");
+        }
+      }
+
+      function renderSweep() {
+        var items = L.filterCandidates(sweepData.items, sweepFilter);
+        var counts = L.countByKind(sweepData.items);
+        document.getElementById("c-all").textContent = L.fmtNum(sweepData.items.length);
+        document.getElementById("c-nodata").textContent = L.fmtNum(counts.nodata);
+        document.getElementById("c-dead").textContent = L.fmtNum(counts.dead);
+        document.getElementById("c-warn").textContent = L.fmtNum(counts.warn);
+        document.getElementById("scanned-at").textContent =
+          sweepData.scanned_at ? ("扫描于 " + L.fmtWhen(sweepData.scanned_at)) : "还没有扫描过";
+        S.setPill(document.getElementById("mode-pill"),
+          sweepData.dry_run ? "只报告（不删）" : "真删模式", sweepData.dry_run ? "warn" : "ok");
+        document.getElementById("tab-sweep-count").textContent =
+          sweepData.deletable ? "（" + L.fmtNum(sweepData.deletable) + "）" : "";
+
+        var body = document.getElementById("rows");
+        if (!items.length) {
+          body.innerHTML = '<tr><td colspan="3" class="empty">' +
+            (sweepData.items.length ? "这个筛选下没有条目" : "没有待清理的任务，很干净") + "</td></tr>";
+          return;
+        }
+        body.innerHTML = items.map(function (it) {
+          var kind = L.classifyCandidate(it);
+          var tag = kind === "dead" ? '<span class="tag bad">站点删种</span>'
+                  : kind === "nodata" ? '<span class="tag warn">数据丢失</span>'
+                  : kind === "warn" ? '<span class="tag warn">告警</span>'
+                  : '<span class="tag">其他</span>';
+          return "<tr>" +
+            '<td class="name">' + L.htmlEscape(it.name || "(未命名)") + "</td>" +
+            '<td class="small muted">' + L.htmlEscape(it.downloader || "") + "</td>" +
+            '<td class="small">' + tag + " " + L.htmlEscape(it.reason || "") + "</td>" +
+            "</tr>";
+        }).join("");
+      }
+
+      function bindFilter(id, kind) {
+        document.getElementById(id).addEventListener("click", function () {
+          sweepFilter = kind;
+          ["f-all", "f-nodata", "f-dead", "f-warn"].forEach(function (b) {
+            document.getElementById(b).style.borderColor = "";
+          });
+          this.style.borderColor = "var(--mc-accent, #6ea8fe)";
+          renderSweep();
+        });
+      }
+      bindFilter("f-all", "all");
+      bindFilter("f-nodata", "nodata");
+      bindFilter("f-dead", "dead");
+      bindFilter("f-warn", "warn");
+
+      async function sweepRunning() {
+        try {
+          var st = await S.pluginGet("/status");
+          return !!(st && st.runs && st.runs.sweep && st.runs.sweep.running);
+        } catch (e) { return false; }
+      }
+
+      function startPoll() {
+        if (sweepPoll) return;
+        var idle = 0;
+        sweepPoll = setInterval(async function () {
+          if (await sweepRunning()) { idle = 0; return; }
+          idle += 1;
+          if (idle >= 2) {            // 连续两次空闲才判定结束，避开刚启动的竞争
+            clearInterval(sweepPoll); sweepPoll = null;
+            await loadSweep();
+            S.toast("执行完成");
+            setSweepBusy(false);
+          }
+        }, 3000);
+      }
+
+      function setSweepBusy(busy) {
+        ["btn-scan", "btn-clean"].forEach(function (id) {
+          var b = document.getElementById(id);
+          if (b) b.disabled = busy;
+        });
+      }
+
+      document.getElementById("btn-scan").addEventListener("click", function () {
+        var btn = this;
+        setSweepBusy(true);
+        (async function () {
+          try {
+            S.toast("正在扫描两台下载器…");
+            await S.pluginPost("/run?kind=sweep&dry_run=true");
+            await loadSweep();
+            S.toast("扫描完成：可清理 " + L.fmtNum(sweepData.deletable) + " 个");
+          } catch (e) { S.toast(e.message || "扫描失败", true); }
+          finally { setSweepBusy(false); }
+        })();
+      });
+
+      document.getElementById("btn-clean").addEventListener("click", function () {
+        var n = sweepData.deletable || 0;
+        if (!n) { S.toast("当前没有可清理的任务"); return; }
+        if (!confirm("确认清理 " + n + " 个已无意义的任务？\n\n只从下载器移除任务条目，绝不删除磁盘文件。")) return;
+        setSweepBusy(true);
+        (async function () {
+          try {
+            var res = await S.pluginPost("/run?kind=sweep&dry_run=false&background=true");
+            S.toast(res.message || "已开始清理");
+            startPoll();
+          } catch (e) {
+            S.toast(e.message || "启动失败", true);
+            setSweepBusy(false);
+          }
+        })();
+      });
+
+      /* ---------------- 运行日志（懒加载） ---------------- */
+      async function loadFullLogs() {
+        var level = document.getElementById("level").value;
+        var limit = document.getElementById("limit").value;
+        var history = document.getElementById("history").checked ? "&all=true" : "";
+        try {
+          var res = await S.pluginGet("/logs?level=" + level + "&limit=" + limit + history);
+          var logs = L.filterLogs(res.logs || [], level);
+          document.getElementById("count-pill").textContent = (res.count || logs.length) + " 条";
+          document.getElementById("tab-log-count").textContent = logs.length ? "（" + logs.length + "）" : "";
+          var el = document.getElementById("loglist-full");
+          if (!logs.length) { el.innerHTML = '<li class="muted">没有日志</li>'; return; }
+          el.innerHTML = logs.map(function (l) {
+            return '<li><span class="ts">' + L.htmlEscape(l.ts) + '</span>' +
+                   '<span class="lv ' + L.levelClass(l.level) + '">' + L.levelLabel(l.level) + '</span>' +
+                   '<span class="msg">' + L.htmlEscape(l.message) + '</span></li>';
+          }).join("");
+        } catch (e) {
+          document.getElementById("count-pill").textContent = "加载失败";
+          document.getElementById("loglist-full").innerHTML = '<li class="lv-error">' + L.htmlEscape(e.message || "加载失败") + "</li>";
+        }
+      }
+
+      function ensureLogsTimer() {
+        if (document.getElementById("auto").checked && !logsTimer) {
+          logsTimer = setInterval(loadFullLogs, 5000);
+        }
+      }
+      document.getElementById("auto").addEventListener("change", ensureLogsTimer);
+      document.getElementById("level").addEventListener("change", loadFullLogs);
+      document.getElementById("limit").addEventListener("change", loadFullLogs);
+      document.getElementById("history").addEventListener("change", loadFullLogs);
+
+      document.getElementById("btn-clear").addEventListener("click", async function () {
+        if (!confirm("清空插件日志（内存 + 历史文件）？")) return;
+        try {
+          await S.pluginPost("/logs/clear");
+          S.toast("日志已清空");
+          loadFullLogs();
+        } catch (e) { S.toast(e.message || "清空失败", true); }
+      });
+
+      refresh();
+      setInterval(refresh, 30000);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+[plugin]
+id = "seed-hub"
+title = "保种管家"
+version = "1.0.0"
+entry = "seed_hub"
+runtime = "process"
+sdk = "^1.0"
+description = "自动转种 + IYUU 自动辅种 + 保活守护，一个插件全管。转种：把源下载器已完成的种搬到目标下载器继续做种——读磁盘种子文件（<info_hash>.torrent），任意版本的 qBittorrent / Transmission 都能当源，qB ≥ 4.5 再加 WebUI 导出兜底；路径换算直接用内核里已配的下载器路径映射。辅种：已完成的种拿去 IYUU 匹配其他站点，经内核 dl.submit 带站点登录态取种（插件碰不到站点 Cookie），沿用原种保存路径；取种链接先用站点搜索核对真实地址，IYUU 模板链接用学到的站点凭据回填后兜底。守护：站点已删种 / 数据丢失的种自动清理（MovieClaw 主种与保护标签永不碰，只删任务不删文件）。左侧栏「保种管家」一页三标签：概览、待清理、运行日志；三个定时任务的周期在「设置 → 定时任务」可调。"
+
+[requires]
+"scheduled-tasks" = "^1.0"
+"plugin-files" = "^1.0"
+
+[permissions]
+# dl.tasks：任务快照（判重、报告里对照内核口径）
+# dl.submit：辅种时带站点登录态取种并投递（站点凭据不出宿主，免密码通道）
+# dl.list：把设置里填的下载器名称解析成实例（带出路径映射，供转种路径换算）
+# dl.torrent.delete：转移成功后按设置删源任务 / 守护清理死种（危险操作；默认关闭或只报告，只删任务不删文件）
+# site.list / site.show：把 IYUU 的 sid 映射到本机已配置站点
+# search.torrents：取种前按发布名在目标站搜真实下载链接（IYUU 模板链接缺 passkey 在不少站取不到）；顺带学取站点凭据
+operations = ["dl.tasks", "dl.submit", "dl.list", "dl.torrent.delete", "site.list", "site.show", "search.torrents"]
+# 源下载器的种子文件目录（qB BT_backup / TR torrents）：只读，按 <info_hash>.torrent 找种子文件。
+# 商店版不预设路径：装好后到插件设置里填好目录，安装批准时再授予对应路径。
+paths = []
+network = true

@@ -1,0 +1,6 @@
+{
+  "name": "保种管家",
+  "short_name": "保种",
+  "start_url": ".",
+  "icons": [{ "src": "icon.svg", "type": "image/svg+xml", "purpose": "monochrome" }]
+}
