@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-23T03:41:04Z",
+  "generated_at": "2026-10-23T12:37:20Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -253,9 +253,9 @@
       "license": "见仓库许可证",
       "origin": "official",
       "icon": {
-        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/movie-voice-icon-05473f3799072024.svg",
-        "sha256": "05473f37990720240062f2ce93645756704c7980c3204634f58319af5cca33e9",
-        "size": 354
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/movie-voice-icon-f0072b5329fb3aac.svg",
+        "sha256": "f0072b5329fb3aacc382fbbbd1cba77aec450b956a9a52e577ec9b955ff89df0",
+        "size": 1007
       },
       "screenshots": [],
       "deprecated": null,
