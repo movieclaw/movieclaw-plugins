@@ -15,7 +15,7 @@ from fastapi.routing import APIRoute
 from movieclaw_api.plugins.keys import PLUGIN_FILES, PLUGIN_ROUTES
 from movieclaw_sdk import plugin
 from movieclaw_sdk.ops import HOST_OPS
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from .app import create_app
 from .config import Settings as AppSettings
@@ -44,6 +44,22 @@ class Settings(BaseModel):
             "信任的私网部署可开启 HTTP 与局域网连接。"
         ),
     )
+
+    native_api_url: str = Field(
+        default="",
+        title="MovieClaw 本机接口地址（可选）",
+        description=(
+            "仅供本人配对和后台同步访问当前 MovieClaw。留空使用主程序外部访问地址；"
+            "公网回环不可用时，可填写服务器自身可达的内网 HTTP(S) 源地址，不含 /api/v1。"
+            "不要填写其他服务器；修改后须重新配对本人账号。"
+        ),
+    )
+
+    @field_validator("native_api_url")
+    @classmethod
+    def validate_native_api_url(cls, value):
+        # 由安装管理员设置固定目标，不从浏览器 Host/Origin 接受凭据发送地址。
+        return origin_url(value) if value.strip() else ""
 
 
 class NativeRoute(APIRoute):
@@ -167,9 +183,8 @@ def build_routers(app, require_login):
 )
 async def apply(ctx):
     """登记一次原生接口；卸载自动摘除路由并关闭插件私有 SQLite 连接。"""
-    from movieclaw_sdk.net import http_transport
-
     from movieclaw_api.api.deps import require_login
+    from movieclaw_sdk.net import http_transport
 
     files = ctx.use(PLUGIN_FILES).scoped(ctx)
     directory = await files.check(files.path("plugin"), write=True)
@@ -191,7 +206,7 @@ async def apply(ctx):
         endpoints.clear()
         ctx.logger.info("未配置宿主外部访问地址：同服好友可用，跨服连接请先在应用设置中配置。")
     settings = AppSettings(
-        "",
+        ctx.config.native_api_url,
         public_origin,
         Path(directory),
         allow_private_peers=ctx.config.allow_private_peers,

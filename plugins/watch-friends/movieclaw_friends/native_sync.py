@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 import httpx
 from fastapi import HTTPException, Request
 
+from .config import origin_url
 from .media import sanitize_media
 from .peers import PeerError
 from .watch_alignment import source_pin, sync_key
@@ -32,6 +33,11 @@ class NativeSync:
                 revision INTEGER NOT NULL DEFAULT 1);
         """)
 
+    @property
+    def api_origin(self):
+        # 本机 API 与公开联邦地址分开；只使用管理员配置，绝不从请求头猜测目标。
+        return origin_url(self.settings.upstream_url or self.settings.public_url)
+
     def client(self):
         return httpx.AsyncClient(
             transport=self.transport
@@ -54,10 +60,18 @@ class NativeSync:
                 self._read_clients.pop(task, None)
 
     async def request(self, method, path, token="", body=None):
+        target = self.api_origin
+        if target == "http://movieclaw.invalid":
+            raise HTTPException(
+                409,
+                "尚未配置 MovieClaw 接口地址。请管理员设置主程序外部访问地址，"
+                "或在映迹插件配置中填写本机接口地址，再重新启用插件。",
+            )
+
         async def send(client):
             response = await client.request(
                 method,
-                self.settings.public_url + "/api/v1" + path,
+                target + "/api/v1" + path,
                 headers={"Authorization": "Bearer " + token} if token else {},
                 json=body,
             )
@@ -65,13 +79,32 @@ class NativeSync:
                 return None
             if response.status_code == 429:
                 raise HTTPException(429, "MovieClaw 请求过快，请稍后重试")
+            if 300 <= response.status_code < 400:
+                raise PeerError(
+                    "MovieClaw 本人接口被重定向；请使用最终访问地址，并检查反向代理是否跳转到登录页"
+                )
+            if response.status_code == 404:
+                raise PeerError(
+                    "MovieClaw 本人接口不存在（HTTP 404）；请检查主程序版本，以及接口地址是否指向 MovieClaw"
+                )
             if response.status_code not in {200, 201}:
-                raise PeerError(f"MovieClaw 接口返回 HTTP {response.status_code}，请检查本人授权")
+                raise PeerError(
+                    f"MovieClaw 接口返回 HTTP {response.status_code}；请检查本人授权及反向代理访问规则"
+                )
             if len(response.content) > 8000000:
                 raise PeerError("MovieClaw 返回数据过大，请缩小同步范围")
-            result = response.json()
-            if result.get("success") is not True or "data" not in result:
-                raise ValueError
+            try:
+                result = response.json()
+            except ValueError:
+                raise PeerError(
+                    "MovieClaw 本人接口未返回有效 JSON；请检查接口地址及反向代理，避免返回登录网页"
+                ) from None
+            if (
+                not isinstance(result, dict)
+                or result.get("success") is not True
+                or "data" not in result
+            ):
+                raise PeerError("MovieClaw 本人接口响应格式不兼容；请检查主程序版本和反向代理配置")
             return result["data"]
 
         try:
@@ -80,14 +113,32 @@ class NativeSync:
                 return await send(client)
             async with self.client() as client:
                 return await send(client)
-        except (httpx.HTTPError, ValueError):
-            raise PeerError("MovieClaw 本人接口不可用，请检查连接和授权") from None
+        except httpx.TimeoutException:
+            raise PeerError(
+                "MovieClaw 本人接口请求超时；请检查服务器能否连回自身地址，或配置映迹本机接口地址"
+            ) from None
+        except httpx.ProxyError:
+            raise PeerError("MovieClaw 本人接口代理连接失败；请检查映迹的网络代理规则") from None
+        except httpx.ConnectError as exc:
+            # 仅判断固定错误标志，不把异常原文、地址、证书内容或凭据返回用户。
+            if "CERTIFICATE_VERIFY_FAILED" in str(exc) or "certificate verify failed" in str(exc).lower():
+                raise PeerError(
+                    "MovieClaw HTTPS 证书校验失败；请检查证书域名、有效期及证书链，"
+                    "或由管理员配置受信任的本机接口地址"
+                ) from None
+            raise PeerError(
+                "MovieClaw 无法连接自身接口；请检查域名解析和端口，或配置映迹本机接口地址"
+            ) from None
+        except httpx.HTTPError:
+            raise PeerError("MovieClaw 本人接口连接中断，请重试并检查服务器网络出口") from None
+        except ValueError:
+            raise PeerError("MovieClaw 本人接口客户端配置无效；请检查本机接口地址及网络代理设置") from None
 
     def source_for(self, owner):
         row = self.store.one("SELECT * FROM native_sync_grants WHERE user_id=?", (owner,))
         if not row:
             raise HTTPException(409, "请先在后台同步设置中配对本人 MovieClaw 账号")
-        if self.store.decrypt(row["origin"]) != self.settings.public_url:
+        if self.store.decrypt(row["origin"]) != self.api_origin:
             raise HTTPException(409, "宿主地址已变化，请重新配对本人设备")
         return {
             "id": "movieclaw",
@@ -363,11 +414,13 @@ class NativeSync:
         async def native_sync_status(request: Request):
             owner = self.user_for(request)["id"]
             row = self.store.one(
-                "SELECT username FROM native_sync_grants WHERE user_id=?", (owner,)
+                "SELECT username,origin FROM native_sync_grants WHERE user_id=?",
+                (owner,),
             )
+            bound = bool(row) and self.store.decrypt(row["origin"]) == self.api_origin
             return {
-                "bound": bool(row),
-                "account_name": row["username"] if row else None,
+                "bound": bound,
+                "account_name": row["username"] if bound else None,
                 "available": self.settings.native,
             }
 
@@ -378,7 +431,7 @@ class NativeSync:
             if not self.settings.native or not expected:
                 raise HTTPException(409, "请从原生插件本人账号发起设备配对")
             old = self.pending.get(user["id"])
-            if old and old["expires"] > time.time():
+            if old and old["expires"] > time.time() and old["origin"] == self.api_origin:
                 return old["view"]
             result = await self.request(
                 "POST",
@@ -390,15 +443,27 @@ class NativeSync:
                     "client_version": "0.1.0",
                 },
             )
+            if (
+                not isinstance(result, dict)
+                or not isinstance(result.get("user_code"), str)
+                or not 1 <= len(result["user_code"]) <= 128
+                or not isinstance(result.get("device_code"), str)
+                or not 1 <= len(result["device_code"]) <= 2048
+                or type(result.get("interval")) is not int
+                or not 0 < result["interval"] <= 300
+                or type(result.get("expires_in")) is not int
+                or result["expires_in"] <= 0
+            ):
+                raise PeerError("MovieClaw 配对接口响应格式不兼容；请检查主程序版本和反向代理")
             view = {
                 "user_code": result["user_code"],
-                "verification_url": self.settings.public_url
-                + "/activate?"
-                + urlencode({"code": result["user_code"]}),
+                # 从当前浏览器已登录的同源页面打开，内网 API 地址不泄露给客户端。
+                "verification_url": "/activate?" + urlencode({"code": result["user_code"]}),
                 "interval": max(5, result["interval"]),
             }
             self.pending[user["id"]] = {
                 "code": result["device_code"],
+                "origin": self.api_origin,
                 "expires": time.time() + min(result["expires_in"], 900),
                 "next": 0,
                 "expected": expected,
@@ -412,7 +477,11 @@ class NativeSync:
             user = self.user_for(request)
             async with self.locks.setdefault(user["id"], asyncio.Lock()):
                 pending = self.pending.get(user["id"])
-                if not pending or pending["expires"] <= time.time():
+                if (
+                    not pending
+                    or pending["expires"] <= time.time()
+                    or pending["origin"] != self.api_origin
+                ):
                     raise HTTPException(409, "配对已过期，请重新发起")
                 if pending["next"] > time.time():
                     return {"bound": False, "waiting": True}
@@ -422,8 +491,16 @@ class NativeSync:
                 )
                 if result is None:
                     return {"bound": False, "waiting": True}
+                if (
+                    not isinstance(result, dict)
+                    or not isinstance(result.get("token"), str)
+                    or not result["token"]
+                ):
+                    raise PeerError("MovieClaw 配对令牌响应格式不兼容；请重新发起配对")
                 self.pending.pop(user["id"], None)
                 identity = await self.request("GET", "/auth/me", result["token"])
+                if not isinstance(identity, dict):
+                    raise PeerError("MovieClaw 本人身份响应格式不兼容；请重新发起配对")
                 if (
                     identity.get("username") != pending["expected"]
                     or identity.get("role") != pending["role"]
@@ -444,7 +521,7 @@ class NativeSync:
                         identity["role"],
                         user["username"],
                         self.store.encrypt(result["token"]),
-                        self.store.encrypt(self.settings.public_url),
+                        self.store.encrypt(self.api_origin),
                     ),
                 )
                 return {"bound": True, "account_name": identity["username"]}
@@ -453,11 +530,16 @@ class NativeSync:
         async def native_sync_revoke(request: Request):
             owner = self.user_for(request)["id"]
             self.pending.pop(owner, None)
-            row = self.store.one("SELECT secret FROM native_sync_grants WHERE user_id=?", (owner,))
+            row = self.store.one(
+                "SELECT secret,origin FROM native_sync_grants WHERE user_id=?", (owner,)
+            )
             self.store.execute("DELETE FROM native_sync_grants WHERE user_id=?", (owner,))
-            if row:
+            # 地址变更后只撤销本地保管，绝不把旧设备凭据发送到新目标。
+            if row and self.store.decrypt(row["origin"]) == self.api_origin:
                 with suppress(PeerError):
                     await self.request(
-                        "DELETE", "/auth/devices/current", self.store.decrypt(row["secret"])
+                        "DELETE",
+                        "/auth/devices/current",
+                        self.store.decrypt(row["secret"]),
                     )
             return {"bound": False}
