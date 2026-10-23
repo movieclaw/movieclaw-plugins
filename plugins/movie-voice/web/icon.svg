@@ -1,19 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 14 60 72" fill="none">
   <title>寻映</title>
-  <defs>
-    <linearGradient id="tile" x1="8" y1="4" x2="84" y2="96" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#18343B"/>
-      <stop offset="1" stop-color="#080E14"/>
-    </linearGradient>
-    <linearGradient id="lens" x1="24" y1="19" x2="76" y2="79" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#B6FFF2"/>
-      <stop offset=".52" stop-color="#56DDD5"/>
-      <stop offset="1" stop-color="#28AFC5"/>
-    </linearGradient>
-  </defs>
-  <rect x="1" y="1" width="94" height="94" rx="23" fill="url(#tile)"/>
-  <rect x="1.5" y="1.5" width="93" height="93" rx="22.5" stroke="#B6FFF2" stroke-opacity=".12"/>
-  <path d="m64 64 13 13" stroke="url(#lens)" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="43" cy="43" r="25" stroke="url(#lens)" stroke-width="7"/>
-  <path d="M37 33.5c0-1.2 1.3-1.9 2.3-1.3l14 9.5c.9.6.9 2 0 2.6l-14 9.5c-1 .6-2.3-.1-2.3-1.3v-19Z" fill="#F1FFFC"/>
+  <path fill="currentColor" fill-rule="evenodd" d="M27 24c0-4.6 4.9-7.5 9-5.1l35.5 20.5c5.3 3 5.3 10.6 0 13.7L36 73.6c-4.1 2.4-9-.5-9-5.1V24Z M48.61 47.01a10.5 10.5 0 1 0-2.6 2.6l4.4 4.98a2.25 2.25 0 0 0 3.18-3.18l-4.98-4.4Z M40 34.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Z"/>
+  <path d="M27 80c12-5 30-5 42 0" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
 </svg>
