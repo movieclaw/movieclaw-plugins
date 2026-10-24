@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 import httpx
 from parsel import Selector
 from movieclaw_tracker.selectors import NexusPHPSelectors
@@ -90,6 +91,17 @@ class Parsers(unittest.TestCase):
         for invalid in ('<h2>你的搜索与任何内容都不匹配。</h2>', '<a id="header-username-value">test</a><h2>服务器错误</h2>'):
             with self.assertRaises(TrackerParseError):
                 site.parse_list(invalid)
+
+    def test_gpw_publish_time_uses_exact_tooltip_and_site_timezone(self):
+        site=make(GreatPosterWallSite)
+        def row(value):
+            return Selector(text='<table><tr><td class="TableTorrent-cellStatTime"><span data-tooltip="'+value+'">11 分前</span></td></tr></table>').css('tr')[0]
+        self.assertEqual(site._upload_time(row('Oct 24 2026, 12:52')),datetime(2026,10,24,4,52))
+        self.assertEqual(site._upload_time(row('Oct 24 2026, 12:52:15')),datetime(2026,10,24,4,52,15))
+        self.assertEqual(site._upload_time(row('2026-10-24T04:52:15Z')),datetime(2026,10,24,4,52,15))
+        for value in ['11 分前','Feb 30 2026, 12:52','nonsense','']:
+            self.assertIsNone(site._upload_time(row(value)))
+        self.assertIsNone(site._upload_time(Selector(text='<tr><td title="Oct 24 2026, 12:52">other field</td></tr>')))
 
     def test_zhuque_fields_and_defaults(self):
         site = make(ZhuqueSite)

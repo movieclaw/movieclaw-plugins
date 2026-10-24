@@ -98,6 +98,28 @@ class GreatPosterWallSite(ProbeMixin, BaseSite):
     def __init__(self, category_map=None, **kwargs):
         super().__init__(**kwargs)
 
+    def _upload_time(self, row):
+        """Read Gazelle's exact tooltip, not the rendered relative time."""
+        cells = row.css(".TableTorrent-cellStatTime")
+        if not cells: return None
+        cell = cells[0]
+        values = [cell.attrib.get(k, "") for k in ("data-tooltip", "title", "datetime")]
+        values += cell.css("[data-tooltip]::attr(data-tooltip), [title]::attr(title), time[datetime]::attr(datetime)").getall()
+        values.append(cell.xpath("string(.)").get("").strip())
+        months = dict(zip("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(), range(1, 13)))
+        for raw in values:
+            # Explicit English months avoid depending on the server's locale.
+            match = re.fullmatch(r"([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4}),\s+(\d{1,2}):(\d{2})(?::(\d{2}))?", raw.strip())
+            try:
+                if match:
+                    parsed = datetime(int(match[3]), months[match[1].title()], int(match[2]), int(match[4]), int(match[5]), int(match[6] or 0))
+                elif re.fullmatch(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?", raw.strip()):
+                    parsed = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+                else: continue
+                return self._to_utc(parsed)
+            except (KeyError, ValueError): continue
+        return None
+
     def parse_list(self, html):
         doc = Selector(text=html)
         if not doc.css("#torrent_table"):
@@ -133,7 +155,7 @@ class GreatPosterWallSite(ProbeMixin, BaseSite):
             items.append(TorrentListItem(
                 torrent_id=tid, title=f"{english or chinese} {year} {specs}".strip(),
                 subtitle=chinese, category=TorrentCategory.MOVIE, site_category_id="movie",
-                size=size, size_bytes=size_bytes(size), snatched=integer(text(row, "td:nth-child(4)")),
+                size=size, size_bytes=size_bytes(size), upload_time=self._upload_time(row), snatched=integer(text(row, "td:nth-child(4)")),
                 seeders=integer(text(row, "td:nth-child(5)")), leechers=integer(text(row, "td:nth-child(6)")),
                 free=free, download_volume_factor=0.0 if free else 1.0,
                 detail_url=safe_url(self.base_url, detail), download_url=safe_url(self.base_url, dl),
