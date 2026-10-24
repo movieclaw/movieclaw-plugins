@@ -1,0 +1,34 @@
+[plugin]
+id = "douban-hot-subscribe"
+title = "豆瓣热门自动订阅"
+version = "1.1.0"
+entry = "douban_hot_subscribe"
+runtime = "process"
+sdk = "^1.0"
+description = "盯住豆瓣的热门榜单（实时热门电影/剧集、口碑榜、分类榜等）：新进榜的片自动建订阅，剧集按标题里的季号订并自动续订。默认榜单里的全都订，每轮最多 5 条、没订完的下一轮接着订；库里已有的自动跳过。可调评分下限、只取前几名、排除词（综艺/短剧/预告）等口径；豆瓣条目对应多部作品或 TMDB 尚未收录的留给用户确认。"
+
+[requires]
+"host-ops" = "^1.0"
+"plugin-data" = "^1.0"
+"plugin-routes" = "^1.0"
+"plugin-events" = "^1.0"
+"scheduled-tasks" = "^1.0"
+
+[permissions]
+operations = [
+  "discover.list-collections",
+  "discover.browse-collection",
+  "subscriptions.create",
+  "subscriptions.list",
+]
+
+[[events]]
+name = "douban-hot-subscribe.subscribed"
+title = "豆瓣热门已转成订阅"
+
+[[notifications]]
+event = "douban-hot-subscribe.subscribed"
+title = "豆瓣热门：《{title}》已订阅"
+body = "{collection} · {detail}"
+level = "passive"
+default = true

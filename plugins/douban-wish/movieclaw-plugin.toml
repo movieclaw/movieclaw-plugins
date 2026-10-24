@@ -1,0 +1,30 @@
+[plugin]
+id = "douban-wish"
+title = "豆瓣想看同步"
+version = "1.1.0"
+entry = "douban_wish"
+runtime = "process"
+sdk = "^1.0"
+description = "盯住一个或多个豆瓣账号的「想看」：在豆瓣点了想看，插件按设定周期把它同步成 MovieClaw 订阅。只处理最近 N 天内的想看（可调，避免把很多年前的老片也订进来）。电影直接订；剧集按标题自动挑季并开着自动续订；已有订阅的跳过；豆瓣条目对应多部作品或 TMDB 暂未收录的，留给你在插件里选。第一次同步只记基线，不会把现有想看一次性全订下来。"
+
+[requires]
+"host-ops" = "^1.0"
+"plugin-data" = "^1.0"
+"plugin-routes" = "^1.0"
+"plugin-events" = "^1.0"
+"scheduled-tasks" = "^1.0"
+
+[permissions]
+operations = ["subscriptions.create", "subscriptions.list"]
+network = true
+
+[[events]]
+name = "douban-wish.subscribed"
+title = "豆瓣想看已转成订阅"
+
+[[notifications]]
+event = "douban-wish.subscribed"
+title = "豆瓣想看：{title} 已订阅"
+body = "{detail}"
+level = "passive"
+default = true
