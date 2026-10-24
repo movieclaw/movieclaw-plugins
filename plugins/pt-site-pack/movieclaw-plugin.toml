@@ -1,0 +1,23 @@
+[plugin]
+id = "pt-site-pack"
+title = "PT岛"
+# 按用户要求固定版本，不自动递增。
+version = "0.1.0"
+entry = "pt_pack"
+runtime = "inline"
+sdk = "^1.0"
+description = "管理本服务器添加的 PT 站点，支持 NexusPHP 自助导入、模板与辅助适配，提供站点数据总览、任务明细、隐私分享图、浏览器身份设置与配置回退。仅管理员可见，默认不调用模型。"
+
+[requires]
+agent = "^1.0"
+plugin-data = "^1.0"
+site-classes = "^1.0"
+site-data-packs = "^1.0"
+plugin-files = "^1.0"
+plugin-routes = "^1.0"
+host-ops = "^1.0"
+
+[permissions]
+operations = ["site.catalog", "site.list", "site.stats", "site.verify", "search.torrents", "dl.tasks", "agent:none"]
+paths = []
+network = true

@@ -1,0 +1,22 @@
+site_id: hitpt
+display_name: 百川 HITPT
+base_url: https://www.hitpt.com
+framework: nexusphp
+custom_class: pt-site-pack:nexus
+auth:
+  supported: [cookie]
+min_request_interval: 3
+categories:
+  movie: [401]
+  tv: [402, 416]
+  anime: [405]
+  documentary: [413]
+  music: [415]
+  other: [403, 407]
+selectors:
+  page_offset: -1
+  torrent_category_css: "td:first-child a[href*='cat=']::attr(href)"
+  profile_uid_css: "a[href*='userdetails.php?id=']::attr(href)"
+  profile_username_css: "h1"
+  detail_subtitle_css: "td.rowhead:contains('副标题') + td"
+  detail_size_css: "td.rowhead:contains('基本信息') + td, td.rowhead:contains('大小') + td"

@@ -1,0 +1,24 @@
+site_id: zmpt
+display_name: 织梦 ZMPT
+base_url: https://zmpt.cc
+framework: nexusphp
+custom_class: pt-site-pack:nexus
+auth:
+  supported: [cookie]
+min_request_interval: 3
+categories:
+  movie: [401]
+  tv: [402, 403]
+  documentary: [422]
+  anime: [417]
+  music: [423]
+  game: [426]
+  other: [409, 424, 425, 427]
+selectors:
+  page_offset: -1
+  torrent_category_css: "td:first-child a[href*='cat=']::attr(href)"
+  profile_uid_css: "a[href*='userdetails.php?id=']::attr(href)"
+  profile_username_css: "h1"
+  detail_subtitle_css: "td.rowhead:contains('副标题') + td"
+  detail_size_css: "td.rowhead:contains('基本信息') + td, td.rowhead:contains('大小') + td"
+  torrent_promo_deadline_css: "table.torrentname span[title]"
