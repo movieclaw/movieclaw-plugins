@@ -3,7 +3,7 @@
   "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/platform-discovery",
   "license": "GPL-3.0-only",
   "origin": "official",
-  "icon": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/main/plugins/platform-discovery/web/icon.svg",
+  "icon": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/main/plugins/platform-discovery/web/icon-color.svg",
   "screenshots": [],
   "summary": "按账号同步片味的海报墙、媒体库录像厅和平台发现；支持库存播放入口、选季订阅、完整全屏屏保与有限海报缓存。",
   "min_app": "0.40.0",

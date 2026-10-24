@@ -1,0 +1,30 @@
+site_id: btschool
+display_name: 学校 BTSchool
+base_url: https://pt.btschool.club
+framework: nexusphp
+custom_class: pt-site-pack:nexus
+auth:
+  supported: [cookie]
+min_request_interval: 3
+categories:
+  movie: [405]
+  tv: [406, 412]
+  anime: [407]
+  documentary: [408]
+  music: [409]
+  game: [411]
+  other: [402, 404, 410, 415]
+selectors:
+  page_offset: -1
+  torrent_category_css: "td:first-child a[href*='cat=']::attr(href)"
+  profile_uid_css: "a[href*='userdetails.php?id=']::attr(href)"
+  profile_username_css: "h1"
+  detail_subtitle_css: "td.rowhead:contains('副标题') + td"
+  detail_size_css: "td.rowhead:contains('基本信息') + td, td.rowhead:contains('大小') + td"
+  torrent_promo_deadline_css: "table.torrentname span[title]"
+  promo_download_rules:
+    "font.free, font.twoupfree, img.pro_free, img.pro_free2up": 0
+    "font.halfdown, font.twouphalfdown, img.pro_50pctdown, img.pro_50pctdown2up": 0.5
+    "font.thirtypercent, img.pro_30pctdown": 0.3
+  promo_upload_rules:
+    "font.twoup, font.twoupfree, font.twouphalfdown, img.pro_free2up, img.pro_50pctdown2up, img.pro_2up": 2

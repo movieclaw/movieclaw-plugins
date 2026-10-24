@@ -1,0 +1,10 @@
+site_id: greatposterwall
+display_name: 海豹 GreatPosterWall
+base_url: https://greatposterwall.com
+framework: gazelle
+custom_class: pt-site-pack:greatposterwall
+auth:
+  supported: [cookie]
+min_request_interval: 3
+categories:
+  movie: [movie]
