@@ -3,7 +3,7 @@
   "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/watch-friends",
   "license": "GPL-3.0-only",
   "origin": "official",
-  "icon": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/main/plugins/watch-friends/web/icon.svg",
+  "icon": "web/icon.svg",
   "screenshots": [],
   "summary": "私人观影足迹、高清片单、多图推荐、本人跨平台已看与续播同步，以及独立授权的互联影友。",
   "min_app": "0.41.0",

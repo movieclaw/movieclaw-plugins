@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="108 96 296 344" fill="none" role="img" aria-labelledby="yingji-mask-title">
+  <title id="yingji-mask-title">映迹</title>
+  <defs>
+    <mask id="yingji-frames" x="108" y="96" width="296" height="344" maskUnits="userSpaceOnUse">
+      <rect x="108" y="96" width="296" height="344" fill="white"/>
+      <g fill="black">
+        <rect x="176" y="171" width="26" height="32" rx="6"/>
+        <rect x="176" y="224" width="26" height="32" rx="6"/>
+        <rect x="176" y="277" width="26" height="32" rx="6"/>
+      </g>
+    </mask>
+  </defs>
+  <path d="M180 113L366 220C383 230 383 250 366 260L180 367C163 377 145 365 145 346V134C145 116 163 103 180 113Z" fill="black" mask="url(#yingji-frames)"/>
+  <path d="M150 393C217 430 307 418 360 355" stroke="black" stroke-width="20" stroke-linecap="round"/>
+  <circle cx="360" cy="355" r="14" fill="black"/>
+</svg>
