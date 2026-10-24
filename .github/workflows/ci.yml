@@ -28,10 +28,12 @@ permissions:
   contents: read
 
 env:
-  # MovieClaw v0.42.0: the plugin market release (drive-backends 1.5 with
-  # form sign-in, ui.theme, the lock checker in movieclaw_sdk.deps).
-  # Do not float this to a branch tip.
-  MOVIECLAW_REF: bd325adde24e5e035878d3fb668cd0b004c96760
+  # MovieClaw main at the merge of movieclaw/MovieClaw#983, 8 commits after
+  # v0.42.0 (bd325adde24e5e035878d3fb668cd0b004c96760, the plugin market
+  # release): pt-keepalive needs the site.proxy.request host operation, which
+  # no server release ships yet. TEMPORARY: put this back to the release commit
+  # once one does. Do not float this to a branch tip.
+  MOVIECLAW_REF: 41a44f6bb8446835e07d599fed481bcd0c2ad9c2
   # Shipped with every server release from the one after v0.39.0.
   HOST_CONSTRAINTS_URL: https://github.com/movieclaw/MovieClaw/releases/latest/download/host-constraints.txt
 

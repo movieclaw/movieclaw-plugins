@@ -1,0 +1,12 @@
+{
+  "author": "MovieClaw",
+  "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/pt-keepalive",
+  "license": "见仓库许可证",
+  "origin": "official",
+  "icon": null,
+  "screenshots": [],
+  "summary": "PT 站点保活：借宿主登录态定时访问已配置站点、尝试签到、刷新最后活跃时间，凭据失效主动告警。",
+  "min_app": null,
+  "max_app": null,
+  "app": null
+}

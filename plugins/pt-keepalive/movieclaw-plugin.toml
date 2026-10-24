@@ -1,0 +1,59 @@
+[plugin]
+id = "pt-keepalive"
+title = "PT 站点保活"
+version = "0.2.1"
+entry = "pt_keepalive"
+runtime = "process"
+sdk = "^1.0"
+description = "对已配置的 PT 站点定时保活：NexusPHP 站借宿主会话确认登录态并签到，M-Team 用账号密码+TOTP 登录刷新最后活跃时间；凭据失效及时告警。需要宿主支持 site.proxy.request 操作。"
+
+[requires]
+"scheduled-tasks" = "^1.0"
+"plugin-events" = "^1.0"
+"plugin-data" = "^1.0"
+"plugin-routes" = "^1.0"
+
+[permissions]
+operations = ["site.list", "site.catalog", "site.proxy.request"]
+# M-Team 的保活接口只认网页会话（宿主的 API Key 调它一律 401），所以这一站由插件自己
+# 用账号密码 + TOTP 登录并直连 api.m-team.io；其余站点仍经宿主代请求。
+network = true
+
+[[events]]
+name = "pt-keepalive.auth.expired"
+title = "PT 站点登录失效"
+
+[[events]]
+name = "pt-keepalive.report.daily"
+title = "PT 保活日报"
+
+[[events]]
+name = "pt-keepalive.report.failures"
+title = "PT 站点保活连续失败"
+
+[[notifications]]
+event = "pt-keepalive.auth.expired"
+title = "{site_name} 登录已失效"
+body = "保活检查发现该站点登录状态不可用：M-Team 请到插件设置检查账号、密码与两步验证密钥，其余站点请在 设置→站点 更新凭据。"
+audience = "admins"
+level = "active"
+default = true
+open = "plugin"
+
+[[notifications]]
+event = "pt-keepalive.report.daily"
+title = "PT 保活日报：{ok_count} 站在线"
+body = "{detail}"
+audience = "admins"
+level = "passive"
+default = false
+open = "plugin"
+
+[[notifications]]
+event = "pt-keepalive.report.failures"
+title = "PT 站点保活：有站点连续失败"
+body = "{detail}"
+audience = "admins"
+level = "active"
+default = true
+open = "plugin"
