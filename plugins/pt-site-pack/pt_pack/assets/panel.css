@@ -39,3 +39,9 @@ html[data-mc-theme] .metrics article,html[data-mc-theme] .site-list{background:v
 /* Checkboxes must never inherit the full-width text-field geometry. */
 label input[type=checkbox]{width:16px;height:16px;min-height:0;padding:0;margin:0;flex:0 0 16px;accent-color:var(--ok)}
 label.model-consent input[type=checkbox]{margin-top:2px}
+
+/* Short phone viewports must allow the task filters and pager to scroll into view. */
+@media(max-width:767px) and (max-height:600px){#ov-task-dialog[open]{display:block;overflow:auto}#ov-task-dialog .task-table{flex:none;min-height:120px;max-height:45dvh}}
+
+/* Custom names and domains can contain long words with no natural break. */
+.site-note{overflow-wrap:anywhere}.catalog-results{grid-template-columns:minmax(0,1fr)}.catalog-item,.catalog-item>div{min-width:0;max-width:100%;overflow-wrap:anywhere}
