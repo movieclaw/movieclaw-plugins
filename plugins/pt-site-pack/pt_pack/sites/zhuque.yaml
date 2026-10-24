@@ -1,0 +1,8 @@
+site_id: zhuque
+display_name: 朱雀 ZHUQUE
+base_url: https://zhuque.in
+framework: tnode
+custom_class: pt-site-pack:zhuque
+auth:
+  supported: [cookie]
+min_request_interval: 3
