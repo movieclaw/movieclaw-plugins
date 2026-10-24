@@ -1,1 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="13" height="17" rx="3"/><path d="M7 3v17M3 8h4M3 15h4"/><circle cx="16" cy="14" r="4"/><path d="m19 17 3 4"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 14 60 72" fill="none">
+  <title>寻映</title>
+  <path fill="currentColor" fill-rule="evenodd" d="M27 24c0-4.6 4.9-7.5 9-5.1l35.5 20.5c5.3 3 5.3 10.6 0 13.7L36 73.6c-4.1 2.4-9-.5-9-5.1V24Z M48.61 47.01a10.5 10.5 0 1 0-2.6 2.6l4.4 4.98a2.25 2.25 0 0 0 3.18-3.18l-4.98-4.4Z M40 34.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Z"/>
+  <path d="M27 80c12-5 30-5 42 0" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+</svg>
