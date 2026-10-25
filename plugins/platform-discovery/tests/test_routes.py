@@ -175,7 +175,7 @@ class SettingsTests(unittest.TestCase):
     def test_manifest_requests_only_readonly_discovery_operations(self):
         manifest = tomllib.loads((PACKAGE / "movieclaw-plugin.toml").read_text())
         self.assertEqual(manifest["plugin"]["runtime"], "inline")
-        self.assertEqual(manifest["plugin"]["version"], "0.11.1")
+        self.assertEqual(manifest["plugin"]["version"], "0.1.0")
         self.assertEqual(manifest["requires"]["plugin-data"], "^1.0")
         self.assertEqual(manifest["permissions"]["operations"], list(apply.permissions))
         self.assertEqual(list(apply.permissions), ["discover.get-title-details", "discover.filter-titles"])
