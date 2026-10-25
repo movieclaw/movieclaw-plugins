@@ -69,11 +69,14 @@ class SeriesFootprints:
                 "SELECT * FROM series_footprint_catalog WHERE user_id=?", (owner,)
             )
         }
-        shows = {}
+        shows, pending = {}, {}
         for row in records:
             number = row["media"].get("tmdb_id")
             if type(number) is int and number > 0 and regular_episode(row):
                 shows.setdefault(number, []).append(row)
+            elif not row["matched"] and row.get("pending_series_key") and regular_episode(row):
+                # 未匹配只按同一连接、原片名与年份折叠，不能跨来源认定作品或推测完结。
+                pending.setdefault(row["pending_series_key"], []).append(row)
         complete, platform_catalogs = {}, self.platform_catalogs(owner)
         for number, rows in shows.items():
             watched = {regular_episode(row) for row in rows}
@@ -81,7 +84,12 @@ class SeriesFootprints:
             # 某个平台的完整片库目录，或多个平台目录的并集，都可用跨平台已看事实核对。
             # 不能用「已看最大集号」推测总集数，也不将仅看完片库内容标成全剧完结。
             if local and any(units == watched for units in [*local, set().union(*local)]):
-                complete[number] = (rows, len({s for s, _ in watched}), len(watched), "platform")
+                complete[number] = (
+                    rows,
+                    len({s for s, _ in watched}),
+                    len(watched),
+                    "platform",
+                )
             catalog = catalogs.get(number)
             if not catalog:
                 continue
@@ -99,17 +107,23 @@ class SeriesFootprints:
                 for episode in range(1, season["episode_count"] + 1)
             }
             if expected and watched == expected:
-                complete[number] = (rows, len(seasons), len(expected), catalog["status"])
+                complete[number] = (
+                    rows,
+                    len(seasons),
+                    len(expected),
+                    catalog["status"],
+                )
         result, emitted = [], set()
         for row in records:
             number = row["media"].get("tmdb_id")
-            if number not in shows or not regular_episode(row):
+            key = number if row["matched"] else row.get("pending_series_key")
+            rows = shows.get(number) if row["matched"] else pending.get(key)
+            if not rows or not regular_episode(row):
                 result.append(row)
                 continue
-            if number in emitted:
+            if key in emitted:
                 continue
-            emitted.add(number)
-            rows = shows[number]
+            emitted.add(key)
             watched = {regular_episode(item) for item in rows}
             # 重看早期单集不使进度倒退；最高季集号仅作展示，不推测中间每集都看过。
             progress_season, progress_episode = max(watched)
@@ -122,6 +136,14 @@ class SeriesFootprints:
                 "season_number": None,
                 "episode_number": None,
                 "episode_title": None,
+                "poster_path": next(
+                    (
+                        item["media"]["poster_path"]
+                        for item in rows
+                        if item["media"].get("poster_path")
+                    ),
+                    None,
+                ),
             }
             result.append(
                 {
@@ -319,5 +341,25 @@ def register_series_footprints(app, store, user_for, archive):
                     row["media"].get("season_number") or 0,
                     row["media"].get("episode_number") or 0,
                 ),
+            )
+        }
+
+    @app.get("/api/watch/pending-series/{record_id}/records")
+    async def pending_series_records(request: Request, record_id: int):
+        """分组锚点必须属于本人当前可见足迹；不可用其他账号的记录枚举私人档案。"""
+        records = archive.records(user_for(request)["id"])
+        anchor = next((row for row in records if row["id"] == record_id), None)
+        if not anchor or anchor["matched"] or not regular_episode(anchor):
+            raise HTTPException(404, "本人可见足迹中没有这部待匹配剧集")
+        return {
+            "records": sorted(
+                (
+                    row
+                    for row in records
+                    if not row["matched"]
+                    and regular_episode(row)
+                    and row.get("pending_series_key") == anchor.get("pending_series_key")
+                ),
+                key=lambda row: regular_episode(row),
             )
         }

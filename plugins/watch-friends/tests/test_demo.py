@@ -105,7 +105,7 @@ async def test_default_demo_is_marked_in_directory_without_auto_adding_real_user
     async with instance(tmp_path) as (app, client, upstream):
         assert upstream.identity_tokens == [] and upstream.data_calls == []
         health = (await client.get("/health")).json()
-        assert health["version"] == "0.1.1" and health["demo_enabled"] is True
+        assert health["version"] == "0.1.2" and health["demo_enabled"] is True
         assert (await client.get("/api/info")).json()["demo_enabled"] is True
         own = await login(client)
         assert_default_private(own)

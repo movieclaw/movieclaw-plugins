@@ -534,6 +534,13 @@ def test_pending_footprint_search_verify_and_batch_match(tmp_path, profile_host)
         card = page.locator(".personal-film").first
         web.expect(card).to_contain_text("待匹配")
         web.expect(card.locator(".media-poster img")).to_have_count(0)
+        web.expect(page.locator("#personal-history-grid>.personal-film")).to_have_count(1)
+        web.expect(card).to_contain_text("累计已看 2 集")
+        web.expect(card).to_contain_text("第 2 集")
+        card.get_by_role("button", name="查看单集记录").click()
+        episodes = page.locator(".watch-dialog").last
+        web.expect(episodes.locator(".series-episode-grid>.personal-film")).to_have_count(2)
+        episodes.get_by_role("button", name="关闭", exact=True).click()
         card.get_by_role("button", name="校正匹配").click()
         match = page.locator(".watch-dialog").last
         match.get_by_role("button", name="搜索作品", exact=True).click()

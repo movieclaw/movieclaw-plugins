@@ -35,12 +35,12 @@ assert "movieclaw_packages" not in sys.modules
 assert "movieclaw_packages.watch_friends" not in sys.modules
 assert "movieclaw_friends" not in sys.modules
 manifest = tomllib.loads((plugin_root / "movieclaw-plugin.toml").read_text())
-assert manifest["plugin"]["version"] == "0.1.1"
+assert manifest["plugin"]["version"] == "0.1.2"
 assert manifest["plugin"]["runtime"] == "inline"
 permissions = ("members.list", "playback.history", "search.library")
 assert set(manifest["permissions"]["operations"]) == set(permissions)
 package = Installed(
-    id="watch-friends", version="0.1.1", title="映迹",
+    id="watch-friends", version="0.1.2", title="映迹",
     entry="movieclaw_friends", runtime="inline", operations=list(permissions),
 )
 connections = []
@@ -171,7 +171,7 @@ assert isinstance(first, Plugin)
 assert first.name == "watch-friends"
 assert first.permissions == permissions
 assert first.apply.__module__ == namespace + ".native"
-assert sys.modules[namespace].__version__ == "0.1.1"
+assert sys.modules[namespace].__version__ == "0.1.2"
 assert "movieclaw_packages" not in sys.modules
 assert "movieclaw_packages.watch_friends" not in sys.modules
 assert not any(name == "movieclaw_friends" or name.startswith("movieclaw_friends.")
@@ -185,14 +185,14 @@ assert second.apply is not first.apply
 assert sys.modules[namespace] is not first_module
 assert sys.modules[namespace + ".app"] is not first_app
 assert second.permissions == permissions
-assert sys.modules[namespace].__version__ == "0.1.1"
+assert sys.modules[namespace].__version__ == "0.1.2"
 asyncio.run(startup_and_release(second))
 assert connections == [private / "friends.sqlite3", private / "friends.sqlite3"]
 assert "movieclaw_packages" not in sys.modules
 assert "movieclaw_packages.watch_friends" not in sys.modules
 assert not any(name == "movieclaw_friends" or name.startswith("movieclaw_friends.")
                for name in sys.modules)
-print(json.dumps({"loaded": "watch-friends", "version": "0.1.1", "loads": 2,
+print(json.dumps({"loaded": "watch-friends", "version": "0.1.2", "loads": 2,
                   "zones": ["member", "public"], "private_connections": len(connections)}))
 """
 
@@ -215,7 +215,7 @@ def test_actual_host_inline_loading_startup_and_reload_in_clean_process(tmp_path
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout) == {
         "loaded": "watch-friends",
-        "version": "0.1.1",
+        "version": "0.1.2",
         "loads": 2,
         "zones": ["member", "public"],
         "private_connections": 2,

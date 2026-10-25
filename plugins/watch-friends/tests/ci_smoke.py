@@ -26,7 +26,7 @@ class PackageTests(unittest.TestCase):
     def test_manifest_identity_and_permissions(self):
         manifest = tomllib.loads((ROOT / "movieclaw-plugin.toml").read_text())
         self.assertEqual(manifest["plugin"]["id"], "watch-friends")
-        self.assertEqual(manifest["plugin"]["version"], "0.1.1")
+        self.assertEqual(manifest["plugin"]["version"], "0.1.2")
         self.assertEqual(manifest["plugin"]["runtime"], "inline")
         self.assertEqual(
             set(manifest["permissions"]["operations"]),

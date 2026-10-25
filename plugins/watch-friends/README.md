@@ -1,6 +1,6 @@
-# 映迹 · v0.1.1
+# 映迹 · v0.1.2
 
-映迹涵盖观看足迹、片单、推荐、三平台已看对齐与影友互动。当前版本为 `0.1.1`。安装标识 `watch-friends`、访问地址和私有存储位置保持不变，已有记录和连接无需迁移。
+映迹涵盖观看足迹、片单、推荐、三平台已看对齐与影友互动。当前版本为 `0.1.2`。安装标识 `watch-friends`、访问地址和私有存储位置保持不变，已有记录和连接无需迁移。
 
 MovieClaw 原生插件，安装包为 `.mcplugin`。由现有服务器加载，Web 入口 `/apps/watch-friends`，不新增容器、服务或端口，不修改主程序代码、数据库结构、媒体文件或宿主片单。只有本人预览确认手动同步，或单独明确开启后台同步后，才通过正式接口更新所选本人账号准确匹配的电影或单集状态。所有好友关系、同意记录及分享快照写入插件自己的私有目录。
 
@@ -123,13 +123,13 @@ Web 页面与宿主同源，使用打开页面者的身份运行；管理员打�
 
 ## 构建与安装
 
-当前正式发布候选版本为 `0.1.1`。先生成 Web 文件，再使用宿主 CLI 打包安装，不使用 Docker Compose：
+当前正式发布候选版本为 `0.1.2`。先生成 Web 文件，再使用宿主 CLI 打包安装，不使用 Docker Compose：
 
 ```sh
 python plugins/watch-friends/tools/build_web.py
 python plugins/watch-friends/tools/package_plugin.py
-mclaw app plugins packages upload --file plugins/watch-friends/dist/watch-friends-0.1.1.mcplugin
-mclaw app plugins packages approve watch-friends --version 0.1.1 \
+mclaw app plugins packages upload --file plugins/watch-friends/dist/watch-friends-0.1.2.mcplugin
+mclaw app plugins packages approve watch-friends --version 0.1.2 \
   --operations-json '["members.list","playback.history","search.library"]' --paths-json '[]' \
   --allow-inline --allow-web --web-members --web-nav --yes
 ```
@@ -159,6 +159,8 @@ python -m pytest plugins/watch-friends/tests
 只有可靠作品身份的记录参与跨来源去重与统计；这项操作不写入三平台已看状态，也不更新公开快照。
 
 观看足迹中的已匹配电视剧统一按作品合并，未看完也只显示一张卡片，标注最高已看季集号和实际累计已看集数。
+尚未匹配的正片单集按同一连接、原片名与年份折叠，仍标注待匹配、不计统计，不跨来源合并或推测完结；可展开单集记录后核对匹配。
+重新导入同一条目时，若作品和季集未变而本次暂缺元数据，会保留此前确认的作品身份和安全海报路径；来源明确提供不同身份时使用新数据。
 重看早期单集不会使最高进度倒退，跳集不补算未看集数。卡片按最近观看时间排序，可展开全部单集记录。
 全集完成标识仍需目录核验；本次仅改变展示，不修改来源事实、统计、分享范围或三平台已看状态。
 
@@ -218,11 +220,11 @@ python -m pytest plugins/watch-friends/tests
 
 ## 投稿与维护说明
 
-- 按官方仓库布局提交源码、`store.json` 与 `CHANGELOG.md`，当前发布候选版本为 `0.1.1`。不提交安装实例数据、连接地址、凭据或用户截图，不手工修改商店索引或创建发布标签。
+- 按官方仓库布局提交源码、`store.json` 与 `CHANGELOG.md`，当前发布候选版本为 `0.1.2`。不提交安装实例数据、连接地址、凭据或用户截图，不手工修改商店索引或创建发布标签。
 - 建议 MovieClaw **0.41.0 及以上**；本次提交按官方 CI 的固定 **0.42.0** 基线核对清单、契约和隔离加载，不表示所有旧版网页接口均已验收。原生网页安装须独立批准 `inline`、Web 成员访问与导航。
 - `inline` 在宿主进程内运行，拥有进程级权限。使用宿主的 `movieclaw_api.api.deps.require_login` 验证当前登录身份，存在对宿主 Python API 的兼容耦合；不能把清单只读操作当成沙箱隔离保证。只操作插件自己的 SQLite；宿主与外部状态写入通过经过本人授权的业务接口。运行依赖由宿主提供，不在启动时安装包。
 - 当前官方 CI（固定 v0.42.0）运行 `python -m unittest discover -s plugins/watch-friends/tests -t plugins/watch-friends -v`。`tests.load_tests` 加载 `ci_smoke.py` 与 `test_native_pairing_errors.py` 中不依赖 pytest/浏览器的核心回归，包含真实隔离入口的两次加载、路由登记与释放、图片白名单、授权默认关闭、端点约束和私有密钥存储。完整 pytest 和 Chromium 回归另按上节执行，不能以 CI 核心检查冒充完整浏览器验收。
-- 静态产物检查：`python plugins/watch-friends/tools/build_web.py --check`。投稿打包使用仓库统一工具：`python scripts/pack.py plugins/watch-friends --output /tmp/watch-friends-0.1.1.mcplugin`。
+- 静态产物检查：`python plugins/watch-friends/tools/build_web.py --check`。投稿打包使用仓库统一工具：`python scripts/pack.py plugins/watch-friends --output /tmp/watch-friends-0.1.2.mcplugin`。
 - 插件自有源码采用 **GPL-3.0-only**，完整文本见 `LICENSE`。随包 Lucide 图标遵循独立的 ISC 许可证，见 `web/lucide-LICENSE.txt`；电影元数据和图片不属于本插件授权。
 
 ## 品牌图标

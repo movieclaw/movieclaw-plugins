@@ -1,7 +1,7 @@
 [plugin]
 id = "watch-friends"
 title = "映迹"
-version = "0.1.1"
+version = "0.1.2"
 entry = "movieclaw_friends"
 runtime = "inline"
 sdk = "^1.0"

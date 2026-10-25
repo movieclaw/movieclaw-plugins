@@ -97,7 +97,7 @@ window.MovieFriendsProfile = (() => {
       if(!jobId&&!historyOnly)card.append(button("校正匹配",()=>matchRecord(record),"button-quiet"));
     }
     if (record.series_grouped || record.series_complete) card.append(button("查看单集记录", async () => {
-      const v=generation,s=bridge.sessionVersion(); const result=await bridge.api(`/watch/series/${record.media.tmdb_id}/records`); if(!active(v,s))return;
+      const v=generation,s=bridge.sessionVersion(); const result=await bridge.api(record.matched?`/watch/series/${record.media.tmdb_id}/records`:`/watch/pending-series/${record.id}/records`); if(!active(v,s))return;
       const view=dialog(`${record.media.title} · 单集观看记录`, "合并只影响足迹展示，每一集的原始记录与已看统计仍保留。");
       const grid=el("div","personal-history-grid series-episode-grid"); for(const row of result.records) grid.append(recordCard(row)); view.body.append(grid);
     }, "button-quiet"));

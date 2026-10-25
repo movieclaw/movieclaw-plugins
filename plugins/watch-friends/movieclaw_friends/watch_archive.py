@@ -23,6 +23,23 @@ def now():
     return datetime.now(UTC).isoformat()
 
 
+def preserve_verified_media(media, previous):
+    """同一来源条目暂缺元数据时保留已验证身份；作品或季集变化不能借用旧匹配。"""
+    identity = ("kind", "title", "year", "season_number", "episode_number")
+    if (
+        not previous
+        or not canonical(previous)
+        or any(media.get(key) != previous.get(key) for key in identity)
+    ):
+        return media
+    result = dict(media)
+    if not result.get("tmdb_id"):
+        result["tmdb_id"] = previous["tmdb_id"]
+    if canonical(result) == canonical(previous) and not result.get("poster_path"):
+        result["poster_path"] = safe_poster_path(previous.get("poster_path"))
+    return result
+
+
 def safe_avatar(value):
     """只接受有限大小的 JPEG 缩略图；不接受 URL、SVG 或携带凭据的图片地址。"""
     if (
@@ -167,6 +184,16 @@ class WatchArchive:
             key = row["canonical_key"] or (row["source_id"], row["external_id"])
             if key not in groups:
                 groups[key] = {**row, "sources": []}
+            elif not json.loads(groups[key]["media"]).get("poster_path"):
+                previous_poster = safe_poster_path(json.loads(row["media"]).get("poster_path"))
+                if previous_poster:
+                    groups[key]["media"] = json.dumps(
+                        {
+                            **json.loads(groups[key]["media"]),
+                            "poster_path": previous_poster,
+                        },
+                        ensure_ascii=False,
+                    )
             if row["platform"] not in groups[key]["sources"]:
                 groups[key]["sources"].append(row["platform"])
         policy = getattr(self.store, "display_policy", None)
@@ -182,6 +209,25 @@ class WatchArchive:
                 "watched_at": row["watched_at"],
                 "sources": row["sources"],
                 "matched": bool(row["canonical_key"]),
+                **(
+                    {
+                        "pending_series_key": hashlib.sha256(
+                            json.dumps(
+                                [
+                                    owner,
+                                    row["source_id"],
+                                    *[
+                                        json.loads(row["media"]).get(k)
+                                        for k in ("kind", "title", "year")
+                                    ],
+                                ],
+                                ensure_ascii=False,
+                            ).encode()
+                        ).hexdigest()
+                    }
+                    if private and not row["canonical_key"]
+                    else {}
+                ),
             }
             for row in groups.values()
             if allowed(json.loads(row["media"]))
@@ -310,10 +356,13 @@ class WatchArchive:
                 )
                 self.store.db.execute(
                     "UPDATE watch_preview SET canonical_key=?,media=? WHERE id=?",
-                    (canonical(media), json.dumps(media, ensure_ascii=False), row["id"]),
+                    (
+                        canonical(media),
+                        json.dumps(media, ensure_ascii=False),
+                        row["id"],
+                    ),
                 )
-            summary = self.preview_summary(self.job(job["id"], job["user_id"]))
-            # 逐字段比较实际写入值，已有来源条目不等于内容发生了更新。
+            # 提交时再核对最新事实，避免在途旧预览覆盖读取后确认的身份与海报。
             rows = self.store.all(
                 "SELECT p.*,f.id AS fact_id,f.canonical_key AS old_key,f.media AS old_media,"
                 "f.watched_at AS old_date,f.play_count AS old_count FROM watch_preview p "
@@ -323,6 +372,19 @@ class WatchArchive:
             )
             changes_by_id = []
             for row in rows:
+                media = preserve_verified_media(
+                    json.loads(row["media"]),
+                    json.loads(row["old_media"]) if row["old_media"] else None,
+                )
+                if media != json.loads(row["media"]):
+                    row.update(
+                        media=json.dumps(media, ensure_ascii=False),
+                        canonical_key=canonical(media),
+                    )
+                    self.store.db.execute(
+                        "UPDATE watch_preview SET canonical_key=?,media=? WHERE id=?",
+                        (row["canonical_key"], row["media"], row["id"]),
+                    )
                 change = "new" if row["fact_id"] is None else "updated"
                 if row["fact_id"] is not None and (
                     row["canonical_key"] == row["old_key"]
@@ -340,6 +402,7 @@ class WatchArchive:
                 "job_id=? GROUP BY change_kind",
                 (job["id"],),
             )
+            summary = self.preview_summary(self.job(job["id"], job["user_id"]))
             outcome = {
                 k: summary[k]
                 for k in ("total", "matched", "pending", "new_unique", "already_known")
@@ -373,7 +436,8 @@ class WatchArchive:
             )
             if job["source_id"]:
                 self.store.db.execute(
-                    "UPDATE watch_sources SET synced_at=? WHERE id=?", (now(), job["source_id"])
+                    "UPDATE watch_sources SET synced_at=? WHERE id=?",
+                    (now(), job["source_id"]),
                 )
             self.store.db.commit()
 
@@ -464,9 +528,20 @@ class WatchArchive:
                     self.store.display_policy.remember(user["id"], "movieclaw", records)
             self.check_job(job)
             with self.store.lock:
+                previous = {
+                    row["external_id"]: json.loads(row["media"])
+                    for row in self.store.all(
+                        "SELECT external_id,media FROM watch_facts WHERE user_id=? AND source_id=? "
+                        "AND canonical_key IS NOT NULL",
+                        (user["id"], job["source_id"] or "movieclaw"),
+                    )
+                }
                 for row in records:
                     media = sanitize_media(row["media"])
                     media.pop("media_item_id", None)
+                    media = preserve_verified_media(
+                        media, previous.get(str(row["external_id"])[:160])
+                    )
                     self.store.db.execute(
                         "INSERT OR REPLACE INTO watch_preview(job_id,external_id,canonical_key,"
                         "media,watched_at,play_count) VALUES(?,?,?,?,?,?)",
@@ -496,7 +571,8 @@ class WatchArchive:
         except (PeerError, UpstreamError, HTTPException) as exc:
             message = exc.detail if isinstance(exc, HTTPException) else str(exc)
             self.store.execute(
-                "UPDATE watch_jobs SET status='failed',error=? WHERE id=?", (message[:300], job_id)
+                "UPDATE watch_jobs SET status='failed',error=? WHERE id=?",
+                (message[:300], job_id),
             )
         except Exception:
             self.store.execute(
