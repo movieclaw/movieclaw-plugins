@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-25T10:56:59Z",
+  "generated_at": "2026-10-25T10:59:47Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -560,14 +560,16 @@
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=platform-discovery",
       "downloads": 17,
-      "latest": "0.11.1",
-      "latest_stable": "0.11.1",
+      "latest": "0.1.0",
+      "latest_stable": "0.1.0",
       "versions": [
         {
           "version": "0.11.1",
           "prerelease": false,
           "released_at": "2026-10-24T08:56:27Z",
-          "yanked": null,
+          "yanked": {
+            "reason": "版本编号统一为 0.1.0（实现与 0.11.1 相同），请改装 0.1.0"
+          },
           "notes": "以「岛屿、放映光束、海平线」重新设计映屿图标，提供导航单色版与商店彩色版；独立页面品牌标识与浏览器页签图标同步更新。保持单入口、权限、账号偏好与服务行为不变。\n",
           "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/platform-discovery-v0.11.1",
           "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/platform-discovery-v0.11.1/plugins/platform-discovery",
@@ -612,7 +614,9 @@
           "version": "0.11.0",
           "prerelease": false,
           "released_at": "2026-10-23T03:32:01Z",
-          "yanked": null,
+          "yanked": {
+            "reason": "版本编号统一为 0.1.0（实现与 0.11.1 相同），请改装 0.1.0"
+          },
           "notes": "平台放映厅更名为映屿：主程序只声明一个映屿入口，四个板块统一在插件页面内切换，桌面恢复完整页内导航、手机保留紧凑切换条。内部 ID、路由、账号偏好与缓存目录不变，兼容原有板块收藏链接。\n",
           "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/platform-discovery-v0.11.0",
           "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/platform-discovery-v0.11.0/plugins/platform-discovery",
