@@ -46,9 +46,7 @@ p { margin-bottom: 14px; }
 .site-header { padding: 22px 36px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .brand { display: flex; gap: 11px; align-items: center; font-size: 19px; font-weight: 650; letter-spacing: -.03em; }
 .brand small { display: block; font-size: 8px; color: var(--text-faint); letter-spacing: .14em; margin-top: 2px; font-weight: 500; }
-.brand-mark { display: flex; gap: 3px; width: 32px; transform: rotate(-12deg); }
-.brand-mark span { display: block; width: 13px; height: 23px; border: 1.8px solid var(--accent); border-radius: 7px; }
-.brand-mark span+span { transform: translateY(-4px); border-color: var(--accent-2); }
+.brand-mark { display: block; width: 36px; height: 36px; flex: none; object-fit: contain; }
 .header-actions { display: flex; gap: 18px; align-items: center; }
 .service-badge { color: var(--text-faint); font-size: 11px; }
 .button { min-height: 39px; border: 1px solid transparent; border-radius: 10px; padding: 9px 15px; display: inline-flex; gap: 7px; align-items: center; justify-content: center; font-size: 12px; font-weight: 550; line-height: 1.4; white-space: nowrap; transition: background .18s,border-color .18s,transform .18s; }

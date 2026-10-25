@@ -1130,9 +1130,9 @@
       "license": "GPL-3.0-only",
       "origin": "official",
       "icon": {
-        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/watch-friends-icon-b21a535dccc013d7.svg",
-        "sha256": "b21a535dccc013d7822b4981a7d884532af98233ea4e8712b202219c57da0e97",
-        "size": 290
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/watch-friends-icon-13126a1a8bcb625e.svg",
+        "sha256": "13126a1a8bcb625ef980454bc54e729b3f7096cce314cdd1f57bd959fc580a1a",
+        "size": 1146
       },
       "screenshots": [],
       "deprecated": null,

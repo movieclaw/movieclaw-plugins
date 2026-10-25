@@ -32,6 +32,11 @@ FILES = (
     "display-policy.js",
     "manifest.webmanifest",
     "icon.svg",
+    "icon-mask.svg",
+    "icon-192.png",
+    "icon-512.png",
+    "icon-maskable-512.png",
+    "apple-touch-icon.png",
     "lucide-LICENSE.txt",
 )
 
