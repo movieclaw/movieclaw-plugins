@@ -48,7 +48,7 @@ class FakeContext:
 class CombinedPlugin(unittest.IsolatedAsyncioTestCase):
     async def test_single_entry_starts_both_features_without_model_call(self):
         manifest = tomllib.loads((Path(__file__).parents[1] / "movieclaw-plugin.toml").read_text())
-        self.assertEqual(manifest["plugin"]["version"], "0.2.0")
+        self.assertEqual(manifest["plugin"]["version"], "0.1.2")
         self.assertEqual(set(manifest["permissions"]["operations"]), set(apply.permissions))
         with tempfile.TemporaryDirectory() as folder:
             ctx = FakeContext(folder)

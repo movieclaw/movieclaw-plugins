@@ -2,7 +2,7 @@
 
 <img src="icon.svg" width="80" height="80" alt="寻映图标：奶油金放映光束、搜索镜头与薄荷绿弧线">
 
-配合 Apple「找电影」快捷指令，用语音或文字同时搜索电影和电视剧，核对海报、标准片名和年份后，再观看或订阅。候选明确标注电影或剧集；剧集订阅需选择季数。插件展示名为**寻映**，内部标识 `movie-voice`，版本 `0.1.1`；快捷指令继续叫**找电影**。
+配合 Apple「找电影」快捷指令，用语音或文字同时搜索电影和电视剧，核对海报、标准片名和年份后，再观看或订阅。候选明确标注电影或剧集；剧集订阅需选择季数。插件展示名为**寻映**，内部标识 `movie-voice`，版本 `0.1.2`；快捷指令继续叫**找电影**。
 
 ## 图标
 
@@ -20,7 +20,7 @@
 
 ## 安装与配置
 
-1. 在 MovieClaw“设置 → 插件”安装寻映，或上传 Release 中的 `movie-voice-0.1.1.mcplugin`，核对申请的操作、联网和网页权限后批准。
+1. 在 MovieClaw“设置 → 插件”安装寻映，或上传 Release 中的 `movie-voice-0.1.2.mcplugin`，核对申请的操作、联网和网页权限后批准。
 2. 打开侧栏**寻映**，或访问自己服务器的 `/apps/movie-voice`。手机须能访问这台服务器；建议先配置有效的 HTTPS 外部地址。元数据来源、订阅线路、下载器和默认规则由服务器管理员提前配置。
 3. 点击下载按钮旁的 **iCloud 一键添加**，进入 Apple 页面并确认添加；也可点击**下载分享版快捷指令**，在 iPhone / iPad 的“文件”App 或 Mac 中打开 `.shortcut` 添加。然后在寻映页面点击**生成 SEARCH_URL → 复制链接**。
 4. 编辑快捷指令顶部的 SEARCH_URL“文本”框，整段替换占位文字后保存；可将“找电影·分享版”改名为“找电影”。首次运行按系统提示允许连接自己的服务器。
@@ -83,9 +83,9 @@ python /path/to/MovieClaw/src/movieclaw_agent/builtin-skills/movieclaw-plugin-de
 python -m unittest discover -s plugins/movie-voice/tests -t plugins/movie-voice -v
 node --test plugins/movie-voice/tests/core.test.mjs
 python scripts/generate_index.py --lint
-python scripts/pack.py plugins/movie-voice --output /tmp/movie-voice-0.1.1.mcplugin
+python scripts/pack.py plugins/movie-voice --output /tmp/movie-voice-0.1.2.mcplugin
 ```
 
-macOS 上再按 `tools/README.md` 验签公开文件。更新日志见 [`CHANGELOG.md`](CHANGELOG.md)。合并后由仓库流程对 `movie-voice-v0.1.1` tag 发布，不手工编造索引或包哈希，不移动已发布 tag。
+macOS 上再按 `tools/README.md` 验签公开文件。更新日志见 [`CHANGELOG.md`](CHANGELOG.md)。合并后由仓库流程对 `movie-voice-v0.1.2` tag 发布，不手工编造索引或包哈希，不移动已发布 tag。
 
 许可证暂按仓库允许的模板填写“见仓库许可证”；仓库尚未选定许可证，详见根 README 的许可证说明，不据此声称已获得开放再分发许可。

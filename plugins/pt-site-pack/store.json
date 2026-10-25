@@ -7,5 +7,8 @@
   "icon": "icon.svg",
   "screenshots": [],
   "summary": "管理本站 PT 目录、自助适配和采集检查，汇总站点数据与任务，支持隐私分享及自动 P 龄。",
-  "category": "sites"
+  "category": "sites",
+  "yanked": {
+    "0.2.0": "发布编号统一为 0.1.2（功能与 0.2.0 相同）；已安装 0.2.0 请手动切换，保留原配置和数据"
+  }
 }

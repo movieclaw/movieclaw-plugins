@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-25T12:08:40Z",
+  "generated_at": "2026-10-25T12:10:15Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -778,14 +778,16 @@
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-site-pack",
       "downloads": 10,
-      "latest": "0.2.0",
-      "latest_stable": "0.2.0",
+      "latest": "0.1.0",
+      "latest_stable": "0.1.0",
       "versions": [
         {
           "version": "0.2.0",
           "prerelease": false,
           "released_at": "2026-10-25T11:57:22Z",
-          "yanked": null,
+          "yanked": {
+            "reason": "发布编号统一为 0.1.2（功能与 0.2.0 相同）；已安装 0.2.0 请手动切换，保留原配置和数据"
+          },
           "notes": "- 新增账号维护页面：一键批量签到、模拟访问或两项一起执行，逐站反馈今日签到和访问结果、最近成功时间与执行历史。\n- 支持补签今日、重试及一键生成每日随机执行计划；计划和结果持久保存，重启恢复当天安排，自动维护默认关闭。\n- 复用原生站点认证、出口和限流，支持常见 NexusPHP HTML 签到；验证码、403、429、登录失效与未知结果分别提示，不自动解验证码或消费补签积分。\n- 签到和访问独立冷却、账号身份隔离、写请求意图持久化，避免重复提交；兼容已有维护记录和自动计划。\n- 内部标识仍为 `pt-site-pack`，原站点账号、自定义适配、采集配置及插件数据完整沿用；从 0.1.0 直接升级，无需卸载或清空数据。\n",
           "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/pt-site-pack-v0.2.0",
           "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/pt-site-pack-v0.2.0/plugins/pt-site-pack",
