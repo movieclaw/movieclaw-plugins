@@ -298,18 +298,20 @@
   }
   function selectPage(name, changeAddress=true, statistics=false) {
     if (!statistics) window.PTStatistics?.leave();
-    for (const [page,pane,tab] of [["sites","sites-pane","tab-sites"],["add","assistant-pane","tab-assistant"],["overview","overview-pane","tab-overview"]]) {
+    for (const [page,pane,tab] of [["sites","sites-pane","tab-sites"],["add","assistant-pane","tab-assistant"],["overview","overview-pane","tab-overview"],["maintenance","maintenance-pane","tab-maintenance"]]) {
       $(pane).hidden=name!==page; $(tab).setAttribute("aria-pressed",String(name===page));
     }
     if(changeAddress) history.pushState(null,"","#"+name);
     if(name==="add") { $("site-add-flow").hidden=false; $("statistics-assistant").hidden=true; loadAdd(); }
     if(name==="overview") window.PTOverview?.open();
+    if(name==="maintenance") window.PTMaintenance?.open();
   }
   function selectPane(adding, changeAddress=true) { selectPage(adding ? "add":"sites",changeAddress); }
-  function pageFromHash() { return location.hash==="#overview" ? "overview" : ["#assistant","#add"].includes(location.hash) ? "add":"sites"; }
+  function pageFromHash() { return location.hash==="#maintenance" ? "maintenance" : location.hash==="#overview" ? "overview" : ["#assistant","#add"].includes(location.hash) ? "add":"sites"; }
   window.PTPanel={showStatistics:()=>{selectPage("add",true,true);$("site-add-flow").hidden=true;$("statistics-assistant").hidden=false;},overview:()=>selectPage("overview")};
   $("tab-sites").addEventListener("click",()=>selectPage("sites"));
   $("tab-assistant").addEventListener("click",()=>selectPage("add"));
+  $("tab-maintenance").addEventListener("click",()=>selectPage("maintenance"));
   $("tab-overview").addEventListener("click",()=>selectPage("overview"));
   $("add-site").addEventListener("click",()=>selectPage("add"));
   window.addEventListener("popstate",()=>selectPage(pageFromHash(),false));
@@ -352,11 +354,12 @@
     try { const result=await api("/workspace/validate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({yaml:$("custom-yaml").value})}); download(JSON.stringify(result.config,null,2),result.config.site_id+".yaml"); }
     catch(error) { notice(error.message,"error"); }
   });
-  $("refresh").addEventListener("click",async()=>{if(!$("overview-pane").hidden) await window.PTOverview?.refresh();else if($("assistant-pane").hidden) await load(true);else {await loadAdd();await loadAssistant();}});
+  $("refresh").addEventListener("click",async()=>{if(!$("maintenance-pane").hidden) await window.PTMaintenance?.refresh();else if(!$("overview-pane").hidden) await window.PTOverview?.refresh();else if($("assistant-pane").hidden) await load(true);else {await loadAdd();await loadAssistant();}});
   for(const id of ["search","source","state"]) $(id).addEventListener(id==="search" ? "input":"change",render);
   function refreshVisible() {
     if(document.hidden) return;
-    if(!$("overview-pane").hidden) window.PTOverview?.poll();
+    if(!$("maintenance-pane").hidden) window.PTMaintenance?.poll();
+    else if(!$("overview-pane").hidden) window.PTOverview?.poll();
     else if($("assistant-pane").hidden) load();
     else if(addMode==="ai") loadAssistant();
   }

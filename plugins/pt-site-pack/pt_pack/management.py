@@ -199,6 +199,21 @@ def management_router(ctx, officials, pack_sites, registrations, workspace=None)
     async def insights_script():
         return Response(ASSETS.joinpath("insights.js").read_text(), media_type="application/javascript", headers=SECURITY_HEADERS)
 
+    @router.get('/maintenance.js', operation_id='plugins.pt-site-pack.maintenance-script', openapi_extra={'x-cli-hidden': True})
+    async def maintenance_script():
+        return Response(ASSETS.joinpath('maintenance.js').read_text(), media_type='application/javascript', headers=SECURITY_HEADERS)
+
+    if workspace:
+        from .maintenance import Maintenance, maintenance_router
+        async def maintenance_snapshot():
+            result = await snapshot()
+            accounts = {a['site_id']: a for a in await (await ops()).call('site.list', {})}
+            for row in result['sites']:
+                row['_account'] = accounts.get(row['site_id'], {})
+            return result
+        workspace.maintenance = Maintenance(ctx, workspace, maintenance_snapshot)
+        router.routes.extend(maintenance_router(workspace.maintenance).routes)
+
     @router.get("/icons/{site_id}", operation_id="plugins.pt-site-pack.icon", summary="读取本地缓存的站点图标", openapi_extra={"x-cli-hidden": True})
     async def icon(site_id: str):
         path = icon_asset(site_id)

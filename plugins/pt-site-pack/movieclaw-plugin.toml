@@ -1,8 +1,8 @@
 [plugin]
 id = "pt-site-pack"
 title = "PT岛"
-# 按用户要求固定版本，不自动递增。
-version = "0.1.0"
+# 账号维护新增功能以独立版本发布，不覆盖旧安装包。
+version = "0.2.0"
 entry = "pt_pack"
 runtime = "inline"
 sdk = "^1.0"

@@ -59,10 +59,11 @@ async def apply(ctx):
 
     @router.get("/status", operation_id="plugins.pt-site-pack.status")
     async def status():
-        return {"sites": registrations, "version": "0.1.0", "management_page": "/apps/pt-site-pack",
+        return {"sites": registrations, "version": "0.2.0", "management_page": "/apps/pt-site-pack",
                 "authentication": "账号和 Cookie 由本服务器原生站点管理保存", "custom_count": len(workspace.state["custom"])}
 
     router.routes.extend(management_router(ctx, officials, pack_sites, registrations, workspace).routes)
+    await workspace.maintenance.start()
     router.routes.extend(workspace_router(workspace).routes)
     router.routes.extend((await assistant_router(ctx, workspace)).routes)
     ctx.use(PLUGIN_ROUTES).mount(ctx, router)
