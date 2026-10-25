@@ -1,6 +1,7 @@
 """仅依赖宿主运行环境的投稿 CI；不访问互联网或任何真实账号。"""
 
 import json
+from html.parser import HTMLParser
 import tempfile
 import tomllib
 import unittest
@@ -25,7 +26,7 @@ class PackageTests(unittest.TestCase):
     def test_manifest_identity_and_permissions(self):
         manifest = tomllib.loads((ROOT / "movieclaw-plugin.toml").read_text())
         self.assertEqual(manifest["plugin"]["id"], "watch-friends")
-        self.assertEqual(manifest["plugin"]["version"], "0.1.0")
+        self.assertEqual(manifest["plugin"]["version"], "0.1.1")
         self.assertEqual(manifest["plugin"]["runtime"], "inline")
         self.assertEqual(
             set(manifest["permissions"]["operations"]),
@@ -42,6 +43,22 @@ class PackageTests(unittest.TestCase):
                         path.read_bytes(),
                         (source / path.relative_to(ROOT / "web")).read_bytes(),
                     )
+
+    def test_brand_and_theme_assets_survive_integration(self):
+        # 合并图标与主题修复时，入口必须同时保留品牌资源和首屏主题初始化。
+        source = ROOT / "movieclaw_friends" / "static"
+        tags = []
+        parser = HTMLParser()
+        parser.handle_starttag = lambda tag, attrs: tags.append((tag, dict(attrs)))
+        parser.feed((source / "index.html").read_text())
+        assets = [attrs.get("href") or attrs.get("src") for tag, attrs in tags
+                  if tag in {"link", "script"}]
+        for name in ("theme.js", "style.css", "manifest.webmanifest", "icon.svg",
+                     "icon-192.png", "apple-touch-icon.png", "icon-mask.svg"):
+            with self.subTest(asset=name):
+                self.assertIn(name, assets)
+                self.assertTrue((source / name).is_file())
+        self.assertLess(assets.index("theme.js"), assets.index("style.css"))
 
     def test_store_metadata(self):
         metadata = json.loads((ROOT / "store.json").read_text())

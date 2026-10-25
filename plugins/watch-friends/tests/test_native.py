@@ -168,7 +168,7 @@ async def test_native_mount_uses_host_login_and_has_no_separate_auth_endpoints(n
     manifest = tomllib.loads((PLUGIN_ROOT / "movieclaw-plugin.toml").read_text())
     assert manifest["plugin"]["runtime"] == "inline"
     assert import_module(manifest["plugin"]["entry"]).apply is apply
-    assert manifest["plugin"]["version"] == "0.1.0"
+    assert manifest["plugin"]["version"] == "0.1.1"
     assert manifest["permissions"]["operations"] == [
         "members.list",
         "playback.history",

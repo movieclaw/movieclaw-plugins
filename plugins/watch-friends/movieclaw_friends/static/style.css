@@ -1,28 +1,69 @@
 /* 原生页面沿用宿主银玻璃语义色；海报、人物与片单拥有独立层级，不依赖外部样式库。 */
 :root {
   color-scheme: dark;
-  --bg: var(--mc-bg, #0a0b10);
-  --surface-sidebar: var(--mc-surface-sidebar, rgba(20,22,30,.65));
-  --surface-main: var(--mc-surface-main, rgba(13,15,21,.54));
-  --surface-raised: var(--mc-surface-raised, rgba(30,33,43,.74));
-  --surface-inset: var(--mc-surface-inset, rgba(255,255,255,.05));
-  --text: var(--mc-text, #f3f5f9);
-  --text-muted: var(--mc-text-muted, rgba(243,245,249,.62));
-  --text-faint: var(--mc-text-faint, rgba(243,245,249,.36));
-  --line: var(--mc-line, rgba(255,255,255,.08));
-  --line-strong: var(--mc-line-strong, rgba(255,255,255,.15));
-  --accent: #c5d5e7;
-  --accent-strong: #e2ebf6;
-  --accent-2: #a5bbd5;
-  --accent-soft: rgba(148,177,212,.13);
-  --accent-ring: rgba(182,208,240,.6);
+  --fallback-bg: #0a0b10;
+  --fallback-sidebar: rgba(20,22,30,.65);
+  --fallback-main: rgba(13,15,21,.54);
+  --fallback-raised: #20232b;
+  --fallback-inset: rgba(255,255,255,.05);
+  --fallback-text: #f3f5f9;
+  --fallback-muted: #abb2bf;
+  --fallback-faint: #929cab;
+  --fallback-line: rgba(255,255,255,.08);
+  --fallback-line-strong: rgba(255,255,255,.18);
+  --fallback-accent: #c5d5e7;
+  --fallback-accent-strong: #e2ebf6;
+  --fallback-accent-2: #a5bbd5;
+  --fallback-accent-soft: rgba(148,177,212,.13);
+  --fallback-glass: rgba(255,255,255,.035);
+  --bg: var(--mc-bg, var(--fallback-bg));
+  --surface-sidebar: var(--mc-surface-sidebar, var(--fallback-sidebar));
+  --surface-main: var(--mc-surface-main, var(--fallback-main));
+  --surface-raised: var(--mc-surface-raised, var(--fallback-raised));
+  --surface-inset: var(--mc-surface-inset, var(--fallback-inset));
+  --text: var(--mc-text, var(--fallback-text));
+  --text-muted: var(--mc-text-muted, var(--fallback-muted));
+  --text-faint: var(--mc-text-faint, var(--fallback-faint));
+  --line: var(--mc-line, var(--fallback-line));
+  --line-strong: var(--mc-line-strong, var(--fallback-line-strong));
+  --accent: var(--mc-accent, var(--fallback-accent));
+  --accent-strong: var(--mc-accent-strong, var(--fallback-accent-strong));
+  --accent-2: var(--fallback-accent-2);
+  --accent-soft: var(--mc-accent-soft, var(--fallback-accent-soft));
+  --accent-ring: var(--accent-2);
+  --on-accent: #151a23;
   --ok: var(--mc-ok, #5fd39a);
   --danger: var(--mc-danger, #f17e83);
-  --glass: rgba(255,255,255,.035);
+  --warn: var(--mc-warn, #c9bfa2);
+  --glass: var(--mc-glass-fill, var(--fallback-glass));
   --shadow: 0 12px 36px #00000016,inset 0 1px 0 #ffffff04;
   font-family: var(--mc-font, Inter,ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif);
   font-synthesis: none;
 }
+/* 宿主缺少某个导出变量时，使用同一套浅色回退，不能混入暗色玻璃和白字。 */
+:root[data-mc-color-scheme=light] {
+  --fallback-bg: #fafafa;
+  --fallback-sidebar: rgba(236,239,243,.9);
+  --fallback-main: rgba(247,248,250,.9);
+  --fallback-raised: #fff;
+  --fallback-inset: rgba(17,24,39,.05);
+  --fallback-text: #151a23;
+  --fallback-muted: #4b5563;
+  --fallback-faint: #596474;
+  --fallback-line: rgba(17,24,39,.12);
+  --fallback-line-strong: rgba(17,24,39,.24);
+  --fallback-accent: #40566f;
+  --fallback-accent-strong: #304157;
+  --fallback-accent-2: #4f657e;
+  --fallback-accent-soft: rgba(64,86,111,.1);
+  --fallback-glass: rgba(17,24,39,.035);
+  --on-accent: #fff;
+  --ok: var(--mc-ok, #17643f);
+  --danger: var(--mc-danger, #b42332);
+  --warn: var(--mc-warn, #806100);
+}
+/* 正常嵌入保持透明；独立页面及旧宿主需要明确底色，避免浏览器垫出白色画布。 */
+html:not([data-mc-embedded=true]),html[data-mc-opaque-canvas] { background: var(--bg); }
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--text); background: transparent; font-size: 14px; line-height: 1.55; min-height: 100vh; -webkit-font-smoothing: antialiased; }
 body:has(dialog[open]) { overflow: hidden; }
@@ -50,7 +91,7 @@ p { margin-bottom: 14px; }
 .header-actions { display: flex; gap: 18px; align-items: center; }
 .service-badge { color: var(--text-faint); font-size: 11px; }
 .button { min-height: 39px; border: 1px solid transparent; border-radius: 10px; padding: 9px 15px; display: inline-flex; gap: 7px; align-items: center; justify-content: center; font-size: 12px; font-weight: 550; line-height: 1.4; white-space: nowrap; transition: background .18s,border-color .18s,transform .18s; }
-.button-primary { color: #151a23; background: var(--accent); box-shadow: inset 0 1px 0 #ffffff30; }
+.button-primary { color: var(--on-accent); background: var(--accent); box-shadow: inset 0 1px 0 #ffffff30; }
 .button-primary:hover:not(:disabled) { background: var(--accent-strong); transform: translateY(-1px); }
 .button-outline { color: var(--text); background: var(--glass); border-color: var(--line-strong); }
 .button-outline:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-2); }

@@ -1,7 +1,7 @@
 /* 消费宿主注入的 data-mc-theme；Netflix 的中性色、小圆角与银玻璃回退分别保留。
    不跟随品牌红铺满操作按钮；主操作按宿主规范使用白底黑字。 */
 :root{--ui-radius-control:10px;--ui-radius-card:12px;--ui-radius-dialog:16px;--ui-modal-bg:var(--surface-raised);--ui-modal-padding:24px}
-:root[data-mc-theme=netflix]{--bg:#000;--surface-main:#141414;--surface-sidebar:#141414;--ui-radius-control:4px;--ui-radius-card:4px;--ui-radius-dialog:6px;--ui-modal-bg:var(--mc-surface-raised,#181818);--shadow:none;--glass:var(--mc-glass-fill,#ffffff0f)}
+:root[data-mc-theme=netflix]{--bg:var(--mc-bg,#000);--surface-main:var(--mc-surface-main,#141414);--surface-sidebar:var(--mc-surface-sidebar,#141414);--ui-radius-control:4px;--ui-radius-card:4px;--ui-radius-dialog:6px;--ui-modal-bg:var(--mc-surface-raised,#181818);--shadow:none;--glass:var(--mc-glass-fill,#ffffff0f)}
 .button{border-radius:var(--ui-radius-control);transition:background .15s,border-color .15s,color .15s}
 .button-primary:hover:not(:disabled){transform:none}
 .button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent-ring);outline-offset:2px}

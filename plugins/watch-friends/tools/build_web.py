@@ -9,6 +9,7 @@ TARGET = ROOT / "web"
 FILES = (
     "index.html",
     "app.js",
+    "theme.js",
     "style.css",
     "feed.js",
     "artwork.js",
