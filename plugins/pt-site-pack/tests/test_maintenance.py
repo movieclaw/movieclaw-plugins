@@ -119,6 +119,41 @@ class Execution(unittest.IsolatedAsyncioTestCase):
         self.site=FakeSite([(200,LOGIN),(200,SIGNED)]);await self.service.run('fixture')
         self.account['profile']['username']='different-account'
         self.assertEqual((await self.service.view())['sites'][0]['status'],'unknown')
+    async def test_replaced_account_uses_its_own_daily_schedule(self):
+        await self.service.configure(self.config())
+        self.now=self.now.replace(hour=15)
+        self.site=FakeSite([(200,LOGIN),(200,SIGNED)])
+        await self.service.tick()
+        self.account['profile']['username']='replacement-account'
+        row=(await self.service.view())['sites'][0]
+        self.assertEqual(row['status'],'unknown')
+        self.assertEqual(datetime.fromisoformat(row['next_at']).date(),self.service.local().date())
+        self.site=FakeSite([(200,LOGIN),(200,SIGNED)])
+        await self.service.tick()
+        self.assertEqual(len(self.site.calls),2)
+        self.assertEqual((await self.service.view())['sites'][0]['status'],'signed')
+
+    async def test_session_refresh_does_not_repeat_automatic_attendance(self):
+        await self.service.configure(self.config())
+        self.now=self.now.replace(hour=15)
+        self.site=FakeSite([(200,LOGIN),(200,SIGNED)])
+        await self.service.tick()
+        self.account['updated_at']='routine-verification-or-cookie-refresh'
+        await self.service.tick()
+        self.assertEqual(len(self.site.calls),2)
+        row=(await self.service.view())['sites'][0]
+        self.assertEqual(datetime.fromisoformat(row['next_at']).date(),self.service.local().date()+timedelta(days=1))
+
+    async def test_legacy_record_keeps_automatic_daily_guard_after_session_refresh(self):
+        await self.service.configure(self.config())
+        self.now=self.now.replace(hour=15)
+        self.site=FakeSite([(200,LOGIN),(200,SIGNED)])
+        await self.service.tick()
+        self.service.state['records']['fixture'].pop('owner')
+        self.account['updated_at']='refreshed-legacy-session'
+        await self.service.tick()
+        self.assertEqual(len(self.site.calls),2)
+
     async def test_manual_visit_does_not_cancel_later_auto_sign(self):
         self.site=FakeSite([(200,LOGIN)])
         await self.service.run('fixture','visit')

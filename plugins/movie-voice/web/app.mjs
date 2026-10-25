@@ -88,6 +88,8 @@ async function showDetail(row) {
       if(isTV && !selected_seasons.length)throw new Error('请至少选择一季，再确认订阅');
       // 订阅前再查库存，避免等待确认期间已入库后重复订阅。
       const latest=await api('/discover/titles/'+encodeURIComponent(row.title_ref));
+      // 用户关闭或切换详情后，等待中的核对不能继续发起订阅写入。
+      if(version!==detailVersion)return;
       if(latest.title?.title_ref!==row.title_ref)throw new Error('影片身份未能核实');
       if(latest.title.media_type!==row.media_type)throw new Error('影片类型发生变化，请重新搜索');
       if(latest.title?.library_status?.file_count>0 && latest.library_links?.[0]) {

@@ -187,6 +187,13 @@ class Maintenance:
                 rec.pop(key,None)
         return rec
 
+    def schedule_record(self, sid, account):
+        # 自动执行按账号保留当日防重；宿主重验和 Cookie 更新都会改变 updated_at，
+        # 不能因此重放签到。没有 owner 的旧记录也先保留防重，次日自然恢复计划。
+        rec=self.state['records'].get(sid,{})
+        if rec.get('owner') and rec['owner']!=owner_identity(account):return {}
+        return rec
+
     def slots(self, day):
         ids=sorted(sid for sid,v in self.state['sites'].items() if v.get('enabled'))
         start,end=minute(self.state['start']),minute(self.state['end'])
@@ -195,14 +202,14 @@ class Maintenance:
         values=rng.sample(range(start,end+1),len(ids))
         return dict(zip(ids,values))
 
-    def next_time(self, sid, now=None):
+    def next_time(self, sid, now=None, record=None):
         now=self.local(now);cfg=self.state['sites'].get(sid,{})
         if not cfg.get('enabled'): return None
         for offset in range(2):
             day=(now+timedelta(days=offset)).date();slot=self.slots(day).get(sid)
             if slot is None: return None
             dt=datetime.combine(day,datetime.min.time(),tzinfo=now.tzinfo)+timedelta(minutes=slot)
-            rec=self.state['records'].get(sid,{})
+            rec=self.state['records'].get(sid,{}) if record is None else record
             if offset==0 and (rec.get('attempt_day')==day.isoformat() or (rec.get('signed_day')==day.isoformat() and cfg['action']=='sign')): continue
             if dt>=now:return dt.isoformat()
             # An offline server catches up once within the same site's calendar day.
@@ -225,7 +232,7 @@ class Maintenance:
                 'message':rec.get('message',''),'checked_at':rec.get('checked_at'),'signed_at':rec.get('signed_at') if rec.get('signed_day')==today else None,
                 'last_signed_at':rec.get('signed_at'),'last_visited_at':rec.get('visited_at'),
                 'visit_method':rec.get('visit_method'),'operations':rec.get('operations',{}),
-                'next_at':self.next_time(sid),'today_time':self.slots(self.local().date()).get(sid),
+                'next_at':self.next_time(sid,record=self.schedule_record(sid,site.get('_account',{}))),'today_time':self.slots(self.local().date()).get(sid),
                 'history':rec.get('history',[])})
         return {'revision':self.state['revision'],'timezone':self.state['timezone'],'start':self.state['start'],'end':self.state['end'],'sites':rows,'today':today,'batch':copy.deepcopy(self.batch)}
 
@@ -425,8 +432,9 @@ class Maintenance:
         now=self.local();day=now.date().isoformat();slots=self.slots(now.date())
         snap=await self.snapshot();known={s['site_id']:s for s in snap['sites']}
         for sid,slot in sorted(slots.items(),key=lambda x:x[1]):
-            rec=self.state['records'].get(sid,{})
             if sid not in known or not known[sid]['usable'] or sid in self.busy:continue
+            # 自动计划与页面使用同一账号的有效记录，不能继承旧账号今日已执行的标记。
+            rec=self.schedule_record(sid,known[sid].get('_account',{}))
             if rec.get('attempt_day')==day:continue
             if now.hour*60+now.minute>=slot:await self.run(sid,self.state['sites'][sid]['action'],True)
 

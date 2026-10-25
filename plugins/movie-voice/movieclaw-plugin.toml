@@ -2,7 +2,7 @@
 id = "movie-voice"
 title = "寻映"
 # 发布新图标使用独立版本，保留已发布的标签与安装包。
-version = "0.1.2"
+version = "0.2.1"
 entry = "movie_voice"
 runtime = "process"
 sdk = "^1.0"

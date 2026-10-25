@@ -4,7 +4,7 @@
 
 属于你的电影小岛。
 
-MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.1.0**，兼容独立入口，并为 **MovieClaw Server 0.41.0** 提供正式原生菜单适配。完整操作见 [使用教程](docs/USER_GUIDE.md)。
+MovieClaw 的海报发现与媒体库浏览插件。提供按账号同步的推荐海报墙、库存录像厅、平台片单和地区剧集探索；无需修改主程序。当前版本 **0.2.1**，兼容独立入口，并为 **MovieClaw Server 0.41.0** 提供正式原生菜单适配。完整操作见 [使用教程](docs/USER_GUIDE.md)。
 
 Yingyu (formerly Platform Discovery) adds an account-scoped recommendation wall, a library theater, platform feeds and regional TV discovery to MovieClaw. It runs as an explicitly approved inline plugin. It does not modify the host application. The plugin UI and documentation are currently in Simplified Chinese.
 
@@ -45,16 +45,16 @@ Yingyu (formerly Platform Discovery) adds an account-scoped recommendation wall,
 管理员可用已配对的 CLI 上传安装包：
 
 ```sh
-mclaw app plugins packages upload --file platform-discovery-0.1.0.mcplugin
+mclaw app plugins packages upload --file platform-discovery-0.2.1.mcplugin
 ```
 
 然后回到 MovieClaw 网页的「设置 → 插件」审阅并批准本版本的主进程运行、网页信任及菜单可见性。不要让代理或命令行代替网页信任确认。安装后可用 `mclaw app plugins show platform-discovery` 查看状态。
 
-## 从 0.11.1 统一到 0.1.0
+## 升级与数据保留
 
-本次 0.1.0 使用 0.11.1 的完整实现，只统一版本编号，不回退功能或数据格式。内部 ID 仍为 `platform-discovery`。切换前先备份服务器数据并保留原安装包，然后上传**本次重新打包的 0.1.0**，审阅并批准新版本；不需要先卸载，也不需要重新配置账号或测试口味。不要使用开发早期的同名测试包。
+从正式统一编号的 0.1.0 升级至 0.2.1，无需卸载或重新配置。内部 ID、权限、账号偏好、片单和缓存格式保持不变，先备份服务器数据并保留原安装包，再上传并批准新包。
 
-宿主允许手动安装较低版本，激活后已安装列表显示 0.1.0，并保留上一版用于回滚；商店普通更新只推荐比已安装版本更高的版本，因此不会自动把 0.11.1 降为 0.1.0。只改源码或显示文案不能同步现有安装。旧的 0.11.0 / 0.11.1 发布记录保持原样；官方签名包发布及推荐版本切换需要维护者协调。
+历史 0.11.0 / 0.11.1 已撤回商店推荐，原标签和附件保留。如果仍安装这些旧编号，0.2.1 的语义版本小于 0.11.1，需要手动上传并批准切换，商店不会将其提示为普通升级；切换时无需清空数据。不要使用开发早期的同名测试包。
 
 ## 配置
 
@@ -137,7 +137,7 @@ for test in plugins/platform-discovery/tests/*.cjs; do node "$test" || exit; don
 使用本仓库可重现打包脚本：
 
 ```sh
-python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.1.0.mcplugin
+python3 scripts/pack.py plugins/platform-discovery --output /tmp/platform-discovery-0.2.1.mcplugin
 ```
 
 测试覆盖账号隔离、版本冲突、缓存与图片失败、预载不计展示、轮替取消、完整视口、选季及显式订阅确认。测试中的凭据、代理和账号均是虚构夹具，不包含运行实例的数据。版本演进见 [CHANGELOG.md](CHANGELOG.md)。

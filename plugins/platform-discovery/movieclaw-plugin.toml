@@ -1,7 +1,7 @@
 [plugin]
 id = "platform-discovery"
 title = "映屿"
-version = "0.1.0"
+version = "0.2.1"
 entry = "platform_discovery"
 runtime = "inline"
 sdk = "^1.0"

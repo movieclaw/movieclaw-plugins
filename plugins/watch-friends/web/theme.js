@@ -60,8 +60,15 @@
       queueMicrotask(() => { queued = false; update(); });
     });
     const options = { attributes: true, attributeFilter: ["style", "class", "data-theme", "data-mc-theme"] };
-    observer.observe(host.documentElement, options);
-    observer.observe(root, options); // 宿主加载完成后再次注入变量时也重新配对深浅色。
-    window.addEventListener("pagehide", () => observer.disconnect(), { once: true });
+    function observe() {
+      observer.observe(host.documentElement, options);
+      observer.observe(root, options); // 宿主加载完成后再次注入变量时也重新配对深浅色。
+    }
+    observe();
+    window.addEventListener("pagehide", () => observer.disconnect());
+    // 往返缓存会保留页面和监听器；恢复时重读主题并重新观察，支持多次前进后退。
+    window.addEventListener("pageshow", event => {
+      if (event.persisted) { update(); observe(); }
+    });
   }
 })();

@@ -240,4 +240,4 @@ async def apply(ctx):
     member, public = build_routers(app, require_login)
     routes.mount(ctx, member, zone="member")
     routes.mount(ctx, public, zone="public")
-    ctx.logger.info("映迹 v0.1.2 已加载：原生 Web、同服好友与签名跨服接口。")
+    ctx.logger.info("映迹 v0.2.1 已加载：原生 Web、同服好友与签名跨服接口。")

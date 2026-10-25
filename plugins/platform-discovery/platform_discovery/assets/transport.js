@@ -18,6 +18,7 @@ globalThis.MovieClawTransport={
   async request(path,options={},timeoutMs=30000){
     if(typeof path!=="string"||!path.startsWith("/api/v1/")||/[\\\r\n]/.test(path))throw new Error("请求地址无效。");
     const controller=new AbortController(),parent=options.signal;let timedOut=false;
+    const writing=!["GET","HEAD"].includes((options.method||"GET").toUpperCase());
     const abort=()=>controller.abort();if(parent?.aborted)abort();else parent?.addEventListener("abort",abort,{once:true});
     const timer=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
     try{
@@ -37,9 +38,10 @@ globalThis.MovieClawTransport={
       }
       return body.data??body;
     }catch(error){
-      if(timedOut)throw new Error(options.method==="POST"?"请求等待超时，结果可能已提交，请先重新检查状态。":"请求等待超时，已有片单会保留，请稍后重试。");
+      if(timedOut)throw new Error(writing?"请求等待超时，结果可能已提交，请先重新检查状态。":"请求等待超时，已有片单会保留，请稍后重试。");
       if(parent?.aborted||error.status||error.name==="AbortError")throw error;
-      if(error instanceof TypeError)throw new Error("网络连接中断，请检查连接后重试。");
+      // 连接中断也可能发生在服务器提交之后，写请求不能据此建议直接重试。
+      if(error instanceof TypeError)throw new Error(writing?"网络连接中断，结果可能已提交，请先重新检查状态。":"网络连接中断，请检查连接后重试。");
       throw error;
     }finally{clearTimeout(timer);parent?.removeEventListener("abort",abort);}
   }

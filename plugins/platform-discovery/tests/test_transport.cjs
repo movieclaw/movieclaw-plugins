@@ -13,6 +13,14 @@ function setup(fetch,extra={}){const context={...extra,AbortController,TypeError
   const denied=setup(async()=>({ok:false,status:401,json:async()=>({detail:"expired"})}));await assert.rejects(denied.request("/api/v1/auth/me"),error=>error.status===401&&/登录已过期/.test(error.message));
   let writes=0;const blocked=setup((url,options)=>new Promise((resolve,reject)=>{writes++;const abort=()=>reject(Object.assign(new Error("aborted"),{name:"AbortError"}));if(options.signal.aborted)abort();else options.signal.addEventListener("abort",abort,{once:true});}));
   await assert.rejects(blocked.request("/api/v1/subscriptions",{method:"POST"},8),/结果可能已提交/);assert.equal(writes,1,"timeouts must never retry writes");
+  for(const method of ["POST","post","PUT","PATCH","DELETE"]){
+    let calls=0;
+    const offline=setup(async()=>{calls++;throw new TypeError("Failed to fetch");});
+    await assert.rejects(offline.request("/api/v1/subscriptions",{method}),/结果可能已提交/);
+    assert.equal(calls,1,"network failures must never retry writes");
+  }
+  const offlineRead=setup(async()=>{throw new TypeError("Failed to fetch");});
+  await assert.rejects(offlineRead.request("/api/v1/auth/me"),/网络连接中断/);
   const parent=new AbortController(),pending=blocked.request("/api/v1/auth/me",{signal:parent.signal});parent.abort();await assert.rejects(pending,error=>error.name==="AbortError");
   const malformed=setup(async()=>({ok:true,json:async()=>[] }));await assert.rejects(malformed.request("/api/v1/auth/me"),/格式暂不可用/);
   console.log("PASS: same-origin credentials, invalid URLs, auth status, bounded timeout, parent cancellation, malformed data and no write retry");

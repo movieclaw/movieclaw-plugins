@@ -440,7 +440,7 @@ class NativeSync:
                     "client_type": "cli",
                     "client_name": "映迹 · 本人观影同步",
                     "installation_id": "yingji:" + user["id"],
-                    "client_version": "0.1.2",
+                    "client_version": "0.2.1",
                 },
             )
             if (

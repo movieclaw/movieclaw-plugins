@@ -1,6 +1,8 @@
 """仅依赖宿主运行环境的投稿 CI；不访问互联网或任何真实账号。"""
 
 import json
+import shutil
+import subprocess
 from html.parser import HTMLParser
 import tempfile
 import tomllib
@@ -23,10 +25,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackageTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "主题恢复回归需要 Node.js")
+    def test_theme_lifecycle(self):
+        subprocess.run(["node", str(ROOT / "tests/theme-lifecycle.test.cjs")], check=True)
+
     def test_manifest_identity_and_permissions(self):
         manifest = tomllib.loads((ROOT / "movieclaw-plugin.toml").read_text())
         self.assertEqual(manifest["plugin"]["id"], "watch-friends")
-        self.assertEqual(manifest["plugin"]["version"], "0.1.2")
+        self.assertEqual(manifest["plugin"]["version"], "0.2.1")
         self.assertEqual(manifest["plugin"]["runtime"], "inline")
         self.assertEqual(
             set(manifest["permissions"]["operations"]),
