@@ -322,9 +322,9 @@
       "license": "见仓库许可证",
       "origin": "official",
       "icon": {
-        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/movie-voice-icon-05473f3799072024.svg",
-        "sha256": "05473f37990720240062f2ce93645756704c7980c3204634f58319af5cca33e9",
-        "size": 354
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/movie-voice-icon-c1953e975f37137e.svg",
+        "sha256": "c1953e975f37137eb08641fa71a82b69647c009ef87f2083eeffe1d273cdf0ae",
+        "size": 746
       },
       "screenshots": [],
       "deprecated": null,

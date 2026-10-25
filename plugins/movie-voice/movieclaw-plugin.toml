@@ -1,8 +1,8 @@
 [plugin]
 id = "movie-voice"
 title = "寻映"
-# 按用户要求暂时保持此版本，不自动递增。
-version = "0.1.0"
+# 发布新图标使用独立版本，保留已发布的标签与安装包。
+version = "0.1.1"
 entry = "movie_voice"
 runtime = "process"
 sdk = "^1.0"
