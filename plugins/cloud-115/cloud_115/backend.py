@@ -54,6 +54,9 @@ BEHAVIOR_PAGE = 1000
 BEHAVIOR_MAX_PAGES = 10
 #: 内存里记住的文件 id → 提取码（取直链要提取码）
 PICKCODE_CACHE = 20000
+#: 宿主契约 1.6 起整树列举能带上被列目录的路径链（宿主据此只列操作动态里有变化的目录）；
+#: 更老的宿主不认这个字段，不带它照样能用（宿主改列整个文件夹）
+TREE_PATH = "path" in getattr(dv.RemoteTree, "__dataclass_fields__", {})
 
 
 def pickcode_to_id(pickcode: str) -> int:
@@ -219,7 +222,9 @@ class Pan115(dv.DriveBackend):
     async def list_tree(self, account: dv.DriveAccount, dir_id: str) -> dv.RemoteTree:
         cookies = self._cookies(account)
         parents: dict[str, tuple[str, str]] = {}  # 目录 id → (父目录 id, 名称)
-        async for _, items in self._pages(cookies, dir_id, cur=0, nf=1):
+        chain: list[dict[str, Any]] = []  # 列举响应顺带给的：根目录到被列目录的每一级
+        async for data, items in self._pages(cookies, dir_id, cur=0, nf=1):
+            chain = chain or list(data.get("path") or ())
             for item in items:
                 if _is_dir(item):
                     parents[str(item["cid"])] = (str(item.get("pid") or ""), _name(item))
@@ -262,7 +267,13 @@ class Pan115(dv.DriveBackend):
                 )
             )
         dir_ids = tuple(cid for cid in parents if path_of(cid) is not None)
-        return dv.RemoteTree(files=tuple(out), dir_ids=dir_ids)
+        if not TREE_PATH:
+            return dv.RemoteTree(files=tuple(out), dir_ids=dir_ids)
+        path = tuple(
+            dv.RemoteDir(remote_id=str(node.get("cid")), name=html.unescape(str(node.get("name") or "")))
+            for node in chain
+        )
+        return dv.RemoteTree(files=tuple(out), dir_ids=dir_ids, path=path)
 
     async def _fill_ancestors(self, cookies: dict[str, str], cid: str, parents: dict[str, tuple[str, str]]) -> None:
         data = await self._api.files(cookies, cid=cid, offset=0, limit=1, nf=1, cur=1)

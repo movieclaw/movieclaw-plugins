@@ -1,7 +1,7 @@
 [plugin]
 id = "cloud-115"
 title = "115 网盘"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 entry = "cloud_115"
 runtime = "process"
 sdk = "^1.0"

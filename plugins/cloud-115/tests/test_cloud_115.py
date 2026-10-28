@@ -10,7 +10,7 @@ from unittest import mock
 
 import httpx
 from cloud_115.api import Api115
-from cloud_115.backend import Pan115
+from cloud_115.backend import TREE_PATH, Pan115
 
 from movieclaw_sdk import drives as dv
 from movieclaw_sdk import net
@@ -114,6 +114,18 @@ class BrowseTest(Base):
         self.assertEqual(dune.size, 400)
         self.assertEqual(dune.sha1, hashlib.sha1(b"dune" * 100).hexdigest().upper())
         self.assertEqual(len(tree.dir_ids), 3)
+
+    @unittest.skipUnless(TREE_PATH, "宿主的 SDK 还不认整树列举的路径链（契约 1.6）")
+    async def test_list_tree_gives_the_listed_directory_path_without_extra_requests(self) -> None:
+        # 宿主靠它算出子目录在挂着的文件夹之下的路径，操作动态就只列有变化的目录
+        nolan = next(d for d in await self.backend.list_dir(self.account, str(self.movies)) if d.name == "诺兰 & 合集")
+        before = len(self.fake.requests)
+        tree = await self.backend.list_tree(self.account, nolan.remote_id)
+        self.assertEqual([d.name for d in tree.path], ["根目录", "影视", "电影", "诺兰 & 合集"])
+        self.assertEqual(tree.path[2].remote_id, str(self.movies))
+        self.assertEqual(tree.path[-1].remote_id, nolan.remote_id)
+        # 目录一遍、文件一遍，没有为路径多发请求
+        self.assertEqual(len(self.fake.requests) - before, 2)
 
     @unittest.skipUnless(hasattr(net, "pacer"), "宿主的 SDK 还不按请求限速")
     async def test_every_page_waits_for_the_host_rate_limit(self) -> None:
