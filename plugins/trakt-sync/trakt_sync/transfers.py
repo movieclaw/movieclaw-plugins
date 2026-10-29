@@ -134,8 +134,8 @@ class Transfers:
         key = fingerprint(task["direction"], row)
         if write:
             if task["direction"] == "export":
-                if not merged:
-                    await self.remember_export_watch(task, row, row["watched_at"])
+                # Keep precise local ordering even when Trakt merges this viewing.
+                await self.remember_export_watch(task, row, row["watched_at"])
                 await self.e.remember_source_delivery(
                     task["member_id"],
                     task["generation"],
@@ -149,8 +149,7 @@ class Transfers:
             saved = await self.store.get(key, scope=scope, default=False)
             if saved:
                 if task["direction"] == "export":
-                    if saved is True:
-                        await self.remember_export_watch(task, row, row["watched_at"])
+                    await self.remember_export_watch(task, row, row["watched_at"])
                     await self.e.remember_source_delivery(
                         task["member_id"],
                         task["generation"],
@@ -172,6 +171,8 @@ class Transfers:
                 else False
             )
             if delivered and delivered["state"] == "minute_merged":
+                if delivered.get("export"):
+                    await self.remember_export_watch(task, row, delivered["export"]["watched_at"])
                 return "minute_merged"
             if delivered and delivered["state"] == "sent":
                 if delivered.get("export"):
