@@ -2,6 +2,8 @@
 
 ## 0.3.0 (2026-10-29)
 
+- Resolve and persist Trakt's stable user UUID before history import. Keep a member-scoped UUID-to-source namespace across reconnections and username changes, migrate retained beta bindings without changing their existing source IDs, and require a fresh preview for unfinished legacy imports. Identity lookup failures back off or pause before host reads/writes; interrupted persistence and token refresh retain safe retry behavior.
+
 - Target official MovieClaw Server v0.44.0, including the shared watch-source IDs from upstream #1063. Earlier servers without playback stopped/completed contracts 1.1 cannot install this version.
 - Add independent, default-off preferences for manual watched, manual unwatched and new favorites to Trakt Watchlist. Preserve existing accounts and preferences on same-ID updates; ratings and member self-service are not included.
 - Add a separate foreground history page: scan local holdings or paginated Trakt history, review movie/per-season counts, explicitly confirm, then process resumable batches. Opening the page never starts or resumes a transfer.

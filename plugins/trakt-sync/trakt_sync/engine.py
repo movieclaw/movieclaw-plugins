@@ -492,6 +492,7 @@ class Engine(ActivityLog, Recovery):
             account = {
                 **tokens,
                 "username": None,
+                "identity_version": 1,
                 "client_id": self.client.client_id,
                 "generation": uuid.uuid4().hex,
             }
@@ -502,7 +503,13 @@ class Engine(ActivityLog, Recovery):
                 profile = await self.client.request(
                     "GET", "/users/settings", token=tokens["access_token"]
                 )
-                account["username"] = profile.get("user", {}).get("username")
+                user = profile.get("user") if isinstance(profile, dict) else None
+                if isinstance(user, dict):
+                    account["username"] = user.get("username")
+                ids = user.get("ids") if isinstance(user, dict) else None
+                user_uuid = ids.get("uuid") if isinstance(ids, dict) else None
+                if isinstance(user_uuid, str) and user_uuid.strip():
+                    account["user_uuid"] = user_uuid.strip()
                 await self.set(member, "account", account, secret=True)
             except TraktError:
                 pass

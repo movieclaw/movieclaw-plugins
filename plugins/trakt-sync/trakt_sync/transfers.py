@@ -40,7 +40,11 @@ def source_ids(row):
 
 
 def summary(task):
-    return {k: v for k, v in task.items() if k not in {"generation", "remote_stamp", "signature"}}
+    return {
+        k: v
+        for k, v in task.items()
+        if k not in {"generation", "remote_stamp", "signature", "import_identity", "import_schema"}
+    }
 
 
 class Transfers:
@@ -89,6 +93,7 @@ class Transfers:
                 "id": uuid.uuid4().hex,
                 "member_id": member,
                 "direction": direction,
+                "import_schema": 1,
                 "generation": account["generation"],
                 "created_at": iso_time(self.e.clock()),
                 "cutoff": iso_time(self.e.clock()),
@@ -193,6 +198,8 @@ class Transfers:
         task["total"] += len(pending)
 
     async def local_page(self, task):
+        if task["direction"] == "import":
+            await self.import_identity(task)
         data = await self.ops.call(
             "playback.sync.catalog",
             {
@@ -279,6 +286,48 @@ class Transfers:
             "local": task.get("local_stamp"),
         }
 
+    async def import_identity(self, task):
+        """Resolve UUID before importing; preserve legacy IDs through a UUID-keyed registry."""
+        member = task["member_id"]
+        account = await self.e.get(member, "account", {})
+        user_uuid = account.get("user_uuid")
+        user = None
+        if not isinstance(user_uuid, str) or not user_uuid.strip():
+            profile = await self.request(task, "GET", "/users/settings")
+            user = profile.get("user", {}) if isinstance(profile, dict) else {}
+            ids = user.get("ids", {}) if isinstance(user, dict) else {}
+            user_uuid = ids.get("uuid") if isinstance(ids, dict) else None
+            if not isinstance(user_uuid, str) or not user_uuid.strip():
+                raise ValueError("无法确认 Trakt 固定账号 ID，请稍后重试；不会导入不明账号的历史")
+            # authorized() can rotate credentials; never overwrite its latest tokens.
+            account = await self.e.get(member, "account", {})
+        user_uuid = user_uuid.strip()
+        key = "import_identity_" + digest(user_uuid)
+        namespace = await self.e.get(member, key)
+        if namespace is None:
+            # Pre-fix beta records used username (or generation). Adopt that namespace
+            # only after UUID verification, and persist it across future bindings/renames.
+            namespace = (
+                account.get("username") or account["generation"]
+                if not account.get("identity_version")
+                else user_uuid
+            )
+            await self.e.set(member, key, namespace, secret=True)
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("Trakt 账号去重标识不可用，请检查插件存储")
+        if account.get("user_uuid") != user_uuid or not account.get("identity_version"):
+            account.update(user_uuid=user_uuid, identity_version=1)
+            if isinstance(user, dict) and isinstance(user.get("username"), str):
+                account["username"] = user["username"]
+            # Save the registry first so an interrupted migration retains the original IDs.
+            await self.e.set(member, "account", account, secret=True)
+        task["import_identity"] = namespace
+
+    @staticmethod
+    def require_import_schema(task):
+        if task["direction"] == "import" and task.get("import_schema") != 1:
+            raise ValueError("导入任务使用旧版账号去重标识，请取消后重新扫描")
+
     async def remote_page(self, task):
         kind, page = task["remote_kind"], task["remote_page"]
         rows = await self.request(
@@ -291,7 +340,8 @@ class Transfers:
             raise ValueError("Trakt 返回了重复分页，请取消后重新扫描")
         task["signature"] = signature
         plans = []
-        account = await self.e.get(task["member_id"], "account", {})
+        if not task.get("import_identity"):
+            raise ValueError("导入预览缺少固定账号标识，请取消后重新扫描")
         for remote in rows:
             movie = kind == "movies"
             ids = remote.get("movie" if movie else "show", {}).get("ids", {})
@@ -332,9 +382,7 @@ class Transfers:
                     "season": season,
                     "episode": episode,
                     "watched_at": when,
-                    "source_id": digest(
-                        [account.get("username") or task["generation"], remote["id"]]
-                    ),
+                    "source_id": digest([task["import_identity"], remote["id"]]),
                     "expected_updated_at": unit["updated_at"],
                     "basis": "trakt",
                 }
@@ -407,6 +455,7 @@ class Transfers:
     async def confirm(self, member, task_id, token):
         async with self.e.locks[member]:
             task = await self.get(member, task_id)
+            self.require_import_schema(task)
             account = await self.e.get(member, "account", {})
             if task["state"] != "ready" or token != task.get("preview_token"):
                 raise ValueError("预览已失效，请重新核对后确认")
@@ -675,6 +724,7 @@ class Transfers:
             else:
                 checkpoint = copy.deepcopy(task)
                 try:
+                    self.require_import_schema(task)
                     if task["state"] == "scanning":
                         if task["phase"] == "local":
                             await self.local_page(task)
