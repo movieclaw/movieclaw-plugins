@@ -4,6 +4,8 @@ History import verifies `user.ids.uuid` from `/users/settings` before scanning. 
 
 An imported beta binding is migrated before ordinary disconnect clears credentials or revokes tokens, without requiring a post-upgrade scan first. Failed lookup/storage retains the binding and returns `import_identity_pending`. A separate explicit confirmation may pass `allow_legacy_identity_loss=true` if the old authorization cannot be recovered, accepting possible loss of legacy import deduplication; defaults never opt into this. Both UI requests retain the original selected member.
 
+Minute-merged exports persist their precise source watch-ordering marker before receipts, including legacy fingerprint and source-alias recovery. Alias recovery uses the receipt's original source timestamp. Older removals between two same-minute watches are skipped, genuinely newer removals remain eligible, and merged export accounting stays skipped.
+
 ## Version 0.3
 
 Version 0.3.0 targets official v0.44.0 and requires stopped/completed event contracts 1.1. Four host operations cover metadata reads, watch catalog and dated imports, with no filesystem permission. Manual actions and confirmed foreground history use separate durable plans; the playback-ledger limits below do not bound those plans. Terminal item errors do not block later actions. See the [workflow](sync-workflow.zh-CN.md).
