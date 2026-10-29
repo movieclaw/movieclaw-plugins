@@ -580,6 +580,32 @@ dialog::backdrop {
   .page-header { flex-wrap: wrap; }
   .header-actions { margin-left: auto; }
 }
+.preferences, .history-intro { padding:24px; }
+.preferences label { display:flex; align-items:flex-start; gap:12px; padding:14px 0; cursor:pointer; }
+.preferences input[type=checkbox] { width:20px; height:20px; flex:0 0 20px; margin:2px 0; accent-color:var(--accent); }
+.preferences small { display:block; color:var(--muted); line-height:1.6; margin-top:6px; }
+.history-row { padding:16px 24px; border-bottom:1px solid var(--line); }
+.history-row:last-child { border-bottom:0; }
+.history-row p { margin:6px 0 0; }
+.history-intro { margin:20px 0; }
+.history-intro p { line-height:1.7; }
+.history-intro summary { cursor:pointer; min-height:44px; }
+.pager { display:flex; align-items:center; justify-content:center; gap:16px; padding:16px 0; }
+progress { width:100%; height:12px; accent-color:var(--accent); }
+[hidden] { display:none !important; }
+@media(max-width:600px) { .preferences, .history-intro { padding:18px; } .dialog-actions { flex-wrap:wrap; } .dialog-actions > * { min-height:44px; } .section-heading { gap:12px; flex-wrap:wrap; } }
+.activity-filters { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+.activity-filters .filters { margin:0; }
+.type-filter { display:flex; align-items:center; gap:10px; color:var(--muted); }
+.type-filter select { font:inherit; color:var(--mc-text,#f3f5f9); background:var(--mc-card,#242529); border:1px solid var(--line); border-radius:10px; min-height:40px; padding:7px 30px 7px 10px; }
+@media(max-width:600px) { .type-filter select { min-height:44px; } }
+
+.button-row { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 }
+progress { width:100%; accent-color:var(--accent); margin:12px 0 }
+#history .card + .card, #detail-items .card + .card { margin-top:12px }
+#history .card button + button { margin-left:8px }
+#detail { width:min(760px, calc(100vw - 32px)); max-height:85vh; overflow:auto }
+#detail-items { margin:16px 0 }
 
 .repair-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px; }
 .repair-controls input { width:72px; min-height:44px; }

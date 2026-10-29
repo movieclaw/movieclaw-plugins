@@ -57,6 +57,31 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status["dropped"], 1)
         self.assertTrue(status["warning"])
 
+    async def native_capacity_queue(self, count):
+        await self.full_completion_queue(count)
+        ledger = await self.engine.ledger(0)
+        ledger["queue"][0].pop("revalidate")
+        ledger["sessions"]["fixture"]["note"] = ""
+        size = len(json.dumps(ledger, ensure_ascii=False).encode())
+        ledger["sessions"]["fixture"]["note"] = "x" * (59999 - size)
+        await self.engine.save_ledger(0, ledger)
+
+    async def test_native_dispatch_window_eviction_does_not_send_or_pop_next_job(self):
+        await self.native_capacity_queue(2)
+        await self.engine.drain(0)
+        self.assertEqual(self.requests, [])
+        ledger = await self.engine.ledger(0)
+        self.assertEqual([j["id"] for j in ledger["queue"]], ["watch-1"])
+        self.assertEqual(ledger["dropped"], 1)
+
+    async def test_native_dispatch_window_single_job_eviction_is_reported(self):
+        await self.native_capacity_queue(1)
+        await self.engine.drain(0)
+        self.assertEqual(self.requests, [])
+        status = await self.engine.status(0)
+        self.assertEqual(status["pending"], 0)
+        self.assertEqual(status["dropped"], 1)
+
     async def test_capacity_revalidation_keeps_uncertain_write_durable_across_restart(self):
         await self.full_completion_queue(2)
         # A heartbeat can be evicted instead, leaving the completion durably queued.

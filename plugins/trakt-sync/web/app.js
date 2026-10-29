@@ -1,9 +1,9 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 const states = {queued:"待发送", retrying:"自动重试中", blocked:"需要重新连接", failed:"发送失败", sent:"已发送", skipped:"未发送"};
-const events = {started:"开始播放", progress:"更新播放进度", stopped:"停止播放", completed:"观看完成"};
+const events = {started:"开始播放", progress:"更新播放进度", stopped:"停止播放", completed:"观看完成", marked_played:"手动标记已看", marked_unplayed:"手动取消已看", favorited:"收藏加入 Watchlist"};
 let generation = 0, revision = 0, selected = 0, filter = "all", records = [], busy = false;
-let accountSnapshot = "", recordSnapshot = "", noticeTimer;
+let accountSnapshot = "", recordSnapshot = "", noticeTimer, activityType = "important";
 function el(tag, cls, text) {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -21,10 +21,13 @@ function time(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "时间未知" : date.toLocaleString(undefined, {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"});
 }
+let savingProfile = false;
 async function api(path, method = "GET", id = selected, body) {
-  const response = await fetch(`/api/v1/plugins/trakt-sync/${path}?member_id=${id}`, {method, credentials:"same-origin", headers:{Accept:"application/json", ...(body ? {"Content-Type":"application/json"} : {})}, body:body ? JSON.stringify(body) : undefined, cache:"no-store"});
+  const url = new URL(`/api/v1/plugins/trakt-sync/${path}`, location.origin);
+  url.searchParams.set("member_id", id);
+  const response = await fetch(url, {method, credentials:"same-origin", headers:{Accept:"application/json", "Content-Type":"application/json"}, cache:"no-store", body: body === undefined ? undefined : JSON.stringify(body)});
   const result = await response.json();
-  if (!response.ok || result.success === false) throw new Error(response.status === 403 ? "此页面需要管理员权限" : result.message || result.detail || "请求未完成");
+  if (!response.ok || result.success === false) throw new Error(response.status === 403 ? "你没有权限操作这个成员的资料" : result.message || result.detail || "请求未完成");
   return result.data ?? result;
 }
 function showError(message) { $("error").textContent = message || ""; $("error").hidden = !message; }
@@ -69,10 +72,10 @@ function renderRecords() {
   const container = $("records");
   const open = new Set([...container.querySelectorAll("details[open]")].map(node => node.dataset.id));
   container.replaceChildren();
-  const visible = records.filter(row => filter === "all" || (filter === "pending" && ["queued","retrying"].includes(row.state)) || (filter === "failed" && ["failed","blocked"].includes(row.state)) || (filter === "sent" && row.state === "sent"));
+  const visible = records.filter(row => ActivityLogic.matches(row, filter, activityType));
   if (!visible.length) {
     const empty = el("div", "empty");
-    empty.append(el("strong", "", filter === "failed" ? "没有需要处理的失败记录" : filter === "pending" ? "没有待发送的记录" : "暂无同步记录"), el("p", "", filter === "all" ? "开始观看后，新的发送情况会显示在这里。" : "新的发送状态会自动更新。"));
+    empty.append(el("strong", "", "当前筛选下没有记录"), el("p", "", activityType === "important" ? "默认显示观看标记与收藏；可切换活动类型查看开始播放、进度和停止记录。" : "可切换活动类型或发送状态；新的记录会自动更新。"));
     container.append(empty); return;
   }
   for (const row of visible) {
@@ -92,7 +95,7 @@ function renderRecords() {
     if (row.retry_at && ["retrying","blocked","failed"].includes(row.state)) body.append(el("p", "", `下次自动尝试 ${time(row.retry_at)}`));
     if (row.can_retry) {
       const retry = el("button", "", "核对后重试");
-      retry.onclick = action(async () => { retry.disabled = true; try { const result = await api(`retry/${encodeURIComponent(row.id)}`, "POST"); await refresh(); retryNotice(result); } finally { retry.disabled = false; } });
+      retry.onclick = action(async () => { retry.disabled = true; try { const result = await api(row.transfer ? `actions/${encodeURIComponent(row.id)}/resume` : `retry/${encodeURIComponent(row.id)}`, "POST"); await refresh(); if (row.transfer) notice("已继续此操作的待发送任务。"); else retryNotice(result); } finally { retry.disabled = false; } });
       body.append(retry);
       if (row.can_repair) {
         const form = el("div", "repair-controls");
@@ -112,7 +115,7 @@ function renderRecords() {
       const dismiss = el("button", "", "忽略此记录");
       dismiss.onclick = action(async () => {
         if (!confirm("忽略此条失败记录？不会补传，也不会删除 Trakt 的观看历史。")) return;
-        await api(`dismiss/${encodeURIComponent(row.id)}`, "POST"); await refresh();
+        await api(row.transfer ? `actions/${encodeURIComponent(row.id)}/cancel` : `dismiss/${encodeURIComponent(row.id)}`, "POST"); await refresh();
       });
       body.append(dismiss);
     }
@@ -124,7 +127,7 @@ function renderRecords() {
 }
 async function refresh() {
   const id = selected, own = ++revision;
-  const [overview, detail] = await Promise.all([api("accounts"), api("activity", "GET", id)]);
+  const [overview, detail, profile] = await Promise.all([api("accounts"), api("activity", "GET", id), api("profile", "GET", id)]);
   if (id !== selected || own !== revision) return;
   const accounts = overview.accounts;
   let current = accounts.find(account => account.member_id === id);
@@ -142,6 +145,9 @@ async function refresh() {
   $("acknowledge-dropped").hidden = !current.unacknowledged_dropped;
   $("connect").disabled = busy || !current.configured || current.has_account;
   $("disconnect").disabled = !current.has_account || busy;
+  $("profile-owner").textContent = `${memberLabel(id)}的个人设置`;
+  $("history-link").href = `history.html?member_id=${id}`;
+  if (!savingProfile) for (const input of document.querySelectorAll("[data-preference]")) input.checked = profile.preferences[input.dataset.preference];
   records = detail.records;
   const nextAccounts = JSON.stringify([id,busy,accounts]), nextRecords = JSON.stringify([id,records]);
   if (nextAccounts !== accountSnapshot) { renderAccounts(accounts); accountSnapshot = nextAccounts; }
@@ -206,12 +212,29 @@ $("disconnect").onclick = action(async () => {
   cancelAuth(); const result = await api("disconnect", "POST"); await refresh();
   if (!result.remote_revocation_confirmed) showError("本地已断开；请在 Trakt 已连接应用中确认撤销授权。");
 });
+$("activity-type").onchange = () => { activityType = $("activity-type").value; renderRecords(); };
 const tabs = [...document.querySelectorAll("[data-filter]")];
 for (const tab of tabs) {
   tab.onclick = () => { filter = tab.dataset.filter; for (const other of tabs) other.setAttribute("aria-selected", String(other === tab)); renderRecords(); };
   tab.onkeydown = event => { if (["ArrowLeft","ArrowRight"].includes(event.key)) { event.preventDefault(); const next = tabs[(tabs.indexOf(tab)+(event.key === "ArrowRight" ? 1 : tabs.length-1))%tabs.length]; next.click(); next.focus(); } };
 }
-action(refresh)();
+for (const input of document.querySelectorAll("[data-preference]")) input.onchange = action(async () => {
+  const id = selected;
+  const inputs = [...document.querySelectorAll("[data-preference]")];
+  const payload = Object.fromEntries(inputs.map(box => [box.dataset.preference, box.checked]));
+  savingProfile = true; inputs.forEach(box => { box.disabled = true; });
+  try { await api("profile", "PUT", id, payload); $("profile-state").textContent = "已保存到当前成员的资料"; }
+  catch (error) { input.checked = !input.checked; throw error; }
+  finally { savingProfile = false; inputs.forEach(box => { box.disabled = false; }); }
+});
+action(async () => {
+  const viewer = await api("viewer"); const requested = Number(new URLSearchParams(location.search).get("member_id")); selected = viewer.is_admin && Number.isSafeInteger(requested) && requested >= 0 ? requested : viewer.member_id; $("member").value = selected;
+  if (!viewer.is_admin) {
+    $("add-account").hidden = true; $("member").hidden = true; $("refresh").hidden = true;
+    document.querySelector('label[for="member"]').hidden = true;
+  }
+  await refresh();
+})();
 setInterval(() => { if (!document.hidden) refresh().then(() => showError("")).catch(error => showError(`状态暂未更新：${error.message}`)); },10000);
 
 function retryNotice(result) {

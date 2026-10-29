@@ -9,8 +9,16 @@
 <p id="notice" class="notice" role="status" hidden></p>
 <section class="section" aria-labelledby="accounts-title"><div class="section-heading"><h2 id="accounts-title">账号</h2><span id="account-count" class="muted"></span></div>
 <div id="accounts" class="card account-list" aria-label="Trakt 账号列表"><p class="empty">正在读取账号…</p></div></section>
+<section class="section" aria-labelledby="profile-title"><div class="section-heading"><div><h2 id="profile-title">同步偏好</h2><p id="profile-owner" class="muted"></p></div><a id="history-link" href="history.html">观看历史同步 →</a></div>
+<div class="card preferences">
+<label><input type="checkbox" data-preference="manual_watched"><span>手动标记已看同步<small>标记电影或剧集已看时，添加到自己的 Trakt 观看历史。</small></span></label>
+<label><input type="checkbox" data-preference="manual_unwatched"><span>手动取消已看同步<small>取消已看时，删除 Trakt 中对应电影或集数的全部观看记录，包括以前的重看记录。关闭此项可保留 Trakt 历史。</small></span></label>
+<label><input type="checkbox" data-preference="favorites"><span>收藏同步到 Watchlist<small>新增收藏时加入自己的 Trakt Watchlist。取消收藏不移除 Watchlist。</small></span></label>
+<p class="muted">只影响开启后发生的新操作。三个开关分别保存到所选成员的插件资料中，由管理员设置。已有历史请进入独立的观看历史同步页面，手动扫描、核对并确认后执行；不会自动导入或导出。</p><p id="profile-state" role="status"></p>
+</div></section>
 <section class="section" aria-labelledby="activity-title"><div class="section-heading"><div><h2 id="activity-title">同步活动</h2><p id="activity-owner" class="muted"></p></div><div><button id="acknowledge-dropped" hidden>清除未同步提示</button><button id="retry" hidden>重试失败记录</button></div></div>
-<div class="filters" role="tablist" aria-label="发送状态筛选"><button role="tab" data-filter="all" aria-selected="true">全部</button><button role="tab" data-filter="pending" aria-selected="false">待发送</button><button role="tab" data-filter="failed" aria-selected="false">失败</button><button role="tab" data-filter="sent" aria-selected="false">已发送</button></div>
+<div class="activity-filters"><label class="type-filter" for="activity-type">活动类型 <select id="activity-type"><option value="important">观看与收藏</option><option value="watched">标记观看</option><option value="favorite">收藏</option><option value="playback">播放活动</option><option value="all">全部类型</option></select></label>
+<div class="filters" role="tablist" aria-label="发送状态筛选"><button role="tab" data-filter="all" aria-selected="true">全部</button><button role="tab" data-filter="pending" aria-selected="false">待发送</button><button role="tab" data-filter="failed" aria-selected="false">失败</button><button role="tab" data-filter="sent" aria-selected="false">已发送</button></div></div>
 <div id="records" class="card" aria-live="polite"><p class="empty">正在读取发送记录…</p></div>
 <p class="footnote">保留近期发送记录；较早记录及升级前的已发送记录不会补录。<span id="updated"></span></p></section>
 <details id="advanced" class="advanced"><summary>高级设置</summary><div class="advanced-body">
@@ -23,4 +31,4 @@
 <p id="auth-member" class="muted"></p><p>打开 Trakt 授权页面，登录自己的账号并输入下方代码。</p><strong id="code" class="auth-code">…</strong>
 <div class="dialog-actions"><a id="verify" class="primary-button" target="_blank" rel="noopener noreferrer">前往 Trakt 授权 ↗</a><button id="copy-code">复制代码</button></div>
 <p id="auth-state" role="status" aria-live="polite">正在生成授权码…</p></div></dialog>
-<script src="app.js"></script></body></html>
+<script src="activity-logic.js"></script><script src="app.js"></script></body></html>

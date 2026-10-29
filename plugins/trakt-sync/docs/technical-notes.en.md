@@ -1,5 +1,9 @@
 # Technical and maintenance notes
 
+## Version 0.3
+
+Version 0.3.0 targets official v0.44.0 and requires stopped/completed event contracts 1.1. Four host operations cover metadata reads, watch catalog and dated imports, with no filesystem permission. Manual actions and confirmed foreground history use separate durable plans; the playback-ledger limits below do not bound those plans. Terminal item errors do not block later actions. See the [workflow](sync-workflow.zh-CN.md).
+
 Install and update through **Settings → Plugins → Plugin Market**, as described in the [README](../README.en.md). Users are not asked to switch server branches. The manifest requests playback events, network and plugin storage, without media deletion or media-file access.
 
 Each member has encrypted credentials and a separate lock. Token rotation saves new tokens before reuse; a temporary save failure retains the new pair in memory rather than redeeming an old single-use token again. A 401 refreshes/replays once; OAuth refresh 400 or API 401/403 blocks that member and clears old pending tasks. Invalid write requests (400) are item failures rather than account authorization failures. Network failures retry with backoff. New events are skipped during blocked authorization until explicit disconnect/reconnect. No administrator-token fallback is allowed.
@@ -18,4 +22,4 @@ For this repository, run its pinned host's `check_plugin.py`, then `python -m un
 
 ## 0.2.2 recovery
 
-Two read-only metadata operations (`library.list`, `library.items.get`) refresh external IDs and episode numbers by stable file ID. Failed jobs back off from 10 minutes to 6 hours; queued network backoff takes precedence to avoid busy loops. Completion replay checks paginated nearby history before writing the original timestamp. Deleted local records retire the task; temporary missing/trash states wait. Legacy jobs without local IDs require manual season/episode correction or dismissal. No filesystem permission is requested.
+Two read-only metadata operations (`library.list`, `library.items.get`) refresh external IDs and episode numbers by stable file ID. Failed jobs back off from 10 minutes to 6 hours; queued network backoff takes precedence to avoid busy loops. Completion replay checks paginated history at the source UTC minute before writing its minute-normalized timestamp. Trakt #694 discards remote seconds/microseconds; local chronology stays precise, and adjacent minutes remain distinct. Extra same-minute source watches cannot be exported separately; see the [precision contract](trakt-time-contract.zh-CN.md). Deleted local records retire the task; temporary missing/trash states wait. Legacy jobs without local IDs require manual season/episode correction or dismissal. No filesystem permission is requested.
