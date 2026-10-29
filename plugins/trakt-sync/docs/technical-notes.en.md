@@ -2,6 +2,8 @@
 
 History import verifies `user.ids.uuid` from `/users/settings` before scanning. A member-scoped encrypted UUID-to-source namespace survives disconnect/reconnect and username changes. Retained beta bindings adopt their original namespace only after UUID verification, persisting that mapping before updating the account so an interrupted migration cannot change existing record IDs. New bindings use the UUID namespace. Missing identity lookups retry or pause without host reads/writes; unfinished legacy import previews require cancellation and a fresh scan. See [Trakt's stable identity explanation](https://github.com/trakt/trakt-api/issues/182).
 
+An imported beta binding is migrated before ordinary disconnect clears credentials or revokes tokens, without requiring a post-upgrade scan first. Failed lookup/storage retains the binding and returns `import_identity_pending`. A separate explicit confirmation may pass `allow_legacy_identity_loss=true` if the old authorization cannot be recovered, accepting possible loss of legacy import deduplication; defaults never opt into this. Both UI requests retain the original selected member.
+
 ## Version 0.3
 
 Version 0.3.0 targets official v0.44.0 and requires stopped/completed event contracts 1.1. Four host operations cover metadata reads, watch catalog and dated imports, with no filesystem permission. Manual actions and confirmed foreground history use separate durable plans; the playback-ledger limits below do not bound those plans. Terminal item errors do not block later actions. See the [workflow](sync-workflow.zh-CN.md).
