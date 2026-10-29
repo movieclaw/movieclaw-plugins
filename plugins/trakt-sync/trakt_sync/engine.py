@@ -515,7 +515,49 @@ class Engine(ActivityLog, Recovery):
                 pass
             return {"state": "connected", "username": account["username"]}
 
-    async def disconnect(self, member):
+    async def import_identity(self, member):
+        """Caller holds the member lock; persist UUID and retain legacy source IDs."""
+        account = await self.get(member, "account", {})
+        if (
+            not account.get("access_token")
+            or account.get("blocked")
+            or account.get("client_id") != self.client.client_id
+        ):
+            raise ValueError("Trakt 授权不可用，无法核实旧导入账号")
+        user_uuid = account.get("user_uuid")
+        user = None
+        if not isinstance(user_uuid, str) or not user_uuid.strip():
+            profile = await self.authorized(member, account, "GET", "/users/settings")
+            user = profile.get("user", {}) if isinstance(profile, dict) else {}
+            ids = user.get("ids", {}) if isinstance(user, dict) else {}
+            user_uuid = ids.get("uuid") if isinstance(ids, dict) else None
+            if not isinstance(user_uuid, str) or not user_uuid.strip():
+                raise ValueError("无法确认 Trakt 固定账号 ID，请稍后重试；不会导入不明账号的历史")
+            # authorized() can rotate credentials; never overwrite its latest tokens.
+            account = await self.get(member, "account", {})
+        user_uuid = user_uuid.strip()
+        key = "import_identity_" + hashlib.sha256(json.dumps(user_uuid).encode()).hexdigest()
+        namespace = await self.get(member, key)
+        if namespace is None:
+            # Pre-fix beta records used username (or generation). Adopt that namespace
+            # only after UUID verification, and persist it across future bindings/renames.
+            namespace = (
+                account.get("username") or account["generation"]
+                if not account.get("identity_version")
+                else user_uuid
+            )
+            await self.set(member, key, namespace, secret=True)
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("Trakt 账号去重标识不可用，请检查插件存储")
+        if account.get("user_uuid") != user_uuid or not account.get("identity_version"):
+            account.update(user_uuid=user_uuid, identity_version=1)
+            if isinstance(user, dict) and isinstance(user.get("username"), str):
+                account["username"] = user["username"]
+            # Save the registry first so an interrupted migration retains the original IDs.
+            await self.set(member, "account", account, secret=True)
+        return namespace
+
+    async def disconnect(self, member, *, allow_legacy_identity_loss=False):
         async with self.locks[member]:
             readable = True
             try:
@@ -524,6 +566,30 @@ class Engine(ActivityLog, Recovery):
                 account, readable = {}, False
             # 刷新已成功但落盘失败时，撤销最近拿到的令牌，不能再用过期的旧令牌。
             account = self.rotated.get(member, account)
+            if (
+                account.get("access_token")
+                and not account.get("identity_version")
+                and not allow_legacy_identity_loss
+            ):
+                try:
+                    stamp = await self.get(member, "import_stamp", {})
+                    legacy_import = stamp.get("generation") == account.get("generation") or any(
+                        t["member_id"] == member
+                        and t["direction"] == "import"
+                        and t["generation"] == account.get("generation")
+                        and t.get("confirmed_at")
+                        and t.get("total", 0)
+                        for t in (await self.store.scopes("task", entity="history")).values()
+                    )
+                    if legacy_import:
+                        await self.import_identity(member)
+                        account = await self.get(member, "account", {})
+                except (TraktError, OSError, ValueError):
+                    return {
+                        "disconnected": False,
+                        "import_identity_pending": True,
+                        "error": "旧导入账号身份尚未保存，连接已保留；请稍后重试断开，避免重绑后重复导入",
+                    }
             # 先撤销本地状态，之后的事件和排队任务均不能再使用这个账号。
             for key in (
                 "account",

@@ -207,9 +207,14 @@ $("copy-code").onclick = action(async () => {
   $("copy-code").textContent = "已复制"; setTimeout(() => { $("copy-code").textContent = "复制代码"; },1500);
 });
 $("disconnect").onclick = action(async () => {
-  await selectMember(readMember());
-  if (!confirm(`断开${memberLabel(selected)}的 Trakt？本地待同步和近期发送记录将清除，Trakt 已有观看历史保留。`)) return;
-  cancelAuth(); const result = await api("disconnect", "POST"); await refresh();
+  const id = readMember(); await selectMember(id);
+  if (!confirm(`断开${memberLabel(id)}的 Trakt？本地待同步和近期发送记录将清除，Trakt 已有观看历史保留。`)) return;
+  cancelAuth(); let result = await api("disconnect", "POST", id);
+  if (result.import_identity_pending) {
+    if (!confirm("旧导入记录的账号身份暂时无法保存。建议取消，稍后重试。仍要强制断开吗？这会放弃旧记录的自动去重关系，重新绑定后可能重复导入观看历史。")) { showError(result.error); return; }
+    result = await api("disconnect?allow_legacy_identity_loss=true", "POST", id);
+  }
+  await refresh();
   if (!result.remote_revocation_confirmed) showError("本地已断开；请在 Trakt 已连接应用中确认撤销授权。");
 });
 $("activity-type").onchange = () => { activityType = $("activity-type").value; renderRecords(); };

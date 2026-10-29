@@ -287,41 +287,7 @@ class Transfers:
         }
 
     async def import_identity(self, task):
-        """Resolve UUID before importing; preserve legacy IDs through a UUID-keyed registry."""
-        member = task["member_id"]
-        account = await self.e.get(member, "account", {})
-        user_uuid = account.get("user_uuid")
-        user = None
-        if not isinstance(user_uuid, str) or not user_uuid.strip():
-            profile = await self.request(task, "GET", "/users/settings")
-            user = profile.get("user", {}) if isinstance(profile, dict) else {}
-            ids = user.get("ids", {}) if isinstance(user, dict) else {}
-            user_uuid = ids.get("uuid") if isinstance(ids, dict) else None
-            if not isinstance(user_uuid, str) or not user_uuid.strip():
-                raise ValueError("无法确认 Trakt 固定账号 ID，请稍后重试；不会导入不明账号的历史")
-            # authorized() can rotate credentials; never overwrite its latest tokens.
-            account = await self.e.get(member, "account", {})
-        user_uuid = user_uuid.strip()
-        key = "import_identity_" + digest(user_uuid)
-        namespace = await self.e.get(member, key)
-        if namespace is None:
-            # Pre-fix beta records used username (or generation). Adopt that namespace
-            # only after UUID verification, and persist it across future bindings/renames.
-            namespace = (
-                account.get("username") or account["generation"]
-                if not account.get("identity_version")
-                else user_uuid
-            )
-            await self.e.set(member, key, namespace, secret=True)
-        if not isinstance(namespace, str) or not namespace:
-            raise ValueError("Trakt 账号去重标识不可用，请检查插件存储")
-        if account.get("user_uuid") != user_uuid or not account.get("identity_version"):
-            account.update(user_uuid=user_uuid, identity_version=1)
-            if isinstance(user, dict) and isinstance(user.get("username"), str):
-                account["username"] = user["username"]
-            # Save the registry first so an interrupted migration retains the original IDs.
-            await self.e.set(member, "account", account, secret=True)
-        task["import_identity"] = namespace
+        task["import_identity"] = await self.e.import_identity(task["member_id"])
 
     @staticmethod
     def require_import_schema(task):

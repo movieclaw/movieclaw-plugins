@@ -186,8 +186,15 @@ async def apply(ctx: Context):
         summary="断开 Trakt（只清除此成员的连接和待同步队列）",
         openapi_extra={"x-cli-dangerous": "confirm"},
     )
-    async def disconnect(member_id: int = Query(0, ge=0)) -> dict:
-        return await engine.disconnect(member_id)
+    async def disconnect(
+        member_id: int = Query(0, ge=0),
+        allow_legacy_identity_loss: bool = Query(
+            False, description="放弃无法保存的旧导入身份；重绑后可能重复导入，须额外确认"
+        ),
+    ) -> dict:
+        return await engine.disconnect(
+            member_id, allow_legacy_identity_loss=allow_legacy_identity_loss
+        )
 
     @router.post("/retry", operation_id="plugins.trakt-sync.retry", summary="重试匹配失败的记录")
     async def retry(member_id: int = Query(0, ge=0)) -> dict:
