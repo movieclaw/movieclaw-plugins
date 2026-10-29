@@ -143,7 +143,7 @@ class HostIntegrationTests(unittest.IsolatedAsyncioTestCase):
                         harness.provide(DURABLE_EVENTS, SimpleNamespace(subscribe=subscribe))
                         fiber = await harness.mount(apply, config=config)
                         self.assertEqual(fiber.state.value, "active")
-                        self.assertEqual(len(subscribers), 3)
+                        self.assertEqual(len(subscribers), 6)
                         self.assertIs(
                             harness.events.owned_by("trakt-sync")[0].event,
                             PLAYBACK_PROGRESS,

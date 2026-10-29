@@ -28,10 +28,10 @@ permissions:
   contents: read
 
 env:
-  # MovieClaw v0.43.0: first server release with the site.proxy.request host
-  # operation (movieclaw/MovieClaw#983) that pt-keepalive needs.
+  # MovieClaw v0.44.0: includes playback stopped/completed contracts 1.1
+  # (movieclaw/MovieClaw#1063) required by trakt-sync 0.3.0.
   # Do not float this to a branch tip.
-  MOVIECLAW_REF: fae7ec10bf6aef8b12c819134930014fbe01d5cb
+  MOVIECLAW_REF: 2a6e6d2a58129a305e53f78639e7dafd82a1ec82
   # Shipped with every server release from the one after v0.39.0.
   HOST_CONSTRAINTS_URL: https://github.com/movieclaw/MovieClaw/releases/latest/download/host-constraints.txt
 

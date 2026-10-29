@@ -12,6 +12,11 @@ def iso_time(value: float) -> str:
     return datetime.fromtimestamp(value, timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def trakt_minute(value: str) -> int:
+    """Trakt #694 floors watched_at to the UTC minute; local chronology stays precise."""
+    return int(timestamp(value) // 60) * 60
+
+
 def identity(event: dict) -> dict | None:
     media = event.get("media") or {}
     ids = {}
@@ -72,6 +77,7 @@ def progress(event: dict) -> float | None:
 
 
 def history_body(item: dict, watched_at: str) -> dict:
+    watched_at = iso_time(trakt_minute(watched_at))
     if "movie" in item:
         return {"movies": [{**item["movie"], "watched_at": watched_at}]}
     episode = item["episode"]

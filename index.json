@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-28T13:20:12Z",
+  "generated_at": "2026-10-29T19:06:27Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -1761,7 +1761,7 @@
     {
       "id": "trakt-sync",
       "name": "Trakt 自动追踪",
-      "summary": "将 MovieClaw 播放活动同步到各成员自己的 Trakt 账号",
+      "summary": "播放、已看与收藏同步到各成员的 Trakt，支持确认后的双向历史同步",
       "description": "将 MovieClaw 播放活动自动同步到各成员绑定的 Trakt 账号",
       "category": "tools",
       "author": {

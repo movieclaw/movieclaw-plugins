@@ -150,6 +150,7 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
             ["/sync/history/movies", "/sync/history"],
         )
         self.assertEqual(json.loads(self.requests[-1].content)["movies"][0]["watched_at"], when)
+        self.assertEqual((await e.activity(0))["records"][0]["occurred_at"], when)
 
     async def test_reload_preserves_queue_and_event_deduplication(self):
         e = self.engine
@@ -443,12 +444,15 @@ class TrackingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await e.status(0))["pending"], 0)
         self.assertIn("短播放", (await e.activity(0))["records"][0]["reason"])
 
-    async def test_host_timestamp_format_retains_microseconds_and_offset(self):
+    async def test_source_time_keeps_microseconds_while_trakt_receives_utc_minute(self):
         e = self.engine
         when = "2026-10-22T01:02:03.123456+00:00"
         await e.accept("completed", self.event, "host-time", when)
         await e.drain(0)
-        self.assertEqual(json.loads(self.requests[-1].content)["movies"][0]["watched_at"], when)
+        self.assertEqual(
+            json.loads(self.requests[-1].content)["movies"][0]["watched_at"], "2026-10-22T01:02:00Z"
+        )
+        self.assertEqual((await e.activity(0))["records"][0]["occurred_at"], when)
 
     async def test_scheduler_sleeps_when_idle_and_wakes_for_delivery(self):
         e = self.engine

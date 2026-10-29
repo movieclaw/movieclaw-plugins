@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.0 (2026-10-29)
+
+- Target official MovieClaw Server v0.44.0, including the shared watch-source IDs from upstream #1063. Earlier servers without playback stopped/completed contracts 1.1 cannot install this version.
+- Add independent, default-off preferences for manual watched, manual unwatched and new favorites to Trakt Watchlist. Preserve existing accounts and preferences on same-ID updates; ratings and member self-service are not included.
+- Add a separate foreground history page: scan local holdings or paginated Trakt history, review movie/per-season counts, explicitly confirm, then process resumable batches. Opening the page never starts or resumes a transfer.
+- Preserve API-returned import times and local source precision. Trakt history uses UTC minutes; disclose same-minute collisions instead of reporting them as distinct successful watches.
+- Share durable receipts across real-time delivery and history export, including response loss, process recovery and resume-source aliases. Protect newer watches from delayed unwatch events and preserve incremental imports after cutoff exclusions.
+- Retain stable metadata correction, retry/dismissal controls and activity filters. No filesystem access, additional server port or automatic bulk synchronization.
+
+## 0.3.0-beta.3 (unreleased)
+
+- Share durable source receipts between real-time completions and history export using the watch-log IDs proposed in upstream MovieClaw #1063. Keep each member, binding and media identity separate; receipts remain valid when the catalog stop timestamp or resume-group anchor changes.
+- Persist approved export intents before remote reconciliation, so late native events recover the same explicit minute after a lost export response or receipt. Preserve exported-minute ownership across aliases and interrupted merge accounting.
+- Wait for pending delivery of the same source before exporting; late native events reuse successful export receipts. Preserve skipped same-minute outcomes and persist receipts before removing delivery intent.
+- Record successfully reconciled exports in the watch/unwatch ordering barrier before committing receipts. Restore it from fingerprint/shared receipts, including native recovery of an export intent, using precise original source times so delayed older removals cannot erase newer exported watches.
+- Require playback.stopped/completed contracts ^1.1. Upstream #1063 is merged and pinned at its official merge commit, pending a formal release; official v0.43.0 is insufficient. Stable main and market remain 0.2.3, with no production update.
+
+## 0.3.0-beta.2 (unreleased)
+
+- Follow Trakt #694 UTC minute precision for history writes and deduplication; reconcile lost responses without confusing adjacent minutes. Keep local seconds/microseconds and event ordering intact. Disclose and skip extra same-minute watches rather than claiming lossless export; imported timestamps retain only precision actually returned by Trakt.
+- Reconcile uncertain native scrobbles using a persisted dispatch window after authorization refresh, since Trakt assigns their time. Preserve source-minute matching when switching to explicit history, clear definite-rejection windows, and guard capacity trimming before dispatch.
+- Clear a 401-rejected native dispatch window durably before refreshing OAuth tokens, so an uncertain refresh response cannot falsely reconcile an unrelated watch.
+- Integrate all stable 0.2.3 authentication, queue-capacity, metadata recovery and UI repairs into the separate dev track.
+- Target released MovieClaw v0.43.0 for catalog/import APIs and CI; keep marketplace automation disabled.
+- Add three independent default-off member preferences, activity filters and confirmed foreground history import/export with original movie/episode dates, rewatches, grouped previews and durable incremental receipts. No ratings, member self-service or background bulk transfer.
+- Treat ordinary HTTP 400 as an item error, continue after terminal action failures, and block only the affected Trakt account on authorization rejection. Missing host grants pause a transfer without invalidating Trakt credentials.
+- Apply unwatch cutoffs to retries of older manual watched actions too; display superseded actions as skipped. Newer queued playback waits for a pending removal, and older delayed/removal retries cannot erase a newer successful native/manual watch.
+- Coordinate manual unwatches with older playback queues and durable late events through member/unit/binding-scoped persisted cutoffs; newer watches remain eligible.
+- Skip exports when external media identity changes after preview, requiring a fresh scan and confirmation.
+- Retain previews without starting writes when confirmation-time Trakt revalidation fails; respect Retry-After and block rejected accounts.
+- Retain stable retry/correction/dismissal controls and verify real host durable events, admin-only routes and isolated dated import/export without production account writes.
+
 ## 0.2.3 (2026-10-22)
 
 - Prevent a completion evicted by capacity trimming after metadata revalidation from being sent without a persisted recovery record.
