@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-30T02:03:11Z",
+  "generated_at": "2026-10-30T13:02:58Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -27,7 +27,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-115",
-      "downloads": 54,
+      "downloads": 57,
       "latest": "0.1.0-beta.3",
       "latest_stable": null,
       "versions": [
@@ -360,7 +360,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-hot-subscribe",
-      "downloads": 7,
+      "downloads": 8,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -437,7 +437,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-rank-subscribe",
-      "downloads": 8,
+      "downloads": 10,
       "latest": "1.0.1",
       "latest_stable": "1.0.1",
       "versions": [
@@ -541,7 +541,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-wish",
-      "downloads": 7,
+      "downloads": 9,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -616,7 +616,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=movie-voice",
-      "downloads": 13,
+      "downloads": 17,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -844,7 +844,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=notifyhub",
-      "downloads": 11,
+      "downloads": 12,
       "latest": "2.3.0",
       "latest_stable": "2.3.0",
       "versions": [
@@ -931,7 +931,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=openlist-direct-link",
-      "downloads": 11,
+      "downloads": 13,
       "latest": "0.1.0",
       "latest_stable": "0.1.0",
       "versions": [
@@ -999,7 +999,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=platform-discovery",
-      "downloads": 21,
+      "downloads": 25,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -1207,10 +1207,57 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 11,
-      "latest": "0.2.2",
-      "latest_stable": "0.2.2",
+      "downloads": 13,
+      "latest": "0.2.3",
+      "latest_stable": "0.2.3",
       "versions": [
+        {
+          "version": "0.2.3",
+          "prerelease": false,
+          "released_at": "2026-10-30T13:02:58Z",
+          "yanked": null,
+          "notes": "修 issue #43：网络失败时日报只说「失败 1」，看不出是哪个站、为什么；临时网络错误\n（如 M-Team 的 `ConnectTimeout`）一撞上就把这一轮记成失败，没有第二次机会。\n\n- **日报列出每个失败的站点和原因**。正文在汇总数字之后多一段\n  「失败：M-Team：连接 M-Team 失败：连接超时（ConnectTimeout）」——站点用展示名，\n  原因是判定层给出的那句话；连续多轮的带上「（连续 N 轮）」，其中凭据失效的站按\n  **失效前真实失败过的轮数**计（不再是状态机为触发告警而植入的阈值）。只列「失败」，\n  跳过（站点没配好 / 未适配）和需人工（CF 拦截）不算故障，不进这段；但连着坏到阈值、\n  本轮却变成跳过 / 需人工的站会补一句「此前已连续失败 N 轮」，免得看起来像好了。\n- **明细有上限**：最多列 8 站、正文最多 900 字，超出写「另有 N 站，详见『设置 → 插件』」。\n  宿主推送载荷有 2200 字节明文上限，超了会被静默截断——与其发一条末尾丢字的通知，\n  不如自己先说清。\n- **`DailyReport.failures` 的语义变了**（对 Webhook / 订阅方）：`report.daily` 里现在是\n  「本轮全部失败站点（含首次失败、含凭据失效）」，旧版是「连续 3 轮失败、尚未报过的站点」；\n  `report.failures` 里仍是后者。字段名相同是因为两条通知共用 `{detail}` 正文。\n- **临时网络错误自动重试**：本轮跑完后，本轮判成临时错误的站点按 **1、3、5 分钟**\n  退避再各试一次，三次仍失败才记这一轮失败，说明里注明「本轮已重试 3 次仍失败」。\n  重试按整轮统一进行（只重打失败的那几个站），等待总时长不随站点数增长\n  （最坏一轮约 10 分钟，默认每天一次不受影响；把周期改成分钟级时要注意）。\n  - 算临时错误的：网络层失败（超时、连不上、连接被重置、代理失败）与宿主的 5xx\n    （`site.proxy.request` 把站点超时 / 连不上统一回 503），以及站点自己的 5xx。\n  - **不算的**：凭据失效、登录被拒、两步验证密钥填错、站点改版（签名轮换）、限流、\n    4xx 参数错误。登录失败会消耗账号尝试次数，重试只会白挨一次风控。\n  - M-Team 更细一层：连不上（`ConnectError` / `ConnectTimeout`）可重试；登录请求**发出后**\n    才超时（`ReadTimeout` / `WriteTimeout`）不可重试——站点可能已经处理过；登录阶段收到\n    网关 5xx 可以重试（网关回话说明登录接口没执行过）。\n- **Cloudflare 拦截页不再被当服务端故障重试**：challenge 特征现在先于 5xx 判定，\n  CF 常把拦截页挂在 503/520 上，此前会被当成故障连打 4 次。\n- **M-Team 网关 5xx 现在会被判成可重试的服务端故障**：此前非 JSON 正文一律落到\n  「站点返回未预期的响应：（空）」，既没有状态码也不重试。\n- **网络错误写成「连接超时（ConnectTimeout）：…」**：常见 httpx 错误\n  （ConnectTimeout / ReadTimeout / WriteTimeout / PoolTimeout / ConnectError / ReadError /\n  RemoteProtocolError / ProxyError / NetworkError）各有中文说法，同时保留原始类名与异常原文\n  （证书、DNS、代理的细节都在原文里）。\n- 单测 139 个全绿（新增 26 个：日报列出失败站点与原因、连续轮数标注、失效轮数不被植入值\n  污染、跳过站不丢历史失败、明细上限与字节上限、临时错误重试到成功 / 三次仍失败 /\n  凭据失效不重试 / 4xx 不重试 / 只重打失败的站、重试完不再标可重试、M-Team 登录阶段\n  各错误的重试语义、网关 5xx、CF 拦截页优先、网络错误文案表与 fallback）。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/pt-keepalive-v0.2.3",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/pt-keepalive-v0.2.3/plugins/pt-keepalive",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/pt-keepalive-v0.2.3/plugins/pt-keepalive/README.md",
+            "sha256": "d03fbb43cec056ad573631c9687d7357fa63586aeb2cdf7d508186094e68045d",
+            "size": 10207
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "scheduled-tasks": "^1.0",
+            "plugin-events": "^1.0",
+            "plugin-data": "^1.0",
+            "plugin-routes": "^1.0"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "site.list",
+              "site.catalog",
+              "site.proxy.request"
+            ],
+            "paths": [],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": false,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "pt-keepalive-0.2.3.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/pt-keepalive-v0.2.3/pt-keepalive-0.2.3.mcplugin",
+              "sha256": "29ebca069960a0a31284f90c765fdde523e6658c57fc75e8759f50976be4dfb8",
+              "size": 68793
+            }
+          ]
+        },
         {
           "version": "0.2.2",
           "prerelease": false,
@@ -1282,7 +1329,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-site-pack",
-      "downloads": 32,
+      "downloads": 37,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -1528,7 +1575,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-hub",
-      "downloads": 5,
+      "downloads": 6,
       "latest": "1.0.0",
       "latest_stable": "1.0.0",
       "versions": [
@@ -1601,7 +1648,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-scheduler",
-      "downloads": 10,
+      "downloads": 12,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -1689,7 +1736,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=strategy-linkage",
-      "downloads": 4,
+      "downloads": 5,
       "latest": "1.0.0",
       "latest_stable": "1.0.0",
       "versions": [
@@ -1776,7 +1823,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/o1xhack/movieclaw-trakt/issues/new",
-      "downloads": 7,
+      "downloads": 12,
       "latest": "0.3.0",
       "latest_stable": "0.3.0",
       "versions": [
@@ -1919,7 +1966,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=tv-home",
-      "downloads": 2,
+      "downloads": 4,
       "latest": "0.1.0",
       "latest_stable": "0.1.0",
       "versions": [
@@ -2011,7 +2058,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=watch-friends",
-      "downloads": 16,
+      "downloads": 20,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
