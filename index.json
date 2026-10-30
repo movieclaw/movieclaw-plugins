@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-29T19:06:27Z",
+  "generated_at": "2026-10-30T02:03:11Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -27,7 +27,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-115",
-      "downloads": 49,
+      "downloads": 54,
       "latest": "0.1.0-beta.3",
       "latest_stable": null,
       "versions": [
@@ -360,7 +360,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-hot-subscribe",
-      "downloads": 5,
+      "downloads": 7,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -437,7 +437,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-rank-subscribe",
-      "downloads": 7,
+      "downloads": 8,
       "latest": "1.0.1",
       "latest_stable": "1.0.1",
       "versions": [
@@ -541,7 +541,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-wish",
-      "downloads": 5,
+      "downloads": 7,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -844,7 +844,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=notifyhub",
-      "downloads": 9,
+      "downloads": 11,
       "latest": "2.3.0",
       "latest_stable": "2.3.0",
       "versions": [
@@ -931,7 +931,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=openlist-direct-link",
-      "downloads": 10,
+      "downloads": 11,
       "latest": "0.1.0",
       "latest_stable": "0.1.0",
       "versions": [
@@ -1207,7 +1207,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 6,
+      "downloads": 11,
       "latest": "0.2.2",
       "latest_stable": "0.2.2",
       "versions": [
@@ -1282,7 +1282,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-site-pack",
-      "downloads": 30,
+      "downloads": 32,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -1528,7 +1528,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-hub",
-      "downloads": 2,
+      "downloads": 5,
       "latest": "1.0.0",
       "latest_stable": "1.0.0",
       "versions": [
@@ -1601,7 +1601,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-scheduler",
-      "downloads": 8,
+      "downloads": 10,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -1689,7 +1689,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=strategy-linkage",
-      "downloads": 3,
+      "downloads": 4,
       "latest": "1.0.0",
       "latest_stable": "1.0.0",
       "versions": [
@@ -1777,9 +1777,72 @@
       "deprecated": null,
       "feedback_url": "https://github.com/o1xhack/movieclaw-trakt/issues/new",
       "downloads": 7,
-      "latest": "0.2.3",
-      "latest_stable": "0.2.3",
+      "latest": "0.3.0",
+      "latest_stable": "0.3.0",
       "versions": [
+        {
+          "version": "0.3.0",
+          "prerelease": false,
+          "released_at": "2026-10-30T02:03:11Z",
+          "yanked": null,
+          "notes": "- Resolve and persist Trakt's stable user UUID before history import. Keep a member-scoped UUID-to-source namespace across reconnections and username changes, migrate retained beta bindings without changing their existing source IDs, and require a fresh preview for unfinished legacy imports. Identity lookup failures back off or pause before host reads/writes; interrupted persistence and token refresh retain safe retry behavior.\n- Before disconnecting an imported beta binding, persist its UUID namespace even if no post-upgrade scan ran. If identity lookup or storage fails, retain the binding and offer retry; only a separate explicit confirmation allows a reset that may lose legacy import deduplication. Keep the selected member fixed across this two-step flow.\n- Persist the precise watch-ordering marker for minute-merged exports and recover it from merged fingerprint/source-alias receipts. Delayed removals between same-minute watches cannot erase the later viewing; genuinely newer removals and merged/skipped accounting remain unchanged.\n\n- Target official MovieClaw Server v0.44.0, including the shared watch-source IDs from upstream #1063. Earlier servers without playback stopped/completed contracts 1.1 cannot install this version.\n- Add independent, default-off preferences for manual watched, manual unwatched and new favorites to Trakt Watchlist. Preserve existing accounts and preferences on same-ID updates; ratings and member self-service are not included.\n- Add a separate foreground history page: scan local holdings or paginated Trakt history, review movie/per-season counts, explicitly confirm, then process resumable batches. Opening the page never starts or resumes a transfer.\n- Preserve API-returned import times and local source precision. Trakt history uses UTC minutes; disclose same-minute collisions instead of reporting them as distinct successful watches.\n- Share durable receipts across real-time delivery and history export, including response loss, process recovery and resume-source aliases. Protect newer watches from delayed unwatch events and preserve incremental imports after cutoff exclusions.\n- Retain stable metadata correction, retry/dismissal controls and activity filters. No filesystem access, additional server port or automatic bulk synchronization.\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/trakt-sync-v0.3.0",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/trakt-sync-v0.3.0/plugins/trakt-sync",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/trakt-sync-v0.3.0/plugins/trakt-sync/README.md",
+            "sha256": "2138f4819eee9cd596694bdf4b264a5b241a59c9cfe1557f9d6338716ac32ccb",
+            "size": 6673
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "playback.started": "^2.0",
+            "playback.progress": "^1.0",
+            "playback.stopped": "^1.1",
+            "playback.completed": "^1.1",
+            "plugin-data": "^1.0",
+            "plugin-routes": "^1.0",
+            "plugin-health": "^1.0",
+            "kernel/durable-events": "^1.0",
+            "playback.marked_played": "^1.0",
+            "playback.marked_unplayed": "^1.0",
+            "library.item.favorited": "^2.0"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "library.list",
+              "library.items.get",
+              "playback.sync.catalog",
+              "playback.sync.import"
+            ],
+            "paths": [],
+            "network": true,
+            "callbacks": [],
+            "events": [
+              "playback.started",
+              "playback.progress",
+              "playback.stopped",
+              "playback.completed",
+              "playback.marked_played",
+              "playback.marked_unplayed",
+              "library.item.favorited"
+            ]
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "trakt-sync-0.3.0.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/trakt-sync-v0.3.0/trakt-sync-0.3.0.mcplugin",
+              "sha256": "86660aeaddb0d0f995da50ab4a297b074f93d2b21074cb6aaeb64bf6db2e1295",
+              "size": 125606
+            }
+          ]
+        },
         {
           "version": "0.2.3",
           "prerelease": false,
@@ -1948,7 +2011,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=watch-friends",
-      "downloads": 13,
+      "downloads": 16,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
