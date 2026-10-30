@@ -24,7 +24,12 @@ class DailyReport(BaseModel):
     """保活日报事件的载荷。
 
     ``detail`` 是给通知正文用的一行汇总——通知模板只做字段替换、不会拼接数组，
-    所以连续失败明细在这里先拼好，``failures`` 保留结构化形式给 Webhook / 别的插件。
+    所以汇总数字与逐站失败原因都在这里先拼好。
+
+    ``failures`` 是结构化明细（一行一站），但**两个事件的含义不同**：
+    ``report.daily`` 里是「本轮全部失败站点」（含首次失败、含凭据失效），
+    ``report.failures`` 里是「已连续失败到阈值、还没报过的站点」。
+    字段名相同是因为两条通知共用 ``{detail}`` 正文，订阅方按事件名区分即可。
     """
 
     model_config = ConfigDict(frozen=True)

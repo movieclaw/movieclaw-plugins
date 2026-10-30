@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pt_keepalive import state as st
 from pt_keepalive.result import Outcome
-from pt_keepalive.runner import KeepaliveRunner
+from pt_keepalive.runner import RETRY_DELAYS, KeepaliveRunner
 from pt_keepalive.settings import Settings
 from pt_keepalive.sites import (
     SiteInfo,
@@ -127,12 +127,15 @@ class _FakeOpsClient:
         sites: list[dict[str, Any]] | None = None,
         catalog: list[dict[str, Any]] | None = None,
         unavailable_409: dict[str, str] | None = None,
+        unavailable_503: dict[str, int] | None = None,
     ) -> None:
         self.responses = responses
         self.auth_409 = auth_409 or set()
         self.sites = sites
         self.catalog = catalog or []
         self.unavailable_409 = unavailable_409 or {}
+        #: site_id → 还要抛几次 503（宿主对超时 / 连不上回的口子）；用完就正常回放
+        self.unavailable_503 = dict(unavailable_503 or {})
         self.calls: list[dict[str, Any]] = []
 
     def allowed(self, operation_id: str) -> bool:
@@ -151,6 +154,13 @@ class _FakeOpsClient:
         if operation == "site.proxy.request":
             sid = str(args.get("site_id"))
             self.calls.append({"op": operation, **args})
+            if self.unavailable_503.get(sid):
+                from movieclaw_sdk.ops import OpsError
+
+                self.unavailable_503[sid] -= 1
+                # 与真实宿主一致（sites.py）：超时回「站点响应超时（Ns）」，
+                # 其它传输错误回「无法连接站点：{exc}」
+                raise OpsError(503, "SERVICE_UNAVAILABLE", "站点响应超时（30s）")
             if sid in self.auth_409:
                 from movieclaw_sdk.ops import OpsError
 
@@ -195,6 +205,8 @@ class TestRunnerRound(unittest.TestCase):
         sites: list[dict[str, Any]] | None = None,
         catalog: list[dict[str, Any]] | None = None,
         unavailable_409: dict[str, str] | None = None,
+        unavailable_503: dict[str, int] | None = None,
+        sleeps: list[float] | None = None,
     ):
         data = _FakeData()
         events = events or _FakeEvents()
@@ -204,9 +216,15 @@ class TestRunnerRound(unittest.TestCase):
             sites=sites,
             catalog=catalog,
             unavailable_409=unavailable_409,
+            unavailable_503=unavailable_503,
         )
         ctx = _FakeCtx(ops, config)
-        runner = KeepaliveRunner(ctx, data=data, events=events)
+
+        async def _sleep(seconds: float) -> None:
+            if sleeps is not None:
+                sleeps.append(seconds)
+
+        runner = KeepaliveRunner(ctx, data=data, events=events, sleep=_sleep)
         return runner, data, events, ops
 
     def test_host_unavailable_site_is_skipped_not_expired(self):
@@ -639,6 +657,384 @@ class TestRunnerRound(unittest.TestCase):
         result = asyncio.run(runner.run_round())
         self.assertIn("skipped_reason", result)
         self.assertEqual(events.published, [])
+
+    # ------------------------------------------------------------------ 日报列失败站点与原因
+
+    def test_daily_report_lists_each_failed_site_with_reason(self):
+        # issue #43：日报只说「失败 1」，得让人知道是哪个站、为什么失败
+        import asyncio
+
+        runner, _, events, _ = self._runner(
+            {
+                # 跳到外站：不重试的失败，正好用来单看日报怎么写
+                ("site.proxy.request", "hdsky", "index.php"): {
+                    "status_code": 302,
+                    "headers": {"location": "https://evil.example/collect"},
+                    "text": "",
+                },
+                ("site.proxy.request", "chdbits", "index.php"): _html(_LOGGED_IN),
+                ("site.proxy.request", "chdbits", "attendance.php"): _html("签到成功"),
+            },
+            sites=[
+                {"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"},
+                {"site_id": "chdbits", "usable": True, "auth_type": "cookie"},
+            ],
+        )
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertIn("在线 1 站（签到成功 1）", report.detail)
+        self.assertIn("失败 1", report.detail)
+        self.assertIn("HDSky", report.detail)  # 是哪个站
+        self.assertIn("evil.example", report.detail)  # 为什么
+        self.assertNotIn("chdbits", report.detail)  # 成功的站不列
+        self.assertEqual(len(report.failures), 1)
+        self.assertTrue(report.failures[0].startswith("HDSky："))
+
+    def test_daily_report_marks_sites_with_consecutive_failures(self):
+        import asyncio
+
+        runner, data, events, _ = self._runner(
+            {("site.proxy.request", "hdsky", "index.php"): {"status_code": 500, "text": ""}},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+        )
+        data.store[st.STATE_KEY] = {
+            "hdsky": {"outcome": "failed", "detail": "HTTP 500", "consecutive_failures": 2}
+        }
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertIn("连续 3 轮", report.detail)
+
+    def test_daily_report_explains_expired_credentials_site(self):
+        # 凭据失效的站不进「连续失败」段（有自己的告警），日报里也必须说清楚它为什么失败
+        import asyncio
+
+        runner, _, events, _ = self._runner(
+            {("site.proxy.request", "hdsky", "index.php"): _html(_LOGGED_IN)},
+            auth_409={"hdsky"},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+        )
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertIn("HDSky", report.detail)
+        self.assertIn("凭据", report.detail)
+        # 状态机为触发告警把计数置成了阈值：那不是真实轮数，不能写进日报
+        self.assertNotIn("连续", report.detail)
+
+    def test_daily_report_does_not_list_skipped_sites_as_failures(self):
+        import asyncio
+
+        runner, _, events, _ = self._runner(
+            {},
+            sites=[{"site_id": "sunnypt", "display_name": "Sunny", "usable": True, "auth_type": "apikey"}],
+        )
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertNotIn("Sunny", report.detail)
+        self.assertEqual(report.failures, [])
+
+    # ------------------------------------------------------------------ 临时网络错误自动重试
+
+    def test_transient_host_error_is_retried_until_it_works(self):
+        import asyncio
+
+        sleeps: list[float] = []
+        runner, _, events, ops = self._runner(
+            {
+                ("site.proxy.request", "hdsky", "index.php"): _html(_LOGGED_IN),
+                ("site.proxy.request", "hdsky", "attendance.php"): _html("签到成功"),
+            },
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+            unavailable_503={"hdsky": 2},  # 前两次报超时，第三次成功
+            sleeps=sleeps,
+        )
+        result = asyncio.run(runner.run_round())
+        self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["sites"]["hdsky"]["outcome"], "signin_ok")
+        # 按 1、3 分钟退避；第三次成功就不再有等待
+        self.assertEqual(sleeps, [60.0, 180.0])
+        self.assertEqual(len(ops.calls), 4)  # 两次 503 + 首页 + 签到页
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertNotIn("失败", report.detail)  # 重试成功后不算失败
+
+    def test_transient_error_still_fails_after_all_retries(self):
+        import asyncio
+
+        sleeps: list[float] = []
+        runner, data, events, _ = self._runner(
+            {},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+            unavailable_503={"hdsky": 99},
+            sleeps=sleeps,
+        )
+        result = asyncio.run(runner.run_round())
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(sleeps, [60.0, 180.0, 300.0])
+        detail = result["sites"]["hdsky"]["detail"]
+        self.assertIn("超时", detail)  # 宿主给的错误类型原样带上
+        self.assertIn(f"重试 {len(RETRY_DELAYS)} 次仍失败", detail)
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertIn("HDSky", report.detail)
+        self.assertIn("超时", report.detail)
+        states = st.normalize(data.store[st.STATE_KEY])
+        self.assertEqual(states["hdsky"]["outcome"], "failed")
+
+    def test_auth_failure_is_not_retried(self):
+        # 凭据失效重试只会白挨一次风控：一次就够，也不等
+        import asyncio
+
+        sleeps: list[float] = []
+        runner, _, _, ops = self._runner(
+            {},
+            auth_409={"hdsky"},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+            sleeps=sleeps,
+        )
+        asyncio.run(runner.run_round())
+        self.assertEqual(sleeps, [])
+        self.assertEqual(len(ops.calls), 1)
+
+    def test_client_error_is_not_retried(self):
+        # 4xx（路径不合法等）是插件的错，重试没有意义
+        import asyncio
+
+        class _Rejecting(_FakeOpsClient):
+            async def call(self, operation: str, arguments: dict[str, Any] | None = None) -> Any:
+                if operation == "site.proxy.request":
+                    from movieclaw_sdk.ops import OpsError
+
+                    self.calls.append({"op": operation, **(arguments or {})})
+                    raise OpsError(400, "INVALID_ARGUMENTS", "路径不允许指定主机")
+                return await super().call(operation, arguments)
+
+        sleeps: list[float] = []
+        operations = _Rejecting(
+            {},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+        )
+
+        async def _sleep(seconds: float) -> None:
+            sleeps.append(seconds)
+
+        runner = KeepaliveRunner(
+            _FakeCtx(operations), data=_FakeData(), events=_FakeEvents(), sleep=_sleep
+        )
+        result = asyncio.run(runner.run_round())
+        self.assertEqual(sleeps, [])
+        self.assertEqual(len(operations.calls), 1)
+        self.assertIn("路径不允许指定主机", result["sites"]["hdsky"]["detail"])
+
+    def test_site_server_error_is_retried(self):
+        # 站点自己的 5xx（维护、网关抖动）与网络错误同类：本轮值得再试
+        import asyncio
+
+        sleeps: list[float] = []
+        runner, _, _, ops = self._runner(
+            {
+                ("site.proxy.request", "hdsky", "index.php"): {
+                    "status_code": 503,
+                    "text": "<html>maintenance</html>",
+                },
+                ("site.proxy.request", "hdsky", "attendance.php"): _html("签到成功"),
+            },
+            config=Settings(signin_enabled=False),
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+            sleeps=sleeps,
+        )
+        asyncio.run(runner.run_round())
+        self.assertEqual(sleeps, [60.0, 180.0, 300.0])
+        self.assertEqual(len(ops.calls), 4)  # 首次 + 三次重试
+
+    def test_retry_only_visits_the_failed_site_again(self):
+        import asyncio
+
+        runner, _, _, ops = self._runner(
+            {
+                ("site.proxy.request", "hdsky", "index.php"): _html(_LOGGED_IN),
+                ("site.proxy.request", "hdsky", "attendance.php"): _html("签到成功"),
+                ("site.proxy.request", "chdbits", "index.php"): _html(_LOGGED_IN),
+                ("site.proxy.request", "chdbits", "attendance.php"): _html("签到成功"),
+            },
+            sites=[
+                {"site_id": "hdsky", "usable": True, "auth_type": "cookie"},
+                {"site_id": "chdbits", "usable": True, "auth_type": "cookie"},
+            ],
+            unavailable_503={"hdsky": 1},
+        )
+        asyncio.run(runner.run_round())
+        # chdbits 只在第一遍访问两次，重试那遍只打 hdsky
+        self.assertEqual(
+            [c["site_id"] for c in ops.calls].count("chdbits"), 2
+        )
+        self.assertEqual([c["site_id"] for c in ops.calls].count("hdsky"), 3)
+
+    def test_mteam_network_error_is_retried(self):
+        # M-Team 的 ConnectTimeout 是 issue #43 的现场：临时网络错误要再试
+        import asyncio
+        from unittest import mock
+
+        from pt_keepalive import mteam as mteam_mod
+        from pt_keepalive.result import SiteResult
+
+        attempts: list[int] = []
+
+        class _StubClient:
+            def __init__(self, *, credentials, session):
+                self.session = mteam_mod.Session()
+
+            async def run(self):
+                attempts.append(1)
+                if len(attempts) == 1:
+                    return SiteResult(
+                        Outcome.FAILED, "连接 M-Team 失败：连接超时（ConnectTimeout）", retryable=True
+                    )
+                return SiteResult(Outcome.SIGNIN_OK, "最后浏览时间已刷新")
+
+            async def aclose(self):
+                return None
+
+        sleeps: list[float] = []
+        runner, _, _, _ = self._runner(
+            {},
+            config=Settings(mteam_username="u", mteam_password="pw"),
+            sites=[{"site_id": "mteam", "usable": True, "auth_type": "APIKEY"}],
+            sleeps=sleeps,
+        )
+        with mock.patch("pt_keepalive.runner.MTeamClient", _StubClient):
+            result = asyncio.run(runner.run_round())
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(sleeps, [60.0])
+        self.assertEqual(result["sites"]["mteam"]["outcome"], "signin_ok")
+
+    def test_mteam_auth_error_is_not_retried(self):
+        # 登录失败会扣账号尝试次数：绝不重试
+        import asyncio
+        from unittest import mock
+
+        from pt_keepalive import mteam as mteam_mod
+        from pt_keepalive.result import SiteResult
+
+        attempts: list[int] = []
+
+        class _StubClient:
+            def __init__(self, *, credentials, session):
+                self.session = mteam_mod.Session()
+
+            async def run(self):
+                attempts.append(1)
+                return SiteResult(Outcome.FAILED, "登录被拒：密碼錯誤", auth_expired=True)
+
+            async def aclose(self):
+                return None
+
+        sleeps: list[float] = []
+        runner, _, _, _ = self._runner(
+            {},
+            config=Settings(mteam_username="u", mteam_password="pw"),
+            sites=[{"site_id": "mteam", "usable": True, "auth_type": "APIKEY"}],
+            sleeps=sleeps,
+        )
+        with mock.patch("pt_keepalive.runner.MTeamClient", _StubClient):
+            asyncio.run(runner.run_round())
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(sleeps, [])
+
+    # -------------------------------------------------- 逐站重试的边界（复查补的用例）
+
+    def test_retried_result_no_longer_claims_to_be_retryable(self):
+        # 已经重试完的结果不该还举着「可重试」的旗子：外层若再套一层循环会重复打
+        import asyncio
+
+        runner, data, _, _ = self._runner(
+            {},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+            unavailable_503={"hdsky": 99},
+        )
+        results = asyncio.run(runner._run_with_retries(asyncio.run(runner.enabled_sites())))
+        self.assertFalse(results["hdsky"].retryable)
+        self.assertIn("重试 3 次仍失败", results["hdsky"].detail)
+
+    def test_consecutive_failure_severity_survives_an_expired_round(self):
+        # 失效那轮把计数置成阈值；之后接着数真实轮数，不能把植入值当成真的
+        import asyncio
+
+        runner, data, events, _ = self._runner(
+            {("site.proxy.request", "hdsky", "index.php"): {"status_code": 500, "text": ""}},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+        )
+        data.store[st.STATE_KEY] = {
+            "hdsky": {
+                "outcome": "failed",
+                "detail": "凭据已失效",
+                "consecutive_failures": st.FAILURE_THRESHOLD,
+                "failures_before_expired": 1,  # 失效前只失败过 1 轮
+                "alerted_expired": True,
+            }
+        }
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        # 真实连续轮数是 2（不是阈值+1）
+        self.assertIn("连续 2 轮", report.detail)
+        self.assertNotIn(f"连续 {st.FAILURE_THRESHOLD + 1} 轮", report.detail)
+
+    def test_expired_round_reports_its_true_count(self):
+        # 失效轮自身也要说真实轮数，不能写阈值的 3
+        import asyncio
+
+        runner, _, events, _ = self._runner(
+            {("site.proxy.request", "hdsky", "index.php"): {"status_code": 302, "headers": {"location": "/login.php"}}},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+        )
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertIn("HDSky", report.detail)
+        self.assertNotIn("连续 3 轮", report.detail)  # 这是第一轮
+
+    def test_site_stuck_after_threshold_is_not_silently_dropped(self):
+        # 连着坏了几天、这轮变成「跳过」的站：不能让用户以为它好了
+        import asyncio
+
+        runner, data, events, _ = self._runner(
+            {},
+            sites=[
+                {
+                    "site_id": "hdsky",
+                    "display_name": "HDSky",
+                    "usable": False,
+                    "auth_type": "credential",
+                    "status": "verifying",
+                }
+            ],
+        )
+        data.store[st.STATE_KEY] = {
+            "hdsky": {"outcome": "failed", "detail": "HTTP 500", "consecutive_failures": 3}
+        }
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertIn("HDSky", report.detail)
+        self.assertIn("此前已连续失败 3 轮", report.detail)
+
+    def test_long_failure_list_is_capped_before_the_push_limit(self):
+        # 宿主推送载荷上限 2200 字节，超了会被静默截断：插件自己先说清「另有 N 站」
+        import asyncio
+
+        from pt_keepalive.runner import MAX_REPORT_ITEMS, MAX_DETAIL_CHARS
+
+        sites = [
+            {"site_id": f"site{i}", "display_name": f"Site{i}", "usable": True, "auth_type": "cookie"}
+            for i in range(30)
+        ]
+        runner, _, events, _ = self._runner(
+            {},
+            sites=sites,
+            unavailable_503={f"site{i}": 99 for i in range(30)},
+        )
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertIn("另有 22 站", report.detail)  # 30 - MAX_REPORT_ITEMS
+        self.assertIn(f"Site{MAX_REPORT_ITEMS - 1}", report.detail)
+        self.assertNotIn(f"Site{MAX_REPORT_ITEMS}", report.detail)
+        self.assertLessEqual(len(report.detail), MAX_DETAIL_CHARS)
+        self.assertLess(len(report.detail.encode("utf-8")), 2200)  # 宿主的明文上限
 
 
 if __name__ == "__main__":

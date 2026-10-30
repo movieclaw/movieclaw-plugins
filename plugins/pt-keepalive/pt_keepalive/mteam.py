@@ -138,6 +138,7 @@ class Reply(str, Enum):
     AUTH = "auth"  # 凭据类：账号密码错 / 令牌失效
     SIGNATURE = "signature"  # 签名错误：前端密钥被轮换
     RATE = "rate"  # 请求过于频繁
+    SERVER_ERROR = "server_error"  # 站点 / 网关自己的 5xx：与网络抖动同类，可重试
     UNKNOWN = "unknown"
 
 
@@ -147,18 +148,31 @@ class Verdict:
     message: str = ""
 
 
-def classify(payload: Any, *, status_code: int = 200) -> Verdict:
+def classify(payload: Any, *, status_code: int | None = None) -> Verdict:
     """站点 JSON 响应 → 语义分类。
 
     ``code`` 在 M-Team 各接口里有数字也有字符串（``0`` / ``"0"`` / ``401``），
-    一律按字符串比。HTTP 401/403 先于「成功」判据：被拒的响应即便正文像成功也不采信。
+    一律按字符串比。HTTP 401/403 先于「成功」判据：被拒的响应即便正文像成功也不采信；
+    5xx 也先于「成功」判据——网关错误页里可能带着像成功的字样。
+
+    ``status_code`` 缺省时取载荷里的 ``_status``（``_post`` 会填进去），两条路的判定一致。
     """
     if not isinstance(payload, dict):
         return Verdict(Reply.UNKNOWN, "响应不是 JSON 对象")
+    if status_code is None:
+        try:
+            status_code = int(payload.get("_status") or 200)
+        except (TypeError, ValueError):
+            status_code = 200
     message = str(payload.get("message") or payload.get("msg") or "")
     code = str(payload.get("code"))
     if status_code in (401, 403) or code in ("401", "403"):
         return Verdict(Reply.AUTH, message or f"HTTP {status_code}")
+    if status_code >= 500:
+        # 站点前面的网关 / 维护页：正文往往不是站点的 JSON，重试常能过去
+        return Verdict(
+            Reply.SERVER_ERROR, message or f"站点返回 HTTP {status_code}，服务端故障"
+        )
     if code == "1001":
         return Verdict(Reply.NEED_TOTP, message)
     if code == "0" or message.upper() in ("SUCCESS", "OK"):
@@ -240,7 +254,50 @@ class Session:
 
 
 class TransportError(Exception):
-    """连不上站点（网络、超时、代理）。"""
+    """连不上站点（网络、超时、代理）。
+
+    ``retryable`` 由抛出点判断：**登录请求**发出后超时（``ReadTimeout`` /
+    ``WriteTimeout``）时站点可能已经处理了，重试等于再消耗一次账号尝试次数，所以
+    登录阶段一律不标可重试；确认会话之后的那几个请求可以随便重试。
+    """
+
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
+
+#: 网络异常 → 给用户看的错误类型。顺序要紧：``ConnectTimeout`` / ``ReadTimeout`` /
+#: ``PoolTimeout`` 都含 ``Timeout``（前两个性质不同，见 :func:`network_error_text`），
+#: ``ConnectError`` / ``ReadError`` / ``WriteError`` 都是 ``NetworkError`` 的子类。
+_NETWORK_ERROR_TEXT = (
+    ("ConnectTimeout", "连接超时"),
+    ("ReadTimeout", "读取响应超时"),
+    ("WriteTimeout", "发送请求超时"),
+    ("PoolTimeout", "等待连接超时"),
+    ("Timeout", "超时"),
+    ("ConnectError", "无法连接站点"),
+    ("ReadError", "读取响应被中断"),
+    ("WriteError", "发送请求被中断"),
+    ("RemoteProtocolError", "连接被站点重置"),
+    ("ProxyError", "代理连接失败"),
+    ("NetworkError", "网络错误"),
+)
+
+
+def network_error_text(exc: BaseException) -> str:
+    """网络异常 → 「连接超时（ConnectTimeout）」这样的人话。
+
+    保留原始类名与异常原文：``ConnectError`` 里常带着证书 / DNS / 代理的细节，
+    只写一句中文会把排查线索一起丢掉。
+    """
+    name = type(exc).__name__
+    label = name
+    for needle, text in _NETWORK_ERROR_TEXT:
+        if needle in name:
+            label = f"{text}（{name}）"
+            break
+    message = str(exc).strip()
+    return f"{label}：{message}" if message else label
 
 
 # ---------------------------------------------------------------------------
@@ -303,12 +360,21 @@ class MTeamClient:
         return headers
 
     async def _post(
-        self, path: str, *, data: dict[str, str] | None = None, auth: bool = False
+        self,
+        path: str,
+        *,
+        data: dict[str, str] | None = None,
+        auth: bool = False,
+        may_have_reached_site: bool = True,
     ) -> tuple[Any, str]:
         """发一个签名请求；返回（解析后的 JSON，响应头里的 Authorization）。
 
         网络错误抛 :class:`TransportError`。``Did`` 在这里顺手更新：服务端每次响应都可能
         滚动下发新的设备号，不跟着更新，下一轮就成了「新设备」。
+
+        ``may_have_reached_site=False`` 用于登录：连不上 / 连接超时说明请求没到站点，
+        重试安全；但**发出后**才超时（``ReadTimeout`` 等）就不知道站点收没收到，一律按
+        不可重试处理——重试会再消耗一次账号尝试次数。
         """
         import httpx
 
@@ -321,7 +387,16 @@ class MTeamClient:
                 API_BASE + path, headers=self._headers(auth=auth), data=form
             )
         except httpx.HTTPError as exc:
-            raise TransportError(f"{type(exc).__name__}: {exc}") from exc
+            # 「没连上」：请求肯定没到站点，重试安全。
+            # ConnectError / ConnectTimeout 是连不上；PoolTimeout 还没轮到发；ProxyError
+            # 是代理那条腿就没通。其余（ReadTimeout / WriteTimeout / RemoteProtocolError /
+            # ReadError / WriteError）都是「发出去了但没收回话」，不确定站点处理没处理。
+            never_sent = isinstance(
+                exc,
+                (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout, httpx.ProxyError),
+            )
+            retryable = may_have_reached_site or never_sent
+            raise TransportError(network_error_text(exc), retryable=retryable) from exc
         did = response.headers.get("Did") or response.headers.get("did") or ""
         if did:
             self.session.did = did
@@ -331,8 +406,11 @@ class MTeamClient:
         except ValueError:
             payload = None
         if payload is None:
-            # 非 JSON（网关错误页 / Cloudflare 拦截页）：交给判定层按「未预期」处理
-            return {"_text": response.text[:200]}, token
+            # 非 JSON（网关错误页 / Cloudflare 拦截页）：正文留着给判定层说清原因
+            payload = {"_text": response.text[:200]}
+        if isinstance(payload, dict):
+            # 状态码交给判定层：网关的 502/503/520 要能判成「可重试的服务端故障」
+            payload.setdefault("_status", response.status_code)
         return payload, token
 
     # -- 三个动作 -----------------------------------------------------------
@@ -344,7 +422,7 @@ class MTeamClient:
             "password": self.credentials.password,
             "turnstile": "",
         }
-        payload, token = await self._post("/api/login", data=form)
+        payload, token = await self._post("/api/login", data=form, may_have_reached_site=False)
         verdict = classify(payload)
         if verdict.reply is Reply.NEED_TOTP:
             if not self.credentials.totp_secret:
@@ -358,7 +436,9 @@ class MTeamClient:
             except ValueError as exc:
                 # 密钥格式错是配置问题：重试无用，也让用户知道该改哪儿
                 return SiteResult(Outcome.FAILED, f"两步验证密钥填错了：{exc}", auth_expired=True)
-            payload, token = await self._post("/api/login", data={**form, "otpCode": code})
+            payload, token = await self._post(
+                "/api/login", data={**form, "otpCode": code}, may_have_reached_site=False
+            )
             verdict = classify(payload)
         if verdict.reply is not Reply.OK:
             return self._result_for(verdict)
@@ -389,7 +469,8 @@ class MTeamClient:
                 return failure
             verdict = await self._update_last_browse()
         except TransportError as exc:
-            return SiteResult(Outcome.FAILED, f"连接 M-Team 失败：{exc}")
+            # 是否可重试由抛出点判定：登录阶段一律不可重试（可能已消耗一次尝试次数）
+            return SiteResult(Outcome.FAILED, f"连接 M-Team 失败：{exc}", retryable=exc.retryable)
         if verdict.reply is Reply.OK:
             return SiteResult(Outcome.SIGNIN_OK, "最后浏览时间已刷新")
         if verdict.reply is Reply.NO_CHANGE:
@@ -428,4 +509,8 @@ class MTeamClient:
             )
         if verdict.reply is Reply.RATE:
             return SiteResult(Outcome.FAILED, "站点限流（請求過於頻繁），本轮跳过、下一轮再试")
+        if verdict.reply is Reply.SERVER_ERROR:
+            return SiteResult(
+                Outcome.FAILED, f"M-Team 服务端故障：{message}", retryable=True
+            )
         return SiteResult(Outcome.FAILED, f"站点返回未预期的响应：{message or '（空）'}")

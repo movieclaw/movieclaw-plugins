@@ -42,6 +42,9 @@ class SiteResult:
     outcome: Outcome
     detail: str = ""  # 人话，进日志 / 日报 / 通知
     auth_expired: bool = False  # True → 触发凭据失效告警
+    #: True → 临时网络错误（超时、连不上、连接被重置）：本轮按间隔再试几次。
+    #: 凭据失效、站点改版、限流都不是临时的，重试只会白挨一次风控。
+    retryable: bool = False
     need_human: bool = field(default=False)  # 冗余位，方便调用方过滤
 
 
@@ -181,13 +184,18 @@ def judge_nexusphp_page(
     ``login_confirm=False`` 用于签到页这类没有导航栏的页面：不要求出现登出链接，
     只有密码框才判失效（签到页本身不提供「已登录」证据）。
     """
-    if status_code >= 500:
-        return SiteResult(Outcome.FAILED, f"站点返回 HTTP {status_code}，服务端故障")
+    # challenge 先于 5xx：Cloudflare 的拦截页常常就挂在 503 / 520 上，而一张挑战页再打
+    # 三次不会变成正常页——只会把「疑似机器人」的印象坐实。
     if is_challenge_page(html):
         return SiteResult(
             Outcome.NEED_HUMAN,
             "站点开启了人机验证（Cloudflare 等），需要人工访问",
             need_human=True,
+        )
+    if status_code >= 500:
+        # 站点自己故障（502 网关、503 维护、504 超时）：与网络抖动同类，本轮值得再试
+        return SiteResult(
+            Outcome.FAILED, f"站点返回 HTTP {status_code}，服务端故障", retryable=True
         )
     if status_code in (401, 403):
         # 没有 challenge 特征也被拒：多为 WAF / IP 限制。判「需人工」不给用户

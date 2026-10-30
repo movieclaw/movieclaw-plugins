@@ -180,12 +180,16 @@
 | 站点凭据被用户禁用 | `site.list` 回 `enabled=false` → 不收进本轮，什么都不记 |
 | 站点在宿主那边没验证通过（典型：开了两步验证 + 账号密码方式） | 记 skipped，**带上宿主的 `last_error`** 与「改用 Cookie」提示，不发请求、不告警 |
 | 站点刚配好、宿主还在验证（pending/verifying） | 记 skipped，说「还在验证中」，不渲染成故障 |
-| 代请求遇到网络错误 / 5xx | 单站本轮 FAILED，不重试；连续 3 轮进「连续失败」通知（每段失败只报一次） |
+| 代请求遇到网络错误 / 5xx | 判临时故障，按 1/3/5 分钟退避重试该站（最多 3 次）；三次仍失败才记本轮 FAILED 并注明「已重试 3 次仍失败」。连续 3 轮进「连续失败」通知（每段失败只报一次） |
+| 站点自己回 5xx | 同上（临时故障，重试）；但正文是 Cloudflare 拦截页时判 need_human，**不重试** |
+| 凭据失效 / 签名轮换 / 限流 / 4xx | 不重试，直接记本轮结果 |
 | NexusPHP 会话失效，`index.php` / `attendance.php` 302 到登录页（`Location` 路径带 `login`） | 判 FAILED + `auth_expired`，发一次凭据失效告警；不跟到登录页 |
 | 站点回同站跳转（相对路径，或主机与站点一致的绝对 URL） | 对站内路径再发一次 GET，最多 3 跳，照常判定结果 |
 | 站点跳到别的主机 / 跳转成环 / 超过 3 跳 / 302 不给 `Location` | 不跟；FAILED 并写明原因，**不**置 `auth_expired`；连续 3 轮进「连续失败」通知 |
 | 代理配置只给 pt-keepalive | mteam 登录链路走代理（`net.http_transport("pt-keepalive")`），NexusPHP 站仍由宿主 `site:<id>` 出口决定 |
 | mteam 账号密码错 / 账号被停用 | 判 `auth_expired` 并发一次告警；**不重试**登录（会扣账号尝试次数），下轮再试 |
+| mteam 登录链路网络错误 | 连不上（`ConnectError` / `ConnectTimeout`）→ 可重试；**发出后才超时**（`ReadTimeout` 等）→ 不可重试（站点可能已处理，重试会再扣一次尝试次数） |
+| mteam 网关 5xx（502/503/520，正文非 JSON） | 判服务端故障，可重试（登录阶段也一样：网关回话说明登录接口没执行） |
 | mteam 未填账号密码 | 该站记 `skipped`，不发请求、不告警 |
 | 调度器到点但上一轮还没跑完 | APScheduler max_instances=1 + coalesce（宿主既有行为），不并发 |
 | 同一版本重复上传 | 服务器拒绝（同版本字符串）；走正常升 version 流程 |

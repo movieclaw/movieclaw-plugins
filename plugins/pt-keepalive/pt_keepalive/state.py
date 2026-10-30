@@ -62,15 +62,24 @@ def record(
         entry["last_ok_at"] = _now_iso()
         entry.pop("alerted_expired", None)
         entry.pop("failure_alerted", None)
+        entry.pop("failures_before_expired", None)
     elif outcome == "failed":
         if auth_expired:
+            # 真实的连续轮数另存一份：置成阈值是为了让它立刻进告警，
+            # 那个数不是真的（见 _failure_lines 为什么不能拿它写「连续 N 轮」）
+            previous = int(entry.get("consecutive_failures") or 0)
+            entry["failures_before_expired"] = previous + 1
             entry["consecutive_failures"] = FAILURE_THRESHOLD
             if alerted is True:
                 entry["alerted_expired"] = True
             elif alerted is False:
                 entry.pop("alerted_expired", None)
         else:
-            entry["consecutive_failures"] = int(entry.get("consecutive_failures") or 0) + 1
+            # 失效那一轮把计数置成了阈值；从这里接着数真实轮数，别把它当成真的
+            base = entry.pop("failures_before_expired", None)
+            if base is None:
+                base = int(entry.get("consecutive_failures") or 0)
+            entry["consecutive_failures"] = base + 1
     states_out = dict(states)
     states_out[site_id] = entry
     return states_out

@@ -1,7 +1,7 @@
 [plugin]
 id = "pt-keepalive"
 title = "PT 站点保活"
-version = "0.2.2"
+version = "0.2.3"
 entry = "pt_keepalive"
 runtime = "process"
 sdk = "^1.0"

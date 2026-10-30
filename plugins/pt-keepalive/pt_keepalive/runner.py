@@ -11,7 +11,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any
 
 from movieclaw_sdk.ops import HOST_OPS, OpsError
@@ -49,6 +52,16 @@ _HOST_SKIP_MARKS = ("未配置", "已停用", "尚未验证通过")
 #: 宿主 409 且消息含这些特征 → 已认证会话失效
 _HOST_AUTH_MARKS = ("认证失败",)
 
+#: 临时网络错误的重试间隔（秒）：1、3、5 分钟——站点抖动、DNS 抽风、代理换线路
+#: 多半在十分钟内自己好；隔得太短打过去只会再撞一次同一个故障。
+RETRY_DELAYS = (60.0, 180.0, 300.0)
+
+#: 日报明细最多列几站（宿主推送载荷 2200 字节上限，超了会被静默截断）
+MAX_REPORT_ITEMS = 8
+
+#: 日报正文的兜底长度上限（字符）：极端长的 detail 也不至于把整条通知撑爆
+MAX_DETAIL_CHARS = 900
+
 #: 状态机单键（全部站点汇总 JSON）
 STATE_KEY = st.STATE_KEY
 
@@ -56,12 +69,22 @@ STATE_KEY = st.STATE_KEY
 class KeepaliveRunner:
     """一轮保活的执行器；由入口构造（注入 data/events 门面）并供任务处理器调用。"""
 
-    def __init__(self, ctx: Any, *, data: Any, events: Any) -> None:
+    def __init__(
+        self,
+        ctx: Any,
+        *,
+        data: Any,
+        events: Any,
+        sleep: Callable[[float], Awaitable[None]] | None = None,
+    ) -> None:
         self.ctx = ctx
         raw = getattr(ctx, "config", None)
-        self.config: Settings = raw if isinstance(raw, Settings) else Settings.model_validate(raw or {})
+        self.config: Settings = (
+            raw if isinstance(raw, Settings) else Settings.model_validate(raw or {})
+        )
         self.data = data  # PLUGIN_DATA.scoped(ctx)：get(key, default=) / set(key, value)
         self.events = events  # PLUGIN_EVENTS.register() 返回的 Publisher
+        self.sleep = sleep or asyncio.sleep  # 重试间隔；单测注入不真等的实现
         self.ops: Any = None
 
     async def _call(self, operation: str, **arguments: Any) -> Any:
@@ -154,8 +177,16 @@ class KeepaliveRunner:
                 return {"_skip": message}
             if exc.status == 409 and any(m in message for m in _HOST_AUTH_MARKS):
                 return {"_auth_expired": True}
-            logger.warning("站点 %s 代请求被宿主拒绝：%s", site.site_id, message)
-            return {"_error": message}
+            # 宿主把超时 / 连不上 / 网关错误统一回 503（其余 5xx 也可能是站点自己的故障）：
+            # 这类是临时的，本轮按间隔再试；凭据、限流、参数错误重试没有意义
+            transient = exc.status >= 500
+            logger.warning(
+                "站点 %s 代请求被宿主拒绝（%s）：%s",
+                site.site_id,
+                "临时错误，稍后重试" if transient else "不重试",
+                message,
+            )
+            return {"_error": message, "_retryable": transient}
 
     async def _proxy_following(self, site: SiteInfo, step: Step) -> dict:
         """代发请求；站点回 3xx 时自己决定跟不跟（宿主不跟随，原样回 ``Location``）。
@@ -244,7 +275,11 @@ class KeepaliveRunner:
                 )
                 break
             if response.get("_error"):
-                last = SiteResult(Outcome.FAILED, f"代请求失败：{response['_error']}")
+                last = SiteResult(
+                    Outcome.FAILED,
+                    f"代请求失败：{response['_error']}",
+                    retryable=bool(response.get("_retryable")),
+                )
                 break
             last = step.judge(step_response(response))
             # 首页没登录证据就不必再试签到页（后续步骤只会更糟）
@@ -278,6 +313,58 @@ class KeepaliveRunner:
 
     # ------------------------------------------------------------------ 整轮
 
+    async def _run_sites(self, sites: list[SiteInfo]) -> dict[str, SiteResult]:
+        """跑一遍全部站点；单站异常不拖垮整轮。"""
+        results: dict[str, SiteResult] = {}
+        for site in sites:
+            try:
+                results[site.site_id] = await self.run_site(site)
+            except Exception:
+                logger.exception("站点 %s 保活轮异常", site.site_id)
+                results[site.site_id] = SiteResult(Outcome.FAILED, "执行异常，见插件日志")
+        return results
+
+    async def _run_with_retries(self, sites: list[SiteInfo]) -> dict[str, SiteResult]:
+        """整轮跑完后再统一重试临时网络错误，最多 :data:`RETRY_DELAYS` 轮。
+
+        只重试本轮判成临时错误（超时、连不上、连接被重置）的站点：登录失败、站点改版、
+        限流重试只会白挨一次风控，M-Team 登录失败还扣账号尝试次数。整轮统一重试而非
+        逐站重试——等待总时长（最长 :data:`RETRY_DELAYS` 之和）不随站点数增长。
+        """
+        results = await self._run_sites(sites)
+        for attempt, delay in enumerate(RETRY_DELAYS, start=1):
+            retry_ids = [sid for sid, result in results.items() if result.retryable]
+            if not retry_ids:
+                return results
+            logger.warning(
+                "站点 %s 遇到临时错误，%g 分钟后第 %d 次重试（最多 %d 次）",
+                "、".join(retry_ids),
+                delay / 60,
+                attempt,
+                len(RETRY_DELAYS),
+            )
+            await self.sleep(delay)
+            for site in sites:
+                if site.site_id not in retry_ids:
+                    continue
+                try:
+                    results[site.site_id] = await self.run_site(site)
+                except Exception:
+                    logger.exception("站点 %s 重试异常", site.site_id)
+                    results[site.site_id] = SiteResult(Outcome.FAILED, "执行异常，见插件日志")
+        return {
+            sid: (
+                replace(
+                    result,
+                    detail=f"{result.detail}（本轮已重试 {len(RETRY_DELAYS)} 次仍失败）",
+                    retryable=False,
+                )
+                if result.retryable
+                else result
+            )
+            for sid, result in results.items()
+        }
+
     async def run_round(self) -> dict:
         """一轮：全部站点跑完，更新状态机，发事件。返回汇总（供 status 路由/测试）。"""
         summary: dict[str, Any] = {
@@ -294,12 +381,9 @@ class KeepaliveRunner:
             return summary
         states = st.normalize(await self.data.get(STATE_KEY, default=None))
         sites = await self.enabled_sites()
+        results = await self._run_with_retries(sites)
         for site in sites:
-            try:
-                result = await self.run_site(site)
-            except Exception:  # 单站异常不拖垮整轮
-                logger.exception("站点 %s 保活轮异常", site.site_id)
-                result = SiteResult(Outcome.FAILED, "执行异常，见插件日志")
+            result = results[site.site_id]
 
             # 先发告警、再按「告警是否发出去」落状态：发失败下一轮还能重试，
             # 不会因为状态机先置位而永远丢掉这次告警。
@@ -342,14 +426,27 @@ class KeepaliveRunner:
                 summary["failed"] += 1
         await self.data.set(STATE_KEY, states)
 
-        failures = st.failure_summary(states)
+        # 日报里列全「本轮每个失败的站 + 原因」：汇总数字说不出是哪个站、为什么
+        # （issue #43）。连续失败轮数够阈值时在后面标出来，取代原来单列的「连续失败」段
+        # ——那些站本来就在这一轮失败了，列两遍只是噪音。
+        this_round = _failure_lines(sites, results, states)
         # 日报每轮都发；收不收由「账号 → 通知」里每个人自己的开关决定（默认关），
         # 插件里不留第二个开关——两个开关互不知道，都得开才有日报，关哪个都静默无声。
-        await self._publish_report(summary, failures, DAILY_REPORT)
+        await self._publish_report(
+            summary,
+            DAILY_REPORT,
+            failures=this_round,
+            sections=(("失败", this_round),),
+        )
         pending = st.failure_summary(states, pending_only=True)
         if pending:
             # 连续失败升级不依赖日报：同一段失败只报一次
-            await self._publish_report(summary, pending, FAILURE_REPORT)
+            await self._publish_report(
+                summary,
+                FAILURE_REPORT,
+                failures=pending,
+                sections=(("连续失败", pending),),
+            )
             states = st.mark_failure_alerted(states)
             await self.data.set(STATE_KEY, states)
         summary["states"] = states
@@ -364,9 +461,18 @@ class KeepaliveRunner:
         return summary
 
     async def _publish_report(
-        self, summary: dict[str, Any], failures: list[str], event: Any
+        self,
+        summary: dict[str, Any],
+        event: Any,
+        *,
+        failures: list[str],
+        sections: tuple[tuple[str, list[str]], ...] = (),
     ) -> None:
-        """发一条汇总事件；通知失败不影响本轮结果落库。"""
+        """发一条汇总事件；通知失败不影响本轮结果落库。
+
+        ``failures`` 是结构化明细（``DailyReport.failures``，给 Webhook / 别的插件）；
+        ``sections`` 是 ``（小标题，明细行）`` 顺序，正文按它拼——通知模板只做字段替换。
+        """
         try:
             await self.events.publish(
                 event,
@@ -377,7 +483,7 @@ class KeepaliveRunner:
                     human_count=summary["human"],
                     skipped_count=summary["skipped"],
                     failures=failures,
-                    detail=_report_detail(summary, failures),
+                    detail=_report_detail(summary, sections),
                 ),
             )
         except Exception:  # 通知失败不影响本轮结果落库
@@ -407,8 +513,45 @@ class KeepaliveRunner:
         }
 
 
-def _report_detail(summary: dict[str, Any], failures: list[str]) -> str:
-    """日报正文：通知模板只做字段替换，一行汇总在这里拼好。"""
+def _failure_lines(
+    sites: list[SiteInfo], results: dict[str, SiteResult], states: dict[str, dict[str, Any]]
+) -> list[str]:
+    """本轮失败站点一行「站点：原因」，连续多轮的带上轮数。
+
+    只列 ``failed``，外加「此前已连续失败、本轮却没真访问」的跳过 / 需人工站点：
+    前者是故障，后者是故障被暂缓报告，混进总数会让人以为站点好了。
+    凭据失效的站取 ``failures_before_expired`` 而不是 ``consecutive_failures``：
+    状态机为了让失效立刻进告警把后者置成了阈值，那个数不是真实轮数（见 ``state.record``）。
+    """
+    lines = []
+    for site in sites:
+        result = results[site.site_id]
+        entry = states.get(site.site_id, {})
+        if result.outcome != Outcome.FAILED:
+            # 跳过 / 需人工不清失败计数：连着坏了几天的站这轮变成「验证中」时若一声不吭，
+            # 用户只看到「跳过 1」，会把之前那几天的失败一起忘掉
+            carried = int(entry.get("consecutive_failures") or 0)
+            if result.outcome in (Outcome.SKIPPED, Outcome.NEED_HUMAN) and carried >= st.FAILURE_THRESHOLD:
+                lines.append(
+                    f"{site.display_name}：此前已连续失败 {carried} 轮，本轮{result.detail}"
+                )
+            continue
+        key = "failures_before_expired" if result.auth_expired else "consecutive_failures"
+        failures = int(entry.get(key) or 0)
+        suffix = f"（连续 {failures} 轮）" if failures > 1 else ""
+        lines.append(f"{site.display_name}：{result.detail}{suffix}")
+    return lines
+
+
+def _report_detail(
+    summary: dict[str, Any], sections: tuple[tuple[str, list[str]], ...] = ()
+) -> str:
+    """日报正文：通知模板只做字段替换，汇总与明细都在这里拼好。
+
+    明细最多列 :data:`MAX_REPORT_ITEMS` 条、正文最多 :data:`MAX_DETAIL_CHARS` 字：
+    宿主的推送载荷有 2200 字节明文上限，超了会被**静默截断**（末尾几站的原因正好丢光），
+    与其发一条残缺的，不如自己先说清「另有 N 站」。完整明细去「设置 → 插件」看。
+    """
     parts = [f"在线 {summary['ok']} 站（签到成功 {summary['signin']}）"]
     if summary["failed"]:
         parts.append(f"失败 {summary['failed']}")
@@ -417,6 +560,14 @@ def _report_detail(summary: dict[str, Any], failures: list[str]) -> str:
     if summary["skipped"]:
         parts.append(f"跳过 {summary['skipped']}")
     line = "，".join(parts) + "。"
-    if failures:
-        line += "连续失败：" + "；".join(failures) + "。"
+    for title, items in sections:
+        if not items:
+            continue
+        shown = items[:MAX_REPORT_ITEMS]
+        line += f"{title}：" + "；".join(shown)
+        if len(items) > len(shown):
+            line += f"；另有 {len(items) - len(shown)} 站，详见「设置 → 插件」"
+        line += "。"
+    if len(line) > MAX_DETAIL_CHARS:
+        line = line[: MAX_DETAIL_CHARS - 1] + "…"
     return line

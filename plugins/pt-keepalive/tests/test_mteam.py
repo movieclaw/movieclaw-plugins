@@ -39,11 +39,12 @@ _RFC_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 
 
 class _FakeResponse:
-    def __init__(self, payload: dict, headers: dict[str, str] | None = None) -> None:
+    def __init__(self, payload: dict, headers: dict[str, str] | None = None, *, status: int = 200) -> None:
         import json
 
         self.text = json.dumps(payload, ensure_ascii=False)
         self.headers = headers or {}
+        self.status_code = status
 
 
 class _FakeHttp:
@@ -318,6 +319,190 @@ class TestClientFlow(unittest.TestCase):
         self.assertEqual(result.outcome, Outcome.FAILED)
         self.assertFalse(result.auth_expired)
         self.assertIn("连接 M-Team 失败", result.detail)
+        self.assertTrue(result.retryable)  # 临时网络错误：本轮由 runner 重试
+
+    def test_connect_timeout_says_what_went_wrong(self):
+        # issue #43 的现场：日志里只有 ConnectTimeout，日报得说人话
+        class _Timeout:
+            async def post(self, *a, **kw):
+                import httpx
+
+                raise httpx.ConnectTimeout("timed out")
+
+            async def aclose(self):
+                return None
+
+        client = _client({})
+        client._http = _Timeout()
+        result = asyncio.run(client.run())
+        self.assertIn("连接超时", result.detail)
+        self.assertIn("ConnectTimeout", result.detail)  # 原始类名留着，便于对照日志
+        self.assertTrue(result.retryable)
+
+    def test_login_network_error_is_not_retryable(self):
+        # 登录请求发出后超时，站点可能已经处理过：重试等于再扣一次账号尝试次数
+        class _Slow:
+            async def post(self, *a, **kw):
+                import httpx
+
+                raise httpx.ReadTimeout("read timed out")
+
+            async def aclose(self):
+                return None
+
+        client = _client({})
+        client._http = _Slow()
+        result = asyncio.run(client.run())
+        self.assertEqual(result.outcome, Outcome.FAILED)
+        self.assertFalse(result.retryable)  # 关键：不当成可重试
+        self.assertIn("读取响应超时", result.detail)
+
+    def test_login_connect_failure_may_be_retried(self):
+        # 连不上说明请求没到站点：重试安全
+        class _Unreachable:
+            async def post(self, *a, **kw):
+                import httpx
+
+                raise httpx.ConnectTimeout("[Errno 11001] getaddrinfo failed")
+
+            async def aclose(self):
+                return None
+
+        client = _client({})
+        client._http = _Unreachable()
+        result = asyncio.run(client.run())
+        self.assertTrue(result.retryable)
+        self.assertIn("连接超时", result.detail)
+        self.assertIn("getaddrinfo", result.detail)  # 原始异常原文要留着
+
+    def test_login_errors_that_never_reached_the_site_are_retryable(self):
+        # 这几类都是「请求没到站点」：登录阶段也可以安全重试
+        import httpx
+
+        for exc in (httpx.ConnectError("refused"), httpx.PoolTimeout("pool"), httpx.ProxyError("proxy down")):
+            with self.subTest(exc=type(exc).__name__):
+                class _Boom:
+                    def __init__(self, error):
+                        self.error = error
+
+                    async def post(self, *a, **kw):
+                        raise self.error
+
+                    async def aclose(self):
+                        return None
+
+                client = _client({})
+                client._http = _Boom(exc)
+                result = asyncio.run(client.run())
+                self.assertTrue(result.retryable)
+
+    def test_login_errors_after_sending_are_not_retryable(self):
+        # 发出去了才知道的失败：站点可能已经处理，重试会再扣一次尝试次数
+        import httpx
+
+        for exc in (httpx.ReadTimeout("r"), httpx.WriteTimeout("w"), httpx.RemoteProtocolError("reset")):
+            with self.subTest(exc=type(exc).__name__):
+                class _Boom:
+                    def __init__(self, error):
+                        self.error = error
+
+                    async def post(self, *a, **kw):
+                        raise self.error
+
+                    async def aclose(self):
+                        return None
+
+                client = _client({})
+                client._http = _Boom(exc)
+                result = asyncio.run(client.run())
+                self.assertFalse(result.retryable)
+
+    def test_gateway_5xx_is_retryable(self):
+        # M-Team 前面挂着网关：维护窗口的 502/503/520 是临时的，且正文常不是 JSON
+        class _Gateway:
+            def __init__(self, status):
+                self.status_code = status
+                self.text = "<html>Bad Gateway</html>"
+                self.headers: dict[str, str] = {}
+
+            async def post(self, *a, **kw):
+                return self
+
+            async def aclose(self):
+                return None
+
+        for status in (502, 503, 520):
+            with self.subTest(status=status):
+                client = _client({})
+                client._http = _Gateway(status)
+                client.session.token = "JWT"
+                result = asyncio.run(client.run())
+                self.assertEqual(result.outcome, Outcome.FAILED)
+                self.assertTrue(result.retryable)
+                self.assertIn(str(status), result.detail)
+
+    def test_gateway_5xx_on_login_is_still_retryable(self):
+        # 与「发出后超时」不同：网关回了响应，说明登录接口根本没执行过（凭据没被消费），
+        # 重试安全——M-Team 前面挂着网关，维护窗口正是这个形态
+        class _Gateway:
+            status_code = 502
+            text = "<html>Bad Gateway</html>"
+            headers: dict[str, str] = {}
+
+            async def post(self, *a, **kw):
+                return self
+
+            async def aclose(self):
+                return None
+
+        client = _client({})
+        client._http = _Gateway()
+        result = asyncio.run(client.run())
+        self.assertTrue(result.retryable)
+        self.assertIn("502", result.detail)
+
+    def test_network_error_text_covers_the_common_httpx_errors(self):
+        import httpx
+
+        from pt_keepalive.mteam import network_error_text
+
+        for exc, expected in (
+            (httpx.ConnectTimeout("x"), "连接超时"),
+            (httpx.ReadTimeout("x"), "读取响应超时"),
+            (httpx.WriteTimeout("x"), "发送请求超时"),
+            (httpx.PoolTimeout("x"), "等待连接超时"),
+            (httpx.ConnectError("x"), "无法连接站点"),
+            (httpx.ReadError("x"), "读取响应被中断"),
+            (httpx.RemoteProtocolError("x"), "连接被站点重置"),
+            (httpx.ProxyError("x"), "代理连接失败"),
+            (httpx.NetworkError("x"), "网络错误"),
+        ):
+            with self.subTest(exc=type(exc).__name__):
+                text = network_error_text(exc)
+                self.assertIn(expected, text)
+                self.assertIn(type(exc).__name__, text)
+                self.assertIn("：x", text)  # 原始异常原文保留
+
+    def test_network_error_text_without_message(self):
+        # httpx 的 ConnectTimeout 常常 str() 为空：别留下尾随冒号
+        import httpx
+
+        from pt_keepalive.mteam import network_error_text
+
+        self.assertEqual(network_error_text(httpx.ConnectTimeout("")), "连接超时（ConnectTimeout）")
+
+    def test_unknown_exception_falls_back_to_class_name(self):
+        from pt_keepalive.mteam import network_error_text
+
+        self.assertEqual(network_error_text(ValueError("boom")), "ValueError：boom")
+
+    def test_auth_failure_is_not_retryable(self):
+        # 登录失败会扣账号尝试次数：判定层不许把它标成可重试
+        client = _client(
+            {"/api/login": [_FakeResponse({"code": 1, "message": "用戶名或密碼錯誤"})]}
+        )
+        result = asyncio.run(client.run())
+        self.assertFalse(result.retryable)
 
     def test_did_from_every_response_is_kept(self):
         client = _client(
