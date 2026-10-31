@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-31T06:13:35Z",
+  "generated_at": "2026-10-31T10:09:58Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -27,10 +27,66 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cast-cn",
-      "downloads": 4,
-      "latest": "0.3.3",
-      "latest_stable": "0.3.3",
+      "downloads": 5,
+      "latest": "0.3.4",
+      "latest_stable": "0.3.4",
       "versions": [
+        {
+          "version": "0.3.4",
+          "prerelease": false,
+          "released_at": "2026-10-31T10:09:58Z",
+          "yanked": null,
+          "notes": "- 新增**失效头像修复**：老工具写进 NFO 的头像地址缺扩展名（TMDB 图床一律 404，详情页显示空头像），现在按 TMDB 人物 id 从人物表回填正确地址（人物页用的就是它，本地缓存多半还在），重写 NFO 并刷新；豆瓣未命中也能修，处理条件不命中的演员照修。\n- 「保留现有头像」策略把失效地址按缺失处理：豆瓣照常能补。\n- 「不改动头像」策略下不做修复（尊重用户选择）。\n- 修复过程中若人物表也没有该人物，回退豆瓣匹配；都没有则保持原样等下一轮。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/cast-cn-v0.3.4",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/cast-cn-v0.3.4/plugins/cast-cn",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/cast-cn-v0.3.4/plugins/cast-cn/README.md",
+            "sha256": "ba1d9810cd60f3c2c80da4c933856620594fa8a94df7d754175d0649b29df78b",
+            "size": 3981
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "library.items.arrived": "^1.0",
+            "scheduled-tasks": "^1.0",
+            "job-handlers": "^1.1"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "app.show",
+              "library.list",
+              "library.items.list",
+              "library.items.get",
+              "library.items.refresh-metadata",
+              "jobs.wait",
+              "people.show",
+              "search.titles"
+            ],
+            "paths": [
+              {
+                "path": "library",
+                "mode": "rw"
+              }
+            ],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "cast-cn-0.3.4.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/cast-cn-v0.3.4/cast-cn-0.3.4.mcplugin",
+              "sha256": "1724dbe2f846b6b0309d1b82e46fe2d69621801772c000a7c6665f300ae70d98",
+              "size": 49808
+            }
+          ]
+        },
         {
           "version": "0.3.3",
           "prerelease": false,
@@ -1381,7 +1437,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 16,
+      "downloads": 17,
       "latest": "0.2.3",
       "latest_stable": "0.2.3",
       "versions": [
