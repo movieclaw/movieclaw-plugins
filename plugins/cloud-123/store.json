@@ -1,0 +1,6 @@
+{
+  "author": "zactony",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "接入 123 云盘：扫码或 Token 登录、目录纳管、秒传与分片续传、原文件直链。"
+}
