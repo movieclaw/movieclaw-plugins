@@ -170,6 +170,37 @@ def local_avatar_to_tmdb(url: str | None) -> str | None:
     return f"https://image.tmdb.org/t/p/original/{matched.group(1)}"
 
 
+#: 失效头像：TMDB 图床 URL 缺文件扩展名（老工具写进 NFO 的地址，
+#: image.tmdb.org 对这种地址一律 404）。本机 /images/people/ 地址不算失效。
+_BROKEN_TMDB_URL = re.compile(r"^https?://image\.tmdb\.org/t/p/[a-z0-9]+/[A-Za-z0-9_-]+$")
+_VALID_TMDB_URL = re.compile(
+    r"^https?://image\.tmdb\.org/t/p/[a-z0-9]+/([A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp))$"
+)
+
+
+def is_broken_thumb(url: str | None) -> bool:
+    """失效头像地址：TMDB 图床 URL 缺文件扩展名（必然 404）。"""
+    return bool(url and _BROKEN_TMDB_URL.match(url.strip()))
+
+
+def tmdb_profile_url(url: str | None) -> str | None:
+    """任何有效头像地址 → TMDB original 绝对 URL；救不回来的返回 None。
+
+    接受本机头像地址（归一化）与带扩展名的 TMDB 图床地址（统一到 original
+    档位）；无扩展名地址、豆瓣地址等返回 None——这些交给豆瓣匹配补。
+    """
+    if not url:
+        return None
+    url = url.strip()
+    local = local_avatar_to_tmdb(url)
+    if local:
+        return local
+    matched = _VALID_TMDB_URL.match(url)
+    if matched:
+        return f"https://image.tmdb.org/t/p/original/{matched.group(1)}"
+    return None
+
+
 def _candidates(actor: CastEntry, douban: list[DoubanActor]) -> list[DoubanActor]:
     """按姓名找候选；中文名优先中文匹配，外文名优先 latin_name 匹配。
 
@@ -253,12 +284,15 @@ def merge_cast(
     avatar_policy: AvatarPolicy = AvatarPolicy.TMDB_FIRST,
     base_url: str | None = None,
     keep_person_links: bool = True,
+    avatar_repairs: dict[str, str] | None = None,
 ) -> MergeResult:
     """把豆瓣演员表合并进现有演员表。
 
     - 只改「处理条件」命中的演员；没命中的原样保留。
     - 默认只补非中文/空值，``force_*`` 才覆盖中文。
     - 改名前若现有头像是相对路径且没有外部地址，跳过改名以保住头像（只改角色）。
+    - ``avatar_repairs``（姓名 → 修复后的头像地址）：失效/缺失头像的修复回填，
+      **不受处理条件限制**——修坏头像是纠错，跟要不要补中文无关。
     - 返回的 ``CastEntry.thumb_url`` 已经是可写进 NFO 的绝对 URL 或 None。
     """
     result = MergeResult(actors=[])
@@ -275,8 +309,11 @@ def merge_cast(
                     result.dropped.append(actor.name)
                     continue
             # 未匹配的演员也把本机头像地址归一化成 TMDB URL，避免本机文件
-            # 清理/换档后头像断链
+            # 清理/换档后头像断链；失效头像有人物表修复地址就无条件回填
             kept_thumb = local_avatar_to_tmdb(actor.thumb_url) or actor.thumb_url
+            repair = (avatar_repairs or {}).get(actor.name)
+            if repair:
+                kept_thumb = repair
             if remove_no_avatar and kept_thumb is None:
                 result.dropped.append(actor.name)
                 continue
@@ -320,17 +357,21 @@ def merge_cast(
         ):
             new_role = douban_role
 
-        # 头像：先定“来源”，再转成绝对地址
+        # 头像：先定“来源”，再转成绝对地址。失效头像按缺失处理
+        # （豆瓣照常能补），人物表回填的修复地址最可信、无条件生效
+        repair = (avatar_repairs or {}).get(actor.name)
         source_thumb = actor_thumb
         if (
             avatar_policy is AvatarPolicy.DOUBAN_FIRST
             and matched.avatar_url
             or avatar_policy is not AvatarPolicy.NONE
-            and not source_thumb
+            and (not source_thumb or is_broken_thumb(source_thumb))
         ):
             source_thumb = matched.avatar_url
         if avatar_policy is AvatarPolicy.NONE:
             source_thumb = actor_thumb
+        if repair:
+            source_thumb = repair
         new_thumb = absolute_thumb(source_thumb, base_url)
 
         # 改名后主程序无法按姓名带回原 profile_path；如果现有头像是相对路径

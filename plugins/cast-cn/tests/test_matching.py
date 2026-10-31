@@ -7,9 +7,11 @@ from cast_cn.matching import (
     DoubanActor,
     clean_role,
     has_chinese,
+    is_broken_thumb,
     match_actor,
     merge_cast,
     normalize_name,
+    tmdb_profile_url,
 )
 from cast_cn.settings import AvatarPolicy, Condition
 
@@ -175,6 +177,85 @@ class MatchingTest(unittest.TestCase):
         self.assertEqual([a.name for a in result.actors], ["丹尼尔·克雷格"])
         self.assertEqual(result.dropped, ["Unknown Actor"])
         self.assertTrue(result.changed)
+
+
+class BrokenThumbTest(unittest.TestCase):
+    """失效头像修复：老工具写进 NFO 的无扩展名 TMDB 地址（必然 404）。"""
+
+    BROKEN = "https://image.tmdb.org/t/p/original/usWnHCzbADijULREZYSJ0qfM"
+    FIXED = "https://image.tmdb.org/t/p/original/usWnHCzbADijULREZYSJ0qfM00y.jpg"
+
+    def test_is_broken_thumb(self) -> None:
+        self.assertTrue(is_broken_thumb(self.BROKEN))
+        self.assertFalse(is_broken_thumb(self.FIXED))
+        self.assertFalse(is_broken_thumb("https://img1.doubanio.com/view/photo/p1.jpg"))
+        self.assertFalse(
+            is_broken_thumb("/images/people/original/us/usWnHCzbADijULREZYSJ0qfM00y.jpg")
+        )
+        self.assertFalse(is_broken_thumb(None))
+        self.assertFalse(is_broken_thumb(""))
+
+    def test_tmdb_profile_url(self) -> None:
+        self.assertEqual(
+            tmdb_profile_url("/images/people/original/us/usWnHCzbADijULREZYSJ0qfM00y.jpg"),
+            self.FIXED,
+        )
+        self.assertEqual(
+            tmdb_profile_url("https://image.tmdb.org/t/p/w185/usWnHCzbADijULREZYSJ0qfM00y.jpg"),
+            self.FIXED,
+        )
+        self.assertIsNone(tmdb_profile_url(self.BROKEN))
+        self.assertIsNone(tmdb_profile_url("https://img1.doubanio.com/view/photo/p1.jpg"))
+        self.assertIsNone(tmdb_profile_url(None))
+
+    def test_repair_applied_even_without_gate(self) -> None:
+        """修坏头像是纠错：姓名角色全中文（处理条件不命中）也要修。"""
+        actor = CastEntry(name="全中文", role="全中文角色", thumb_url=self.BROKEN)
+        result = merge_cast([actor], [], avatar_repairs={"全中文": self.FIXED})
+        self.assertTrue(result.changed)
+        self.assertEqual(result.actors[0].thumb_url, self.FIXED)
+
+    def test_repair_prefers_person_over_douban(self) -> None:
+        """人物表回填的地址比豆瓣头像更权威。"""
+        actor = CastEntry(name="丹尼尔", role="邦德", thumb_url=self.BROKEN)
+        douban = [
+            DoubanActor(
+                name="丹尼尔", character="詹姆斯·邦德", avatar_url="https://img1.doubanio.com/d.jpg"
+            )
+        ]
+        result = merge_cast([actor], douban, avatar_repairs={"丹尼尔": self.FIXED})
+        self.assertEqual(result.actors[0].thumb_url, self.FIXED)
+
+    def test_broken_thumb_treated_as_missing_for_douban(self) -> None:
+        """失效头像按缺失处理：人物表没查到时豆瓣照常能补。"""
+        actor = CastEntry(name="丹尼尔", role="邦德", thumb_url=self.BROKEN)
+        douban = [
+            DoubanActor(
+                name="丹尼尔", character="詹姆斯·邦德", avatar_url="https://img1.doubanio.com/d.jpg"
+            )
+        ]
+        result = merge_cast([actor], douban)
+        self.assertEqual(result.actors[0].thumb_url, "https://img1.doubanio.com/d.jpg")
+
+    def test_broken_thumb_without_repair_kept(self) -> None:
+        """没救回来的保持原样：不把坏头像删掉，等下一轮再修。"""
+        actor = CastEntry(name="路人甲", role="路人", thumb_url=self.BROKEN)
+        result = merge_cast([actor], [])
+        self.assertEqual(result.actors[0].thumb_url, self.BROKEN)
+        self.assertFalse(result.changed)
+
+    def test_missing_thumb_filled_by_repair(self) -> None:
+        """头像缺失且人物表有正确地址：直接回填（比等豆瓣更准）。"""
+        actor = CastEntry(name="丹尼尔", role="邦德", thumb_url=None)
+        result = merge_cast([actor], [], avatar_repairs={"丹尼尔": self.FIXED})
+        self.assertEqual(result.actors[0].thumb_url, self.FIXED)
+
+    def test_policy_none_skips_repair_at_runtime(self) -> None:
+        """「不改动头像」时运行时不会传修复表：合并层尊重传入的空表。"""
+        actor = CastEntry(name="全中文", role="全中文角色", thumb_url=self.BROKEN)
+        result = merge_cast([actor], [], avatar_repairs=None)
+        self.assertEqual(result.actors[0].thumb_url, self.BROKEN)
+        self.assertFalse(result.changed)
 
 
 if __name__ == "__main__":
