@@ -1,0 +1,34 @@
+[plugin]
+id = "p115-import"
+title = "115 分享转存入库"
+version = "0.4.7"
+entry = "p115_import"
+runtime = "process"
+sdk = "^1.0"
+description = "把 115 分享、ed2k 与磁力链接直接转存进媒体库：复用 MovieClaw 自己的识别、分库、命名与季集仲裁，只扫描本次作品的网盘目录并逐文件核验，同一季集只留最大一份。网页批量改名、按目标目录分组批量移动，分块后按文件 ID 核验并保存逐文件检查点；支持取消与检查点续跑、候选确认、空暂存清理。旧文件先保留，逐条预览具体路径并单独确认后才清理。侧栏带「115 入库」工作台。"
+
+[requires]
+"host-ops" = "^1.0"
+"plugin-data" = "^1.0"
+"plugin-files" = "^1.0"
+"plugin-routes" = "^1.0"
+"plugin-jobs" = "^1.0"
+"plugin-callbacks" = "^1.0"
+"job-handlers" = "^1.1"
+
+[permissions]
+operations = [
+  "dl.resolve-target",
+  "discover.get-title-details",
+  "library.list",
+  "library.items.get",
+  "library.scan.start",
+  "library.items.delete-file",
+  "jobs.show",
+  "jobs.list",
+  "jobs.retry",
+  "jobs.cancel",
+  "scrape.show",
+]
+paths = [{ path = "/app/models/torrent-ner", mode = "read" }]
+network = true
