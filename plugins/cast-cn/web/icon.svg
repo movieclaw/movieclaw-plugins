@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 演员资料卡 -->
+  <rect x="2.8" y="2.8" width="18.4" height="18.4" rx="4.6"/>
+  <!-- 人形（左半） -->
+  <circle cx="8.2" cy="8.9" r="2.3"/>
+  <path d="M4.5 19.3c0-2.6 1.7-4.3 3.7-4.3 1 0 1.9.35 2.6 1"/>
+  <!-- 「中」字（右半） -->
+  <rect x="13.6" y="9.7" width="5.6" height="4.4"/>
+  <path d="M16.4 7.6v8.6"/>
+</svg>

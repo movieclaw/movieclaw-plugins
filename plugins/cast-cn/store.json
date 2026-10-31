@@ -1,0 +1,9 @@
+{
+  "author": "anlangao",
+  "author_url": "https://github.com/anlan-home",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "用豆瓣补齐条目详情页演职员条的中文名、中文角色和头像，只改 NFO 并触发一次刷新。",
+  "category": "library",
+  "icon": "icon.svg"
+}
