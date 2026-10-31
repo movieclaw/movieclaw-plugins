@@ -1,10 +1,93 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-30T13:02:58Z",
+  "generated_at": "2026-10-31T02:05:59Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
   "plugins": [
+    {
+      "id": "cast-cn",
+      "name": "演职人员中文刮削",
+      "summary": "用豆瓣补齐条目详情页演职员条的中文名、中文角色和头像，只改 NFO 并触发一次刷新。",
+      "description": "用豆瓣补齐条目详情页演职员条的中文名、中文角色和头像：只改条目 NFO，再触发一次元数据刷新。",
+      "category": "library",
+      "author": {
+        "name": "anlangao",
+        "url": "https://github.com/anlan-home"
+      },
+      "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/cast-cn",
+      "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/cast-cn",
+      "license": "MIT",
+      "origin": "official",
+      "icon": {
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/cast-cn-icon-7ae00cc0fa4e398c.svg",
+        "sha256": "7ae00cc0fa4e398cd6e53a88128309b61792dc3288da3e1e580f095eb96dc82d",
+        "size": 655
+      },
+      "screenshots": [],
+      "deprecated": null,
+      "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cast-cn",
+      "downloads": 0,
+      "latest": "0.3.3",
+      "latest_stable": "0.3.3",
+      "versions": [
+        {
+          "version": "0.3.3",
+          "prerelease": false,
+          "released_at": "2026-10-31T02:05:59Z",
+          "yanked": null,
+          "notes": "- 换新图标：演员资料卡 + 人形 + 「中」字，直白表达「给演职员补中文」；侧边栏小尺寸下依然可读。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/cast-cn-v0.3.3",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/cast-cn-v0.3.3/plugins/cast-cn",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/cast-cn-v0.3.3/plugins/cast-cn/README.md",
+            "sha256": "ba1d9810cd60f3c2c80da4c933856620594fa8a94df7d754175d0649b29df78b",
+            "size": 3981
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "library.items.arrived": "^1.0",
+            "scheduled-tasks": "^1.0",
+            "job-handlers": "^1.1"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "app.show",
+              "library.list",
+              "library.items.list",
+              "library.items.get",
+              "library.items.refresh-metadata",
+              "jobs.wait",
+              "search.titles"
+            ],
+            "paths": [
+              {
+                "path": "library",
+                "mode": "rw"
+              }
+            ],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "cast-cn-0.3.3.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/cast-cn-v0.3.3/cast-cn-0.3.3.mcplugin",
+              "sha256": "8f1fef76517e66390bbb1c1f8c2b739e0184c2cfafd863761f01877b84c58311",
+              "size": 47333
+            }
+          ]
+        }
+      ]
+    },
     {
       "id": "cloud-115",
       "name": "115 网盘",
@@ -437,7 +520,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-rank-subscribe",
-      "downloads": 10,
+      "downloads": 11,
       "latest": "1.0.1",
       "latest_stable": "1.0.1",
       "versions": [
@@ -616,7 +699,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=movie-voice",
-      "downloads": 17,
+      "downloads": 18,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -999,7 +1082,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=platform-discovery",
-      "downloads": 25,
+      "downloads": 26,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -1207,7 +1290,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 13,
+      "downloads": 14,
       "latest": "0.2.3",
       "latest_stable": "0.2.3",
       "versions": [
@@ -1329,7 +1412,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-site-pack",
-      "downloads": 37,
+      "downloads": 39,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -2058,7 +2141,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=watch-friends",
-      "downloads": 20,
+      "downloads": 22,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
