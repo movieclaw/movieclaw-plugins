@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>115 入库</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css?v=0.4.6">
+</head>
+<body>
+  <header class="page-header">
+    <div>
+      <div class="heading-line">
+        <h1>115 入库</h1>
+        <details id="authcard" class="connection"><summary><span class="spinner"></span>连接中</summary></details>
+      </div>
+      <p class="subtitle">粘贴链接，自动识别并存入媒体库。</p>
+    </div>
+    <a class="header-link" href="/tasks" target="_top">任务中心 ↗</a>
+  </header>
+
+  <section class="composer" aria-labelledby="composer-heading">
+    <div class="composer-top"><h2 id="composer-heading">添加链接</h2><span class="small">115 · 磁力 · 电驴</span></div>
+    <textarea id="linkbox" aria-label="待入库链接" placeholder="粘贴分享链接与提取码，多条链接可分行输入…"></textarea>
+    <div id="input-hint" role="status"></div>
+    <div class="composer-footer">
+      <div class="composer-tools">
+        <button class="chip" id="btn-title-search" title="输入剧名或原名，搜索 TMDB 指定作品">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>搜索剧名
+        </button>
+        <span id="chosen-title" class="muted" hidden></span>
+        <button class="chip ghost" id="btn-title-clear" aria-label="清除指定作品，恢复自动识别" hidden>×</button>
+      </div>
+      <div class="composer-submit">
+        <label class="notify-label" title="完成后通过企业微信通知"><input type="checkbox" id="notify-box" checked>完成通知</label>
+        <button class="ghost" id="btn-preview" disabled>预演</button>
+        <button class="primary" id="btn-submit" disabled>提交入库 <span aria-hidden="true">↑</span></button>
+      </div>
+    </div>
+    <div id="preview"></div>
+  </section>
+
+  <section class="task-board" aria-label="入库任务">
+    <div class="board-toolbar">
+      <div class="tabs" role="tablist" aria-label="任务分类">
+        <button class="tab" role="tab" id="tab-active" data-tab="active" aria-selected="true" aria-controls="task-list" tabindex="0">进行中<span class="tab-count" id="count-active" hidden></span></button>
+        <button class="tab" role="tab" id="tab-attention" data-tab="attention" aria-selected="false" aria-controls="task-list" tabindex="-1">待处理<span class="tab-count" id="count-attention" hidden></span></button>
+        <button class="tab" role="tab" id="tab-history" data-tab="history" aria-selected="false" aria-controls="task-list" tabindex="-1">历史记录<span class="tab-count" id="count-history" hidden></span></button>
+      </div>
+      <button class="ghost" id="btn-refresh" aria-label="刷新任务" title="刷新任务"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 7a5 5 0 1 0-.8 3M13 2v5H8"/></svg></button>
+    </div>
+    <div id="task-list" role="tabpanel" aria-labelledby="tab-active"><div class="empty">正在读取任务…</div></div>
+    <div class="board-foot"><button class="ghost" id="btn-more" hidden>显示更多记录</button></div>
+  </section>
+
+  <details class="maintenance" id="maintenance">
+    <summary>维护工具</summary>
+    <div class="maintenance-body">
+      <div class="row">
+        <select id="cleanup-lib" aria-label="要检查暂存目录的媒体库"></select>
+        <button id="btn-cleanup-check">检查暂存</button>
+        <button class="primary" id="btn-cleanup-run" disabled>清理空目录</button>
+      </div>
+      <p class="small muted maintenance-note" id="cleanup-note">仅清理空的 .p115-import 目录，任何文件与其他批次都会保留。</p>
+    </div>
+  </details>
+
+  <dialog id="title-dialog" aria-labelledby="title-dialog-heading">
+    <div class="row dialog-head"><h2 class="grow" id="title-dialog-heading">确认作品</h2>
+      <button class="ghost" id="title-dialog-close" aria-label="关闭搜索">×</button></div>
+    <p class="small muted" id="title-context"></p>
+    <form id="title-search-form" class="row">
+      <input id="title-query" class="grow" placeholder="搜索 TMDB · 中文名或原名" aria-label="剧名" maxlength="200" required>
+      <select id="title-kind" aria-label="作品类型"><option value="tv">剧集</option><option value="movie">电影</option></select>
+      <button class="primary" id="title-search-button">搜索</button>
+    </form>
+    <div class="small muted" id="title-search-note" role="status">搜索后选择正确的作品。</div>
+    <div id="title-results"></div>
+  </dialog>
+  <dialog id="cleanup-old-dialog" aria-labelledby="cleanup-old-heading">
+    <div class="row dialog-head"><h2 class="grow" id="cleanup-old-heading">确认清理旧版本</h2>
+      <button class="ghost" id="cleanup-old-close" aria-label="关闭旧文件清单">×</button></div>
+    <p class="small muted">新版本已经核验入库。这里只清理下面明确列出的旧文件及附属文件，不代表确认其它批次；删除后是否可恢复取决于存储端。</p>
+    <div id="cleanup-old-files"></div>
+    <div class="row" style="margin-top:16px"><button class="primary" id="cleanup-old-confirm" disabled>确认删除以上旧文件</button>
+      <button class="ghost" id="cleanup-old-keep">保留，不清理</button></div>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="logic.js?v=0.4.6"></script>
+  <script src="view.js?v=0.4.6"></script>
+  <script>
+  (function () {
+    "use strict";
+    const BASE = "/api/v1/plugins/p115-import";
+    const $ = (id) => document.getElementById(id);
+    let feed = null;
+    let previewPlan = null;
+    let cleanupCheck = null;
+    let timer = null;
+    let busy = false;
+    let pollFailures = 0;
+    let cleanupOldPreview = null;
+    let cleanupOldJob = null;
+    let chosenTitle = null;
+    let searchTarget = null;
+    let searchResults = [];
+    let searchVersion = 0;
+    let currentTab = "active";
+    let initialBoard = true;
+    let visibleLimit = 8;
+    const expandedJobs = new Set();
+    const candidateOpenJobs = new Set();
+
+    function toast(text, ms) {
+      const el = $("toast");
+      el.textContent = text;
+      el.style.display = "block";
+      clearTimeout(el._t);
+      el._t = setTimeout(() => (el.style.display = "none"), ms || 4200);
+    }
+
+    async function api(url, options) {
+      const opt = options || {};
+      const response = await fetch(url, {
+        method: opt.method || (opt.body ? "POST" : "GET"),
+        headers: { "Accept-Language": document.documentElement ? document.documentElement.lang : "zh-Hans",
+          ...(opt.body ? { "Content-Type": "application/json" } : {}) },
+        body: opt.body ? JSON.stringify(opt.body) : undefined,
+        credentials: "same-origin",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.detail || payload.message || "HTTP " + response.status);
+      }
+      if (payload && payload.success === true && "data" in payload) return payload.data;
+      return payload;
+    }
+
+    /* ---------------- 登录状态 ---------------- */
+    async function loadStatus() {
+      try {
+        const st = await api(BASE + "/status");
+        const need = !st.web_logged_in || st.file_ops === "none";
+        const state = need ? "err" : st.dry_run ? "warn" : "ok";
+        const label = need ? "需要登录" : st.dry_run ? "仅预演" : "已连接";
+        const account = st.account ? '<span class="muted">' + esc(st.account) + '</span>' : '';
+        const hit = st.wecom_last_hit;
+        $("authcard").innerHTML = '<summary><span class="dot ' + state + '"></span>'
+          + '<span class="' + state + '">' + label + '</span></summary>'
+          + '<div class="connection-panel">'
+          + '<div class="connection-line"><b>115 账号</b>' + account + '</div>'
+          + '<div class="connection-line"><span class="muted">文件操作</span><span>'
+          + esc(st.file_ops === "openapi" ? "OpenAPI" : st.file_ops === "web" ? "网页接口" : "不可用") + '</span></div>'
+          + '<div class="connection-line"><span class="muted">企微入口</span><span>' + (st.wecom_entry ? "已开启" : "已关闭") + '</span></div>'
+          + (hit && hit.at ? '<div class="small muted">最近收件 ' + esc(fmtTime(new Date(hit.at * 1000).toISOString())) + '</div>' : '')
+          + (st.dry_run ? '<div class="warn small">当前只预演，不执行入库</div>' : '')
+          + (need ? '<div class="connection-notice"><a href="' + BASE + '/login" target="_top">扫码登录 ↗</a></div>' : '') + '</div>';
+        if (need) $("authcard").open = true;
+
+      } catch (err) {
+        $("authcard").innerHTML = '<summary><span class="dot err"></span>连接异常</summary>'
+          + '<div class="connection-panel small">' + esc(err.message) + '</div>';
+      }
+    }
+
+    /* ---------------- 看板 ---------------- */
+    function esc(text) {
+      return String(text == null ? "" : text)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function renderBoard() {
+      const groups = boardGroups(feed);
+      for (const key of ["active", "attention", "history"]) {
+        const count = groups[key].length;
+        $("count-" + key).textContent = String(count);
+        $("count-" + key).hidden = !count;
+        const tab = $("tab-" + key);
+        tab.setAttribute("aria-selected", String(currentTab === key));
+        tab.tabIndex = currentTab === key ? 0 : -1;
+      }
+      // 轮询替换行前保留焦点与用户已展开的候选，避免页面跳回初始状态。
+      const focused = document.activeElement;
+      const focusedAction = focused && $("task-list").contains(focused)
+        ? ["expand", "retry", "searchJob", "cancel", "dismiss"].find((key) => focused.dataset[key]) : null;
+      const focusedId = focusedAction ? focused.dataset[focusedAction] : null;
+      document.querySelectorAll(".candidate-section").forEach((el) => {
+        const holder = el.closest(".task");
+        const jobId = holder.querySelector("[data-expand]").dataset.expand;
+        if (el.open) candidateOpenJobs.add(jobId); else candidateOpenJobs.delete(jobId);
+      });
+      const rows = groups[currentTab];
+      $("task-list").setAttribute("aria-labelledby", "tab-" + currentTab);
+      $("task-list").innerHTML = rows.length
+        ? rows.slice(0, visibleLimit).map((row) => taskHtml(row, expandedJobs.has(row.job_id))).join("")
+        : emptyHtml(currentTab);
+      document.querySelectorAll(".candidate-section").forEach((el) => {
+        const jobId = el.closest(".task").querySelector("[data-expand]").dataset.expand;
+        el.open = candidateOpenJobs.has(jobId);
+      });
+      if (focusedAction) {
+        const attr = "data-" + focusedAction.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+        const target = Array.from($("task-list").querySelectorAll("[" + attr + "]"))
+          .find((el) => el.dataset[focusedAction] === focusedId);
+        if (target) target.focus({ preventScroll: true });
+      }
+      $("btn-more").hidden = rows.length <= visibleLimit;
+      $("btn-more").textContent = "显示更多（还有 " + Math.max(0, rows.length - visibleLimit) + " 条）";
+    }
+    function selectTab(tab) {
+      currentTab = tab;
+      visibleLimit = 8;
+      renderBoard();
+    }
+    document.querySelectorAll("[data-tab]").forEach((button) => {
+      button.onclick = () => selectTab(button.dataset.tab);
+      button.onkeydown = (event) => {
+        const keys = ["active", "attention", "history"];
+        let index = keys.indexOf(button.dataset.tab);
+        if (event.key === "ArrowRight") index = (index + 1) % keys.length;
+        else if (event.key === "ArrowLeft") index = (index + keys.length - 1) % keys.length;
+        else if (event.key === "Home") index = 0;
+        else if (event.key === "End") index = keys.length - 1;
+        else return;
+        event.preventDefault();
+        selectTab(keys[index]);
+        $("tab-" + keys[index]).focus();
+      };
+    });
+    $("btn-more").onclick = () => { visibleLimit += 8; renderBoard(); };
+    $("btn-refresh").onclick = () => loadBoard();
+    $("task-list").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-expand]");
+      if (!button) return;
+      const id = button.dataset.expand;
+      if (expandedJobs.has(id)) expandedJobs.delete(id); else expandedJobs.add(id);
+      button.setAttribute("aria-expanded", String(expandedJobs.has(id)));
+      document.getElementById(button.getAttribute("aria-controls")).hidden = !expandedJobs.has(id);
+    });
+
+    async function loadBoard() {
+      if (busy || document.hidden) return;
+      try {
+        busy = true;
+        feed = await api(BASE + "/board?limit=60");
+        pollFailures = 0;
+      } catch (err) {
+        pollFailures += 1;
+        const hint = /\b403\b/.test(err.message) || /权限|管理员/.test(err.message)
+          ? "需要管理员权限才能看看板" : ("看板刷新失败：" + err.message);
+        $("task-list").innerHTML = '<div class="empty">' + esc(hint) + '</div>';
+        scheduleNextPoll();
+        return;
+      } finally { busy = false; }
+      if (initialBoard) {
+        const groups = boardGroups(feed);
+        if (!groups.active.length && groups.attention.length) currentTab = "attention";
+        initialBoard = false;
+      }
+      renderBoard();
+      scheduleNextPoll();
+    }
+
+    function scheduleNextPoll() {
+      clearTimeout(timer);
+      const delay = boardPollDelay(feed, !!document.hidden, pollFailures);
+      if (delay !== null) timer = setTimeout(loadBoard, delay);
+    }
+
+    /* ---------------- 提交与预演 ---------------- */
+    const box = $("linkbox");
+    function syncButtons() {
+      const state = submitState(box.value, false);
+      $("btn-submit").disabled = state.disabled;
+      $("btn-preview").disabled = state.disabled;
+      $("input-hint").textContent = state.hint;
+    }
+    box.addEventListener("input", () => { clearPreview(); syncButtons(); });
+    syncButtons();
+
+    async function submit(preview) {
+      const text = box.value.trim();
+      if (!text) return;
+      $("btn-submit").disabled = true;
+      $("btn-preview").disabled = true;
+      try {
+        const body = { link: text, yes: !preview,
+          notify: !!($("notify-box") && $("notify-box").checked) };
+        if (chosenTitle) Object.assign(body, { tmdb_id: chosenTitle.tmdb_id, kind: chosenTitle.kind });
+        if (chosenTitle && !confirm("将本次提交的全部链接按《" + chosenTitle.title + "》处理，确认吗？")) return;
+        const result = await api(BASE + "/apply", { body });
+        if (preview) {
+          previewPlan = result.plan || null;
+          renderPreview(previewPlan, result.message);
+          return;
+        }
+        clearPreview();
+        box.value = "";
+        setChosenTitle(null);
+        syncButtons();
+        toast(result.message || "已提交，后台开始识别与转存");
+        loadBoard();
+      } catch (err) {
+        toast((preview ? "预演失败：" : "提交失败：") + err.message, 6500);
+      } finally {
+        syncButtons();
+      }
+    }
+
+    function renderPreview(plan, message) {
+      const el = $("preview");
+      if (!plan) { el.innerHTML = ""; return; }
+      const parts = ['<div class="preview-card">'];
+      parts.push('<div class="row"><span class="grow"><b>预演结果</b></span>'
+        + '<button class="ghost chip" id="pv-close">收起</button></div>');
+      parts.push('<div style="margin-top:6px">' + esc(plan.message || message || "") + "</div>");
+      const items = (plan.items || []).filter((i) => i.action === "replace");
+      if (items.length) {
+        parts.push('<div class="small muted" style="margin-top:8px">将转存 ' + items.length + " 个文件"
+          + (plan.library_name ? " → " + esc(plan.library_name) : "") + "</div>");
+        parts.push("<div class='small' style='margin-top:4px'>" + items.slice(0, 12).map((i) =>
+          '<div class="row"><span class="grow">' + esc(i.file_name || i.share_path) + "</span>"
+          + '<span class="muted">' + esc(fmtSize(i.size)) + "</span></div>").join("")
+          + (items.length > 12 ? '<div class="muted">…等 ' + items.length + " 个</div>" : "") + "</div>");
+      }
+      if (plan.skipped && plan.skipped.length) {
+        parts.push('<div class="small muted" style="margin-top:6px">跳过 ' + plan.skipped.length
+          + " 个：" + esc((plan.skipped[0] || {}).reason || "") + "</div>");
+      }
+      if (chosenTitle && !plan._chosen) plan._chosen = chosenTitle;
+      if (plan._chosen) parts.push('<div class="small" style="margin-top:8px">已指定：'
+        + esc(plan._chosen.title || ("TMDB " + plan._chosen.tmdb_id)) + '</div>');
+      parts.push('<button class="chip" id="pv-search" style="margin-top:8px">搜索其他作品</button>');
+      const opts = candidateOptions(plan.candidates);
+      if (opts.length) {
+        parts.push('<div class="chips"><span class="small muted">识别到多个候选，选一个再提交：</span>'
+          + opts.map((o) => '<button class="chip" data-pv-tmdb="' + o.tmdb_id + '" data-pv-kind="'
+            + o.kind + '">' + esc(o.label) + "</button>").join("") + "</div>");
+      }
+      const ready = plan.status === "ready";
+      const nothing = plan.status === "nothing_to_do";
+      const maySubmit = ready || !!plan._chosen;
+      parts.push('<div class="row" style="margin-top:10px">'
+        + '<button class="primary" id="pv-submit"' + (maySubmit ? "" : " disabled") + ">确认提交</button>"
+        + (nothing ? '<span class="small muted">库里已有更大或相同的版本，无需转存</span>' : "")
+        + (opts.length && !ready && !(plan && plan._chosen) ? '<span class="small muted">先在候选里选一个作品</span>' : "")
+        + '<button class="ghost" id="pv-close2">取消</button></div></div>');
+      el.innerHTML = parts.join("");
+      $("pv-submit").onclick = confirmSubmit;
+      $("pv-search").onclick = () => openTitleSearch(null);
+      $("pv-close").onclick = clearPreview;
+      $("pv-close2").onclick = clearPreview;
+    }
+
+    async function confirmSubmit() {
+      const body = { link: box.value.trim(), yes: true,
+        notify: !!($("notify-box") && $("notify-box").checked) };
+      if (previewPlan && previewPlan._chosen) {
+        body.tmdb_id = previewPlan._chosen.tmdb_id;
+        body.kind = previewPlan._chosen.kind;
+      }
+      if (previewPlan && previewPlan._chosen && !confirm("确认按指定的作品提交本次全部链接？")) return;
+      $("pv-submit") && ($("pv-submit").disabled = true);
+      try {
+        const result = await api(BASE + "/apply", { body: body });
+        clearPreview();
+        box.value = "";
+        setChosenTitle(null);
+        syncButtons();
+        toast(result.message || "已提交");
+        loadBoard();
+        loadStatus();
+      } catch (err) {
+        toast("提交失败：" + err.message, 6500);
+        $("pv-submit") && ($("pv-submit").disabled = false);
+      }
+    }
+
+    function clearPreview() { $("preview").innerHTML = ""; previewPlan = null; }
+
+    $("btn-submit").onclick = () => submit(false);
+    $("btn-preview").onclick = () => submit(true);
+
+    document.addEventListener("click", async (event) => {
+      const chip = event.target.closest(".chip");
+      if (!chip) return;
+      if (chip.dataset.pvTmdb) {
+        if (!previewPlan) return;
+        previewPlan._chosen = { tmdb_id: Number(chip.dataset.pvTmdb), kind: chip.dataset.pvKind,
+          title: chip.textContent };
+        setChosenTitle(previewPlan._chosen);
+        Array.from(document.querySelectorAll(".chip[data-pv-tmdb]")).forEach((el) => el.classList.remove("primary"));
+        chip.classList.add("primary");
+        const submit = $("pv-submit");
+        if (submit) submit.disabled = false;
+        return;
+      }
+      if (chip.dataset.cleanupOld) { await openOldCleanup(chip.dataset.cleanupOld); return; }
+      if (chip.dataset.cancel) {
+        if (!confirm("取消这批入库任务？已转存文件和检查点会保留；已提交的115云下载及共享扫描不会撤回。")) return;
+        chip.disabled = true;
+        try {
+          const result = await api(BASE + "/cancel", { body: { job_id: chip.dataset.cancel } });
+          toast(result.message || "已请求取消", 7000);
+          loadBoard();
+        } catch (err) { toast("取消失败：" + err.message, 6500); chip.disabled = false; }
+        return;
+      }
+      if (chip.dataset.searchJob) { openTitleSearch(chip.dataset.searchJob); return; }
+      if (chip.dataset.retry) {
+        if (chip.dataset.tmdb && !confirm("确认为《" + chip.textContent.trim() + "》并按原链接重新排队？")) return;
+        if (!chip.dataset.tmdb && chip.textContent.trim() === "重新继续"
+            && !confirm("继续这条已取消的任务？将保留已完成步骤，从原记录重新排队。")) return;
+        const body = { job_id: chip.dataset.retry };
+        if (chip.dataset.tmdb) {
+          body.tmdb_id = Number(chip.dataset.tmdb);
+          body.kind = chip.dataset.kind;
+        }
+        chip.disabled = true;
+        try {
+          const result = await api(BASE + "/resume", { body: body });
+          toast(result.message || "已重新排队");
+          loadBoard();
+        } catch (err) {
+          toast("重试失败：" + err.message, 6500);
+          chip.disabled = false;
+        }
+        return;
+      }
+      if (chip.dataset.dismiss) {
+        chip.disabled = true;
+        try {
+          await api("/api/v1/jobs/" + encodeURIComponent(chip.dataset.dismiss) + "/dismiss", { body: {} });
+          toast("已忽略，不再催办");
+          loadBoard();
+        } catch (err) {
+          toast("忽略失败：" + err.message, 6500);
+          chip.disabled = false;
+        }
+      }
+    });
+
+    /* 旧文件清理与转存按钮完全分开：先演练并展示所有具体路径，再发明确确认。 */
+    async function openOldCleanup(jobId) {
+      cleanupOldPreview = null;
+      cleanupOldJob = jobId;
+      $("cleanup-old-files").textContent = "正在复核新旧文件与删除范围…";
+      $("cleanup-old-confirm").disabled = true;
+      $("cleanup-old-dialog").showModal();
+      try {
+        const result = await api(BASE + "/cleanup-old", { body: { job_id: jobId } });
+        if (cleanupOldJob !== jobId || !$("cleanup-old-dialog").open) return;
+        cleanupOldPreview = result;
+        $("cleanup-old-files").innerHTML = oldCleanupHtml(result);
+        $("cleanup-old-confirm").disabled = !canConfirmOldCleanup(result);
+      } catch (err) { $("cleanup-old-files").textContent = "无法清理：" + err.message; }
+    }
+    function closeOldCleanup() {
+      cleanupOldPreview = null; cleanupOldJob = null;
+      $("cleanup-old-dialog").close();
+    }
+    $("cleanup-old-close").onclick = closeOldCleanup;
+    $("cleanup-old-keep").onclick = closeOldCleanup;
+    $("cleanup-old-confirm").onclick = async () => {
+      const preview = cleanupOldPreview;
+      const jobId = cleanupOldJob;
+      if (!canConfirmOldCleanup(preview)) return;
+      if (!confirm("确认删除刚刚列出的 " + preview.files.length + " 个旧视频及其全部列出的附属文件？新版本保留；此操作不等同于普通转存。")) return;
+      $("cleanup-old-confirm").disabled = true;
+      try {
+        const result = await api(BASE + "/cleanup-old", { body: { job_id: jobId, yes: true,
+          file_ids: preview.files.map((f) => f.old.file_id), approval_token: preview.approval_token } });
+        closeOldCleanup(); toast(result.message || "已提交旧文件清理", 7000); loadBoard();
+      } catch (err) { toast("清理未提交：" + err.message, 7000); $("cleanup-old-confirm").disabled = false; }
+    };
+
+    /* ---------------- 手动搜索 TMDB ---------------- */
+    function setChosenTitle(value) {
+      chosenTitle = value;
+      $("chosen-title").textContent = value
+        ? "已指定：" + value.title + (value.year ? "（" + value.year + "）" : "") + " · " + (value.kind === "tv" ? "剧集" : "电影")
+        : "";
+      $("chosen-title").hidden = !value;
+      $("chosen-title").title = value ? value.title : "";
+      $("btn-title-clear").hidden = !value;
+    }
+    function openTitleSearch(jobId) {
+      searchTarget = jobId;
+      searchResults = [];
+      searchVersion++;
+      $("title-search-button").disabled = false;
+      const rows = feed ? [].concat(feed.live || [], feed.inbox || [], feed.attention || [], feed.recent || []) : [];
+      const row = rows.find((r) => r.job_id === jobId);
+      $("title-context").textContent = jobId ? "为这条需要处理的请求确认作品；确认后会按原链接重新排队。"
+        : "为提交框内的链接指定作品；多条链接须属于同一作品。选择后仍需点击提交。";
+      $("title-query").value = row && !["115 链接入库", "（识别中）"].includes(row.title) ? row.title : "";
+      $("title-results").innerHTML = "";
+      $("title-search-note").textContent = "可以搜中文剧名或原名，不受插件候选限制。";
+      $("title-dialog").showModal();
+      $("title-query").focus();
+    }
+    $("btn-title-search").onclick = () => openTitleSearch(null);
+    $("btn-title-clear").onclick = () => { setChosenTitle(null); clearPreview(); };
+    $("title-dialog-close").onclick = () => $("title-dialog").close();
+    $("title-dialog").addEventListener("close", () => { searchVersion++; });
+    $("title-kind").onchange = () => {
+      searchVersion++; searchResults = [];
+      $("title-search-button").disabled = false;
+      $("title-results").innerHTML = "";
+      $("title-search-note").textContent = "已切换类型，请重新搜索。";
+    };
+    $("title-search-form").onsubmit = async (event) => {
+      event.preventDefault();
+      const query = $("title-query").value.trim();
+      if (!query) return;
+      const version = ++searchVersion;
+      const kind = $("title-kind").value;
+      $("title-search-button").disabled = true;
+      searchResults = [];
+      $("title-results").innerHTML = "";
+      $("title-search-note").textContent = "正在搜索 TMDB…";
+      try {
+        const result = await api("/api/v1/search/titles", { body: { query, provider: "tmdb", save_history: false } });
+        if (version !== searchVersion) return;
+        const failed = (result.providers || []).find((p) => p.provider === "tmdb" && !p.success);
+        if (failed) throw new Error(failed.message || "TMDB 暂时不可用，请稍后重试");
+        searchResults = tmdbSearchOptions(result.titles, kind);
+        $("title-search-note").textContent = searchResults.length
+          ? "找到 " + searchResults.length + " 个结果，请核对片名、年份与简介再确认。"
+          : "没找到对应的" + (kind === "tv" ? "剧集" : "电影") + "，试试原名或其他关键词。";
+        $("title-results").innerHTML = searchResults.map((r, index) =>
+          '<div class="search-result"><div class="row"><b class="grow">' + esc(r.title)
+          + (r.year ? "（" + esc(r.year) + "）" : "") + '</b><button type="button" data-search-pick="' + index
+          + '">选择这部' + (r.kind === "tv" ? "剧" : "电影") + '</button></div>'
+          + '<div class="small muted result-subtitle">' + esc(r.original_title) + ' · TMDB ' + r.tmdb_id + '</div>'
+          + '<div class="result-overview">' + esc(r.overview.slice(0, 220) || "暂无简介") + '</div></div>').join("");
+      } catch (err) {
+        if (version === searchVersion) $("title-search-note").textContent = "搜索失败：" + err.message;
+      } finally {
+        if (version === searchVersion) $("title-search-button").disabled = false;
+      }
+    };
+    $("title-results").onclick = async (event) => {
+      const button = event.target.closest("[data-search-pick]");
+      if (!button) return;
+      const value = searchResults[Number(button.dataset.searchPick)];
+      if (!value) return;
+      if (!searchTarget) {
+        setChosenTitle(value);
+        // 作品改变后旧预演的库存/目录结论不再适用，必须重新预演或提交。
+        clearPreview();
+        toast("已指定作品，可重新预演或点击提交转存");
+        $("title-dialog").close();
+        return;
+      }
+      if (!confirm("将原链接确认为《" + value.title + "》" + (value.year ? "（" + value.year + "）" : "") + "并重新排队，确认吗？")) return;
+      button.disabled = true;
+      try {
+        const result = await api(BASE + "/resume", { body: { job_id: searchTarget,
+          tmdb_id: value.tmdb_id, kind: value.kind } });
+        $("title-dialog").close();
+        toast(result.message || "已按确认作品重新排队");
+        loadBoard();
+      } catch (err) { toast("确认失败：" + err.message, 6500); button.disabled = false; }
+    };
+
+    /* ---------------- 清理暂存 ---------------- */
+    async function loadLibraries() {
+      try {
+        const rows = (await api("/api/v1/libraries?scope=all")) || [];
+        const cloud = rows.filter((row) => (row.cloud_folders || []).some(
+          (f) => String(f.backend || "").indexOf("115") >= 0));
+        $("cleanup-lib").innerHTML = cloud.map((row) =>
+          '<option value="' + row.id + '">' + esc(row.name) + "</option>").join("")
+          || '<option value="">（没有主根在 115 网盘的库）</option>';
+      } catch (err) {
+        $("cleanup-lib").innerHTML = '<option value="">媒体库读取失败</option>';
+      }
+    }
+
+    $("btn-cleanup-check").onclick = async () => {
+      const libraryId = Number($("cleanup-lib").value);
+      if (!libraryId) return;
+      $("btn-cleanup-run").disabled = true;
+      $("cleanup-note").textContent = "检查中…";
+      try {
+        cleanupCheck = await api(BASE + "/cleanup-staging", { body: { library_id: libraryId } });
+        const st = cleanupCheck.status;
+        const text = st === "absent" ? "没有暂存父目录，无需清理。"
+          : st === "preview" ? "暂存父目录完整为空，可以清理。"
+          : st === "retained" ? "暂存目录里还有内容（" + (cleanupCheck.file_count || 0) + " 个文件 / "
+              + (cleanupCheck.directory_count || 0) + " 个子目录），将整体保留。"
+          : st === "deferred" ? "未能确认（" + esc(cleanupCheck.reason || "") + "）。"
+          : st === "removed" ? "已清理完成。" : esc(JSON.stringify(cleanupCheck));
+        $("cleanup-note").textContent = text;
+        $("btn-cleanup-run").disabled = st !== "preview";
+      } catch (err) {
+        $("cleanup-note").textContent = "检查失败：" + err.message;
+      }
+    };
+
+    $("btn-cleanup-run").onclick = async () => {
+      if (!cleanupCheck || !cleanupCheck.holder_id) return;
+      const libraryId = Number($("cleanup-lib").value);
+      $("btn-cleanup-run").disabled = true;
+      try {
+        const result = await api(BASE + "/cleanup-staging", { body: {
+          library_id: libraryId, expected_dir_id: cleanupCheck.holder_id, yes: true } });
+        toast(result.message || "已提交清理，任务页可见进度");
+        loadBoard();
+      } catch (err) {
+        toast("清理失败：" + err.message, 6500);
+      }
+    };
+
+    /* ---------------- 启动 ---------------- */
+    loadStatus();
+    loadBoard();
+    $("maintenance").addEventListener("toggle", () => {
+      if ($("maintenance").open && !$("cleanup-lib").options.length) loadLibraries();
+    });
+    // 登录状态查的是 115 接口，频率放慢；看板轮询不碰它
+    setInterval(() => { if (!document.hidden) loadStatus(); }, 180000);
+    document.addEventListener("visibilitychange", () => {
+      clearTimeout(timer);
+      if (!document.hidden) { loadBoard(); loadStatus(); }
+    });
+    window.addEventListener("error", (event) => {
+      fetch("/api/v1/ui/apps/p115-import/errors", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ message: String(event.message || "页面脚本报错").slice(0, 500),
+          detail: String((event.error && event.error.stack) || event.filename || "").slice(0, 4000) }),
+      }).catch(() => {});
+    });
+  })();
+  </script>
+</body>
+</html>
