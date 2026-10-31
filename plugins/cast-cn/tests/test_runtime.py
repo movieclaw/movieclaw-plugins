@@ -98,6 +98,8 @@ class FakeOps:
         if operation_id == "search.titles":
             self.search_calls += 1
             raise AssertionError("有 douban_id 时不应搜索")
+        if operation_id == "people.show":
+            return {"avatar_url": None, "name": ""}
         raise AssertionError(f"unexpected op: {operation_id}")
 
 

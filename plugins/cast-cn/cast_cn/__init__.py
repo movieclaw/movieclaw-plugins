@@ -39,6 +39,7 @@ OPERATIONS = (
     "library.items.get",
     "library.items.refresh-metadata",
     "jobs.wait",
+    "people.show",
     "search.titles",
 )
 

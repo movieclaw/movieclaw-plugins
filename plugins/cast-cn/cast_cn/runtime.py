@@ -24,8 +24,10 @@ from .douban import DoubanClient, DoubanError
 from .matching import (
     CastEntry,
     DoubanActor,
+    is_broken_thumb,
     merge_cast,
     normalize_name,
+    tmdb_profile_url,
 )
 from .nfo import (
     NfoError,
@@ -37,7 +39,7 @@ from .nfo import (
     parse_nfo,
     serialize_nfo,
 )
-from .settings import Settings
+from .settings import AvatarPolicy, Settings
 
 ITEM_JOB = "cast-cn:item"
 SWEEP_JOB = "cast-cn:sweep"
@@ -195,14 +197,22 @@ class Runtime:
             if not actors:
                 raise RetryLater("演员表为空（元数据可能还没刮完）")
 
+            # 失效头像修复：独立于豆瓣匹配——豆瓣失败也要能修。人物表里的
+            # profile_path 是对的（本地多半已缓存），按人物 id 回填最权威
+            repairs: dict[str, str] = {}
+            if self.settings.avatar_policy is not AvatarPolicy.NONE:
+                repairs = await self._collect_avatar_repairs(context, title, actors)
+
             await context.update_progress(
                 mode="indeterminate",
                 phase="douban",
                 message=f"匹配豆瓣：《{title}》",
             )
             douban_ids = await self._find_douban_ids(item)
-            if not douban_ids:
+            if not douban_ids and not repairs:
                 raise RetryLater("没有匹配到豆瓣条目")
+            if not douban_ids:
+                self.logger.info("cast-cn：《%s》豆瓣未命中，仅修复失效头像", title)
 
             await context.update_progress(
                 mode="indeterminate",
@@ -221,7 +231,7 @@ class Runtime:
                         continue
                     seen_names.add(key)
                     combined.append(actor)
-            if not combined:
+            if not combined and not repairs:
                 raise RetryLater("豆瓣没有返回演员表")
             merged = merge_cast(
                 actors,
@@ -234,8 +244,9 @@ class Runtime:
                 avatar_policy=self.settings.avatar_policy,
                 base_url=self.base_url,
                 keep_person_links=self.settings.keep_person_links,
+                avatar_repairs=repairs or None,
             )
-            if merged.matched == 0:
+            if merged.matched == 0 and not merged.changed:
                 # 豆瓣条目找到了、但演员表对不上：这是数据源不匹配，不是临时故障。
                 # 重试三次只会把一条“跳过”记成“失败”，直接跳过并留下原因。
                 raise SkipItem("豆瓣演员表与条目没有匹配")
@@ -554,6 +565,49 @@ class Runtime:
                 raise SkipItem("该媒体库未开启写 NFO")
             if lib.get("source") == "local":
                 raise SkipItem("本地内容库不处理")
+
+    async def _collect_avatar_repairs(
+        self,
+        context: JobContext,
+        title: str,
+        actors: list[CastEntry],
+    ) -> dict[str, str]:
+        """失效/缺失头像修复：按 TMDB 人物 id 从人物表回填正确头像地址。
+
+        老工具写进 NFO 的头像地址缺扩展名（image.tmdb.org 一律 404），而
+        人物表里的 profile_path 是对的、本地也多半已缓存——按人物 id 查
+        人物页拿正确地址，比豆瓣更权威。查不到的交给豆瓣匹配补。
+        """
+        repairs: dict[str, str] = {}
+        for actor in actors:
+            if actor.name in repairs:
+                continue
+            if actor.thumb_url and not is_broken_thumb(actor.thumb_url):
+                continue
+            if not actor.tmdb_person_id:
+                continue
+            try:
+                person = await self.ops.call(
+                    "people.show", {"tmdb_person_id": actor.tmdb_person_id}
+                )
+            except OpsError as exc:
+                self.logger.debug(
+                    "cast-cn：人物 %s 查询失败（%s），交豆瓣匹配", actor.tmdb_person_id, exc.message
+                )
+                continue
+            fixed = tmdb_profile_url((person or {}).get("avatar_url"))
+            if fixed and fixed != actor.thumb_url:
+                repairs[actor.name] = fixed
+        if repairs:
+            self.logger.info(
+                "cast-cn：《%s》检测到 %d 个失效头像，从人物表回填", title, len(repairs)
+            )
+            await context.update_progress(
+                mode="indeterminate",
+                phase="merge",
+                message=f"《{title}》回填 {len(repairs)} 个失效头像",
+            )
+        return repairs
 
     async def _find_douban_ids(self, item: dict[str, Any]) -> list[str]:
         existing = item.get("douban_id")
