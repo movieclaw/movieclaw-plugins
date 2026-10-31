@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta name="color-scheme" content="dark">
+  <title>演职人员中文刮削</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 28px;
+      font-family: var(--mc-font, system-ui, -apple-system, "Segoe UI", sans-serif);
+      color: var(--mc-text, #eee);
+      background: transparent;
+    }
+    .wrap { max-width: 1120px; margin: 0 auto; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: .01em; }
+    h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
+    .muted { color: var(--mc-text-muted, #9aa3ad); }
+    .small { font-size: 12px; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px; font-size: 12px;
+      border: 1px solid var(--mc-line, #333);
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mc-ok, #3ccf91); }
+    .dot.warn { background: var(--mc-warn, #e7b44a); }
+    .dot.bad { background: var(--mc-danger, #ef6b6b); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 18px; }
+    .card {
+      border: 1px solid var(--mc-line, #333);
+      border-radius: 14px;
+      padding: 16px 18px;
+      background: color-mix(in srgb, var(--mc-bg, #111) 30%, transparent);
+    }
+    .stat .num { font-size: 24px; font-weight: 650; margin-top: 4px; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    button, .btn {
+      appearance: none; border: 1px solid var(--mc-line, #333);
+      background: color-mix(in srgb, var(--mc-accent, #8d51f9) 14%, transparent);
+      color: var(--mc-text, #eee); padding: 9px 14px; border-radius: 10px;
+      font: inherit; font-size: 13px; cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    button:hover, .btn:hover { border-color: var(--mc-accent, #8d51f9); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .btn.plain { background: transparent; }
+    .section { margin-top: 22px; }
+    .meta { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; }
+    .meta span b { font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--mc-line, #2a2a2a); vertical-align: top; }
+    th { color: var(--mc-text-muted, #9aa3ad); font-weight: 500; white-space: nowrap; }
+    td.title { max-width: 360px; }
+    td.reason { color: var(--mc-text-muted, #9aa3ad); max-width: 360px; }
+    .status { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+    .status.ok { color: var(--mc-ok, #3ccf91); }
+    .status.noop { color: var(--mc-text-muted, #9aa3ad); }
+    .status.dry_run { color: var(--mc-warn, #e7b44a); }
+    .status.failed { color: var(--mc-danger, #ef6b6b); }
+    .status.skipped { color: var(--mc-text-muted, #9aa3ad); }
+    .status.restored { color: var(--mc-accent, #8d51f9); }
+    .empty { padding: 22px 0; color: var(--mc-text-muted, #9aa3ad); font-size: 13px; }
+    .error { color: var(--mc-danger, #ef6b6b); font-size: 13px; margin-top: 10px; }
+    .toast { font-size: 13px; margin-top: 10px; min-height: 18px; }
+    #theme-debug { margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--mc-warn, #e7b44a); border-radius: 10px; font-size: 12px; white-space: pre-wrap; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    @media (max-width: 680px) {
+      body { padding: 18px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      th:nth-child(3), td:nth-child(3) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>演职人员中文刮削</h1>
+        <div class="muted small">用豆瓣补齐条目详情页演职员条的中文名、角色和头像；只改 NFO，再触发一次元数据刷新。</div>
+      </div>
+      <div id="status-badge" class="badge"><span class="dot"></span><span id="status-text">加载中…</span></div>
+    </header>
+
+    <div id="error" class="error" hidden></div>
+
+    <div class="grid">
+      <div class="card stat"><div class="muted small">成功</div><div class="num" id="stat-ok">–</div></div>
+      <div class="card stat"><div class="muted small">无变化</div><div class="num" id="stat-noop">–</div></div>
+      <div class="card stat"><div class="muted small">预览</div><div class="num" id="stat-dry">–</div></div>
+      <div class="card stat"><div class="muted small">跳过</div><div class="num" id="stat-skip">–</div></div>
+      <div class="card stat"><div class="muted small">失败</div><div class="num" id="stat-fail">–</div></div>
+    </div>
+
+    <div class="card section">
+      <h2>当前设置</h2>
+      <div class="meta">
+        <span class="muted">媒体库：<b id="meta-libraries">–</b></span>
+        <span class="muted">条件：<b id="meta-condition">–</b></span>
+        <span class="muted">头像：<b id="meta-avatar">–</b></span>
+        <span class="muted">只预览：<b id="meta-dry">–</b></span>
+        <span class="muted">外部地址：<b id="meta-base">–</b></span>
+      </div>
+      <div class="actions">
+        <button id="btn-refresh" type="button">刷新状态</button>
+        <button id="btn-preview" type="button">预览整库</button>
+        <button id="btn-run" type="button">立即运行</button>
+        <a class="btn plain" href="/settings/plugins/cast-cn" target="_top">打开设置</a>
+        <a class="btn plain" href="/settings/app?tab=tasks&task=cast-cn.sweep" target="_top">定时设置</a>
+        <a class="btn plain" href="/activity" target="_top">查看任务</a>
+      </div>
+      <div id="toast" class="toast muted"></div>
+      <pre id="theme-debug" hidden></pre>
+      <div class="muted small" style="margin-top:8px">
+        「预览整库」只计算差异、不写 NFO；「立即运行」按当前设置真正写入。两者都从配置的媒体库开始，每轮最多 20 条。
+      </div>
+    </div>
+
+    <div class="card section">
+      <h2>最近的处理</h2>
+      <div id="items" class="empty">加载中…</div>
+    </div>
+  </div>
+
+  <script>
+    const PLUGIN = "cast-cn";
+    const REPORT_URL = `/api/v1/plugins/${PLUGIN}/report`;
+    const RUN_URL = `/api/v1/plugins/${PLUGIN}/run`;
+    const STATUS_LABEL = {
+      ok: "成功",
+      noop: "无变化",
+      dry_run: "预览",
+      skipped: "跳过",
+      failed: "失败",
+      restored: "已恢复",
+    };
+    let busy = false;
+
+    const $ = (id) => document.getElementById(id);
+
+    function setText(id, value) {
+      const el = $(id);
+      if (el) el.textContent = value == null || value === "" ? "–" : String(value);
+    }
+
+    function showError(message) {
+      const el = $("error");
+      el.textContent = message || "";
+      el.hidden = !message;
+    }
+
+    function showToast(message) {
+      $("toast").textContent = message || "";
+    }
+
+    function statusNode(status) {
+      const label = STATUS_LABEL[status] || status || "–";
+      const span = document.createElement("span");
+      span.className = `status ${status || ""}`;
+      span.textContent = label;
+      return span;
+    }
+
+    function renderReport(report) {
+      const settings = report.settings || {};
+      const stats = report.stats || {};
+      const enabled = Boolean(settings.enabled);
+      const badge = $("status-badge");
+      badge.querySelector(".dot").className = "dot" + (enabled ? "" : " warn");
+      setText("status-text", enabled ? "运行中" : "已停用");
+      setText("stat-ok", stats.ok ?? 0);
+      setText("stat-noop", stats.noop ?? 0);
+      setText("stat-dry", stats.dry_run ?? 0);
+      setText("stat-skip", stats.skipped ?? 0);
+      setText("stat-fail", stats.failed ?? 0);
+      setText("meta-libraries", (settings.libraries || []).join("、") || "全部");
+      setText("meta-condition", settings.condition || "–");
+      setText("meta-avatar", settings.avatar_policy || "–");
+      setText("meta-dry", settings.dry_run ? "是" : "否");
+      setText("meta-base", settings.base_url_set ? "已配置" : "未配置");
+
+      const items = Array.isArray(report.items) ? report.items.slice().reverse() : [];
+      const host = $("items");
+      host.className = "";
+      host.replaceChildren();
+      if (!items.length) {
+        host.className = "empty";
+        host.textContent = "还没有处理记录。点「预览整库」或「立即运行」开始。";
+        return;
+      }
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      thead.innerHTML = "<tr><th>状态</th><th>条目</th><th>匹配</th><th>时间</th><th>说明</th></tr>";
+      const tbody = document.createElement("tbody");
+      for (const item of items.slice(0, 80)) {
+        const tr = document.createElement("tr");
+        const statusTd = document.createElement("td");
+        statusTd.appendChild(statusNode(item.status));
+        const titleTd = document.createElement("td");
+        titleTd.className = "title";
+        const title = item.title || `条目 #${item.media_item_id ?? "?"}`;
+        if (item.library_id && item.media_item_id) {
+          const a = document.createElement("a");
+          a.href = `/library/${item.library_id}/item/${item.media_item_id}`;
+          a.target = "_top";
+          a.textContent = title;
+          titleTd.appendChild(a);
+        } else {
+          titleTd.textContent = title;
+        }
+        const matchedTd = document.createElement("td");
+        matchedTd.textContent = item.matched == null ? "–" : String(item.matched);
+        const atTd = document.createElement("td");
+        atTd.className = "small muted";
+        atTd.textContent = item.at ? new Date(item.at).toLocaleString() : "–";
+        const reasonTd = document.createElement("td");
+        reasonTd.className = "reason";
+        reasonTd.textContent = item.reason || "";
+        tr.append(statusTd, titleTd, matchedTd, atTd, reasonTd);
+        tbody.appendChild(tr);
+      }
+      table.append(thead, tbody);
+      host.appendChild(table);
+    }
+
+    async function loadReport() {
+      try {
+        const res = await fetch(REPORT_URL, { credentials: "same-origin" });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+          const message = body?.message || body?.detail || `请求失败（HTTP ${res.status}）`;
+          showError(res.status === 403 ? "需要管理员权限才能查看这个页面。" : message);
+          return;
+        }
+        showError("");
+        // 插件路由返回裸 JSON；主程序接口可能包一层 {data}。两种都兼容。
+        renderReport(body?.data ?? body ?? {});
+      } catch (err) {
+        showError("无法连接后端，请检查服务是否在线。");
+      }
+    }
+
+    async function run(dryRun) {
+      if (busy) return;
+      busy = true;
+      for (const id of ["btn-refresh", "btn-preview", "btn-run"]) $(id).disabled = true;
+      showToast(dryRun ? "正在排入预览任务…" : "正在排入运行任务…");
+      try {
+        const res = await fetch(RUN_URL, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dry_run: dryRun }),
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+          showToast("");
+          showError(body?.message || body?.detail || `请求失败（HTTP ${res.status}）`);
+          return;
+        }
+        const payload = body?.data ?? body;
+        const jobId = payload?.job_id;
+        showToast(jobId ? `已排入任务：${jobId}` : "已排入任务");
+        setTimeout(loadReport, 1200);
+      } catch (err) {
+        showToast("");
+        showError("无法连接后端，请检查服务是否在线。");
+      } finally {
+        busy = false;
+        for (const id of ["btn-refresh", "btn-preview", "btn-run"]) $(id).disabled = false;
+      }
+    }
+
+    $("btn-refresh").addEventListener("click", loadReport);
+    $("btn-preview").addEventListener("click", () => run(true));
+    $("btn-run").addEventListener("click", () => run(false));
+
+    // 排障用：/apps/cast-cn?debug=1 显示主题变量与父页面主题，正常页面不显示
+    if (new URLSearchParams(location.search).has("debug")) {
+      const el = $("theme-debug");
+      el.hidden = false;
+      el.textContent = "读取主题…";
+      const updateThemeDebug = () => {
+        try {
+          const html = document.documentElement;
+          const cs = getComputedStyle(html);
+          const parentRoot = window.parent.document.documentElement;
+          const parentCs = getComputedStyle(parentRoot);
+          const body = document.body;
+          const bs = body ? getComputedStyle(body) : null;
+          const debug = {
+            parentTheme: parentRoot.getAttribute("data-theme") || "(default)",
+            parentText: parentCs.getPropertyValue("--text").trim(),
+            parentBg: parentCs.getPropertyValue("--bg").trim(),
+            iframeTheme: html.getAttribute("data-mc-theme") || "(unset)",
+            mcText: cs.getPropertyValue("--mc-text").trim(),
+            mcBg: cs.getPropertyValue("--mc-bg").trim(),
+            colorScheme: cs.colorScheme,
+            prefersDark: matchMedia("(prefers-color-scheme: dark)").matches,
+            htmlBg: cs.backgroundColor,
+            bodyBg: bs ? bs.backgroundColor : null,
+            bodyColor: bs ? bs.color : null,
+          };
+          el.textContent = JSON.stringify(debug, null, 2);
+        } catch (err) {
+          el.textContent = `主题诊断失败：${err}`;
+        }
+      };
+      // 父页面在 iframe onLoad 之后才注入 --mc-*，等一拍再读，并且随主题切换刷新
+      setTimeout(updateThemeDebug, 1500);
+      setInterval(updateThemeDebug, 5000);
+    }
+
+    loadReport();
+    setInterval(loadReport, 5000);
+  </script>
+</body>
+</html>

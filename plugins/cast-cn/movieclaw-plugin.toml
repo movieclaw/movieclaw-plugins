@@ -1,0 +1,26 @@
+[plugin]
+id = "cast-cn"
+title = "演职人员中文刮削"
+version = "0.3.3"
+entry = "cast_cn"
+runtime = "process"
+sdk = "^1.0"
+description = "用豆瓣补齐条目详情页演职员条的中文名、中文角色和头像：只改条目 NFO，再触发一次元数据刷新。"
+
+[requires]
+"library.items.arrived" = "^1.0"
+"scheduled-tasks" = "^1.0"
+"job-handlers" = "^1.1"
+
+[permissions]
+operations = [
+  "app.show",
+  "library.list",
+  "library.items.list",
+  "library.items.get",
+  "library.items.refresh-metadata",
+  "jobs.wait",
+  "search.titles",
+]
+paths = [{ path = "library", mode = "rw" }]
+network = true
