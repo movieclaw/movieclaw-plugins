@@ -1,0 +1,19 @@
+[plugin]
+id = "cloud-123"
+title = "123 云盘"
+version = "0.1.0-beta.5"
+entry = "cloud_123"
+runtime = "process"
+sdk = "^1.0"
+description = "基于 MovieClaw 核心提供的云存储能力开发的 123 云盘插件，方便将本地媒体库搬到云盘，节省本地空间"
+
+[requires]
+"drive-backends" = "^1.5"
+"plugin-data" = "^1.0"
+
+[permissions]
+network = true
+operations = []
+
+[dependencies]
+lock = "requirements.lock"

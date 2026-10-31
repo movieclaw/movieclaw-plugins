@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>123 云盘 · 采样工作台</title>
+<style nonce="__PANEL_KEY__">
+:root{--paper:#f4f2eb;--ink:#193c33;--muted:#64736a;--line:#d7ded4;--accent:#c9f06b;--warn:#9b4929}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 "Avenir Next","PingFang SC","Microsoft YaHei",sans-serif}button,input,select{font:inherit}button{cursor:pointer;border:1px solid var(--ink);border-radius:7px;padding:10px 16px;color:var(--ink);background:transparent;font-weight:600}button:hover:not(:disabled){background:#e4e9df}button:disabled{opacity:.4;cursor:not-allowed}button.primary{background:var(--ink);color:#fff}button.primary:hover:not(:disabled){background:#2d594b}button.accent{background:var(--accent)}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid #688f24;outline-offset:3px}input,select{min-width:0;width:100%;background:#fff;border:1px solid #b5c3b5;border-radius:6px;padding:10px;color:var(--ink)}input[type=checkbox]{width:auto}label{display:block;font-size:13px;margin:0 0 6px;font-weight:600}h1{font-family:"Iowan Old Style","Songti SC",serif;font-size:43px;line-height:1.2;font-weight:500;letter-spacing:-1px;margin:15px 0}h2{font-size:18px;margin:0 0 14px}p{margin:6px 0}.muted,.hint{color:var(--muted)}.hint{font-size:12px}.eyebrow{font:11px/1.4 Menlo,monospace;letter-spacing:2px}.top{border-bottom:1px solid var(--line);padding:22px 0;display:flex;justify-content:space-between;align-items:center}.brand{font-weight:700;letter-spacing:1px}.local{font-size:12px;display:flex;gap:8px;align-items:center}.dot{width:7px;height:7px;background:#47835e;border-radius:50%}.wrap{max-width:1180px;margin:auto;padding:0 30px}.hero{display:flex;justify-content:space-between;align-items:end;padding:34px 0 28px;gap:24px}.hero p{max-width:600px}.tag{border:1px solid var(--line);padding:8px 12px;white-space:nowrap;font:12px Menlo,monospace}.layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px}.box{background:#fffdf8;border:1px solid var(--line);padding:23px;border-radius:10px;margin-bottom:20px}.box.dark{background:var(--ink);color:var(--paper);border:0}.dark .muted{color:#b4c8bb}.row{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.row button{flex:1;white-space:nowrap}.field{margin:16px 0}.path{font:11px/1.6 Menlo,monospace;overflow-wrap:anywhere}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:23px 0}.value{font:25px/1.2 Menlo,monospace;margin-top:8px}.stats label{color:#b4c8bb;font-weight:400}.hash{font:11px/1.7 Menlo,monospace;overflow-wrap:anywhere;color:#b4c8bb}.steps{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:18px}.step{padding:15px;border-right:1px solid var(--line);font-size:12px}.step:last-child{border:0}.step b{display:block;font-size:14px;margin:5px 0}.step em{font:11px Menlo,monospace;color:var(--muted);font-style:normal}#notice{padding:12px 15px;border-left:3px solid #638745;background:#e9efdf;margin-bottom:18px;white-space:pre-wrap}#notice.error{border-color:var(--warn);background:#f9e9df;color:#813b21}#notice:empty{display:none}.mt12{margin-top:12px}.mt18{margin-top:18px}.actions{display:flex;gap:9px;flex-wrap:wrap}.actions button{flex:1}.divider{border-top:1px solid var(--line);padding-top:18px;margin-top:20px}summary{cursor:pointer;font-weight:600}details .field:last-child{margin-bottom:0}.report-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px}.report-head h2{margin:0}.event{border-top:1px solid var(--line);padding:10px 0}.event summary{font:12px/1.8 Menlo,monospace;overflow-wrap:anywhere}.event pre{font:12px/1.6 Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto;background:#eeefe8;padding:14px;border-radius:6px}.empty{padding:32px 0;text-align:center;color:var(--muted)}footer{padding:26px 0 32px;color:var(--muted);font-size:12px}#pending{font-size:12px;color:#f2d49f;margin-top:12px}[hidden]{display:none!important}@media(max-width:800px){.layout{grid-template-columns:1fr}.hero{align-items:start}.tag{display:none}.wrap{padding:0 18px}h1{font-size:34px}.stats{gap:6px}.value{font-size:20px}}@media(prefers-reduced-motion:no-preference){.box{animation:enter .3s ease-out}@keyframes enter{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}}
+</style>
+</head>
+<body><div class="wrap">
+<header class="top"><div class="brand">MovieClaw <span class="muted">/</span> LAB</div><div class="local"><span class="dot"></span>仅在本机运行</div></header>
+<section class="hero"><div><div class="eyebrow">123 CLOUD · R2 / R3</div><h1>一步操作，一份证据。</h1><p class="muted">在这里完成上传采样。每次只推进一个阶段，查看结果后再继续。</p></div><div class="tag">MANUAL SAMPLING</div></section>
+<div id="notice" role="status" aria-live="polite"></div>
+<div class="layout"><aside>
+<section class="box"><h2>本次连接</h2><p id="tokenStatus" class="hint">Token 未设置</p><div class="field"><label for="token">账号 Token</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 Token，仅留在内存"></div><div class="row"><button id="saveToken" class="primary">使用 Token</button><button id="forget">清除</button></div><p class="hint mt12">保存后输入框立即清空。服务退出后需重新输入；不写入浏览器存储。</p></section>
+<section class="box"><h2>采样目录</h2><label for="directory">打开已有本地目录</label><input id="directory" placeholder="/private/tmp/movieclaw-123-probe-…" spellcheck="false"><div class="row"><button id="open">打开</button><button id="refresh">刷新状态</button></div><p class="hint">仅读取本地记录，不查询网盘。</p>
+<details class="divider"><summary>新建一轮采样</summary><div class="field"><label for="parent">网盘中的空测试目录 ID</label><input id="parent" inputmode="numeric" placeholder="非根目录的正整数"></div><div class="field"><label for="size">随机样本大小</label><select id="size"><option value="12582912">12 MiB · 基础采样</option><option value="33554432">32 MiB · 尝试多片采样</option><option value="0">0 字节 · 空文件采样</option></select></div><label><input id="reuse" type="checkbox"> 复用当前采样的字节，验证秒传</label><p class="hint">复用时忽略大小选项。每轮使用新的空网盘目录；本地目录自动创建。</p><div class="row"><button id="start" class="primary">新建并初始化</button></div><p class="hint">此按钮会请求网盘创建上传对象。旧采样保留在原目录。</p></details></section>
+</aside><main>
+<section class="box dark"><div class="eyebrow">CURRENT SESSION</div><p id="sessionPath" class="path muted">尚未选择采样</p><div class="stats"><div><label>样本大小</label><div id="sampleSize" class="value">—</div></div><div><label>已记录 / 总片数</label><div id="parts" class="value">—</div></div><div><label>合并请求</label><div id="merge" class="value">未提交</div></div></div><div id="md5" class="hash">本地 MD5：—</div><div id="pending"></div></section>
+<section class="box"><div class="steps"><div class="step"><em>01 / INSPECT</em><b>查看远端</b>文件详情与分片列表</div><div class="step"><em>02 / UPLOAD</em><b>上传下一片</b>每次仅发送一片字节</div><div class="step"><em>03 / COMPLETE</em><b>提交合并</b>全部片记录成功后可用</div></div><p id="reason">请选择已有采样，或创建新采样。</p><div class="actions mt18"><button id="inspect">查询远端</button><button id="put" class="accent">上传下一片</button><button id="complete">提交合并</button></div><p class="hint mt12">没有自动上传、轮询或重试。关闭页面不会取消进行中的请求；重新打开后先刷新状态。</p></section>
+<section class="box"><div class="report-head"><h2>脱敏采样记录 <span id="eventCount" class="muted"></span></h2><button id="download">导出报告</button></div><p class="hint">已排除账号查询记录。共享前仍请检查未知字段；不包含私有状态或私有证据文件。</p><div id="events"><p class="empty">还没有可展示的记录</p></div></section>
+</main></div><footer>采样成功 ≠ 成品已核验。此工具不判定全文 MD5 来源或安全续传规则，也不执行生产插件契约。</footer>
+</div>
+<script nonce="__PANEL_KEY__">
+'use strict';
+const key='__PANEL_KEY__';
+const $=id=>document.getElementById(id);
+let current=null,busy=false;
+function notice(message,error=false){$('notice').textContent=message;$('notice').classList.toggle('error',error);}
+function buttons(){
+  document.querySelectorAll('button,input,select').forEach(el=>el.disabled=busy);
+  for(const action of ['inspect','put','complete']) $(action).disabled=busy||!current?.allowed.includes(action);
+  $('start').disabled=busy||!current?.token_ready;
+  $('download').disabled=busy||!current?.report;
+  $('forget').disabled=busy||!current?.token_ready;
+}
+function render(data){
+  current=data;
+  $('tokenStatus').textContent=data.token_ready?'Token 已保存在本次服务内存中':'Token 未设置';
+  $('directory').value=data.directory;
+  $('sessionPath').textContent=data.directory||'尚未选择采样';
+  $('sampleSize').textContent=data.size==null?'—':data.size===0?'0 B':`${data.size/1048576} MiB`;
+  $('parts').textContent=data.next_part==null?'—':`${data.next_part} / ${data.part_count??'?'}`;
+  $('merge').textContent=data.complete_sent?'已提交':'未提交';
+  $('md5').textContent=`本地 MD5：${data.md5??'—'}`;
+  $('pending').textContent=data.pending?'结果未知 · 仅允许查询，不重发写操作':'';
+  $('reason').textContent=data.reason;
+  const rows=data.report.trim()?data.report.trim().split('\n').map(line=>JSON.parse(line)):[];
+  $('eventCount').textContent=rows.length?`(${rows.length})`:'';
+  $('events').replaceChildren();
+  if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='还没有可展示的记录';$('events').append(p);}
+  for(const row of rows.reverse()){
+    const detail=document.createElement('details');detail.className='event';
+    const summary=document.createElement('summary');
+    summary.textContent=`${row.operation} · HTTP ${row.http_status} · ${row.observed_at}`;
+    const pre=document.createElement('pre');pre.textContent=JSON.stringify(row,null,2);
+    detail.append(summary,pre);$('events').append(detail);
+  }
+  buttons();
+}
+async function read(){
+  const res=await fetch('/api',{headers:{'X-Panel-Key':key},cache:'no-store'});
+  const data=await res.json();if(!res.ok)throw new Error(data.error);render(data);
+}
+async function act(action,extra={}){
+  if(busy)return;
+  busy=true;buttons();notice('正在执行，请等待。不会自动重试。');
+  try{
+    const res=await fetch('/api',{method:'POST',headers:{'X-Panel-Key':key,'Content-Type':'application/json'},body:JSON.stringify({action,revision:current?.revision,...extra})});
+    const data=await res.json();if(!res.ok)throw new Error(data.error);
+    render(data);notice(['start','put','complete','inspect'].includes(action)?'本阶段结束。请先检查记录，再决定下一步；尚未判定成品完成。':'本地设置已更新，未访问网盘。');
+  }catch(error){
+    notice(error.message+'\n若写操作中断，请勿重发；先核对本地状态。',true);
+    try{await read();}catch{notice(error.message+'\n本地状态尚未取得。稍后点击“刷新状态”；不要重发写操作。',true);}
+  }finally{busy=false;buttons();}
+}
+$('saveToken').onclick=()=>{const token=$('token').value;$('token').value='';void act('token',{token});};
+$('forget').onclick=()=>void act('forget');
+$('open').onclick=()=>void act('open',{directory:$('directory').value});
+$('refresh').onclick=async()=>{busy=true;buttons();try{await read();notice('已刷新本地状态，未访问网盘。');}catch(e){notice(e.message,true);}finally{busy=false;buttons();}};
+$('start').onclick=()=>void act('start',{parent:$('parent').value.trim(),bytes:Number($('size').value),reuse:$('reuse').checked});
+for(const action of ['inspect','put','complete'])$(action).onclick=()=>void act(action);
+$('download').onclick=()=>{const blob=new Blob([current.report],{type:'application/x-ndjson'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='samples-review.jsonl';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+buttons();read().catch(e=>notice(e.message,true));
+</script></body></html>
