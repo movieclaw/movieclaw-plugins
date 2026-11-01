@@ -286,7 +286,7 @@ async def apply(ctx):
         # Cached for 10 minutes so the panel's periodic refresh never hammers 115.
         if not cfg.cookie.get_secret_value():return {'logged_in':False}
         now=time.monotonic()
-        if refresh or now-login_cache['at']>600:
+        if refresh or not login_cache['data'] or now-login_cache['at']>600:
             try:login_cache['data']=await drive.account();login_cache['at']=now
             except DriveError as e:login_cache['data']={'error':str(e)}
         return {'logged_in':True,**login_cache['data']}
