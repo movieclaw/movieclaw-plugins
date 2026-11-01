@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-01T02:07:27Z",
+  "generated_at": "2026-11-01T06:09:07Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -27,7 +27,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cast-cn",
-      "downloads": 7,
+      "downloads": 9,
       "latest": "0.3.5",
       "latest_stable": "0.3.5",
       "versions": [
@@ -1615,7 +1615,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-site-pack",
-      "downloads": 42,
+      "downloads": 43,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -2110,9 +2110,72 @@
       "deprecated": null,
       "feedback_url": "https://github.com/o1xhack/movieclaw-trakt/issues/new",
       "downloads": 12,
-      "latest": "0.3.0",
-      "latest_stable": "0.3.0",
+      "latest": "0.4.0",
+      "latest_stable": "0.4.0",
       "versions": [
+        {
+          "version": "0.4.0",
+          "prerelease": false,
+          "released_at": "2026-11-01T06:09:07Z",
+          "yanked": null,
+          "notes": "- Default foreground history creation to incremental sync, reusing the last successful scan cutoff per member, account binding and direction, including pre-upgrade batches. Add explicit full-scan buttons and show the selected range in history/details. Failed or cancelled tasks never advance the baseline.\n- Fetch incremental Trakt history from the boundary UTC minute; retain receipt deduplication. Full scans bypass unchanged-activity caching, and changed local holdings trigger a full remote reconciliation. Local catalog reads remain paginated because the host has no change cursor; backdated remote additions require an explicit full scan.\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/trakt-sync-v0.4.0",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/trakt-sync-v0.4.0/plugins/trakt-sync",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/trakt-sync-v0.4.0/plugins/trakt-sync/README.md",
+            "sha256": "24df465201ccf8d4243ba236ee7ee03f9486e548e8f5ef1bbca5635c27a3a503",
+            "size": 6673
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "playback.started": "^2.0",
+            "playback.progress": "^1.0",
+            "playback.stopped": "^1.1",
+            "playback.completed": "^1.1",
+            "plugin-data": "^1.0",
+            "plugin-routes": "^1.0",
+            "plugin-health": "^1.0",
+            "kernel/durable-events": "^1.0",
+            "playback.marked_played": "^1.0",
+            "playback.marked_unplayed": "^1.0",
+            "library.item.favorited": "^2.0"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "library.list",
+              "library.items.get",
+              "playback.sync.catalog",
+              "playback.sync.import"
+            ],
+            "paths": [],
+            "network": true,
+            "callbacks": [],
+            "events": [
+              "playback.started",
+              "playback.progress",
+              "playback.stopped",
+              "playback.completed",
+              "playback.marked_played",
+              "playback.marked_unplayed",
+              "library.item.favorited"
+            ]
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "trakt-sync-0.4.0.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/trakt-sync-v0.4.0/trakt-sync-0.4.0.mcplugin",
+              "sha256": "e0227f7116261e20e0eb8abe5887f329dc6f3763eb645b9e08178c9fa72934ed",
+              "size": 127001
+            }
+          ]
+        },
         {
           "version": "0.3.0",
           "prerelease": false,
