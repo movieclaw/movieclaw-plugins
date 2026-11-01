@@ -7,6 +7,13 @@ import os
 import socket
 import sys
 import uuid
+import tempfile
+
+import uvicorn
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from movieclaw_sdk import rpc
+from movieclaw_sdk.services import SERVICES
 from pathlib import Path
 import httpx
 import pytest
@@ -16,7 +23,12 @@ import p115_plugin
 async def test_actual_child_process_strm_and_playback(tmp_path):
  root=tmp_path/'library';root.mkdir();state={};messages=[];scans=[];host_flags={'external_url':True}
  parent,child=socket.socketpair()
- sockpath=Path('/tmp')/('p115-'+uuid.uuid4().hex[:12]+'.sock')
+ # Short paths also work on macOS, where Unix socket names are limited to 104 bytes.
+ sockets=tempfile.TemporaryDirectory(prefix='p115-',dir='/tmp')
+ sockpath=Path(sockets.name)/'plugin.sock'
+ gateway_path=Path(sockets.name)/'host.sock'
+ listener=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+ listener.bind(str(sockpath));listener.listen();listener.setblocking(False)
  plugin=Path(p115_plugin.__file__).parent.resolve()
  bootstrap=r'''
 import sys,json,runpy,httpx
@@ -48,60 +60,93 @@ def respond(request):
  return httpx.Response(500)
 net.http_transport=lambda service:httpx.MockTransport(respond)
 drive_api.rsa_decrypt=lambda data:b'{"10":{"url":{"url":"https://cdn.example.com/movie.mkv?f=1"}},"23":{"url":{"url":"https://cdn.example.com/subtitle.srt?f=1"}}}'
-sys.argv=['runner','--path',sys.argv[1],'--module','p115_plugin','--entry','p115-library','--fd-socket',sys.argv[2]]
+sys.argv=['runner','--path',sys.argv[1],'--module','p115_plugin','--entry','p115-library','--fd-socket',sys.argv[2],'--listen-fd',sys.argv[3]]
 runpy.run_module('movieclaw_sdk.runner',run_name='__main__')
 '''
- proc=await asyncio.create_subprocess_exec(sys.executable,'-c',bootstrap,str(plugin),str(child.fileno()),pass_fds=(child.fileno(),),stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,env=os.environ.copy())
- child.close();ready=asyncio.Event();disposed=asyncio.Event();failed=[];settings_updates=[]
- async def send(msg):proc.stdin.write((json.dumps(msg)+'\n').encode());await proc.stdin.drain()
- async def pump():
-  while line:=await proc.stdout.readline():
-   m=json.loads(line);messages.append(m)
-   if m['type']=='hello':
-    await send({'type':'init','socket':str(sockpath),'data_dir':str(tmp_path),'config':{'request_interval':.3,'strm_directory':str(root/'auto-strm'),'cloud_cid':'99'}})
-   elif m['type']=='ready':ready.set()
-   elif m['type']=='disposed':disposed.set()
-   elif m['type']=='failed':failed.append(m);ready.set()
-   elif m['type']=='rpc':
-    method,p=m['method'],m['params']
-    try:
-     if method=='data.get':result={'found':p['key'] in state,'value':state.get(p['key'])}
-     elif method=='data.set':state[p['key']]=p['value'];result=None
-     elif method=='data.delete':result=state.pop(p['key'],None) is not None
-     elif method=='ops.client':result={'operations':['library.get','library.scan.start','library.list']}
-     elif method=='ops.call':
-      operation=p.get('operation_id',p.get('operation'))
-      if operation=='library.get':result={'primary_root':str(root)}
-      elif operation=='library.scan.start':scans.append(p);result={'job_id':'scan1'}
-      elif operation=='library.list':result=[{'id':1,'primary_root':str(root),'root_paths':[str(root)]}]
-      elif operation=='app.plugins.settings.update':settings_updates.append(p);result={'values':p.get('body',{}).get('values',{})}
-      else:raise AssertionError(p)
-     elif method=='routes.sign':
-      # 2.3.1：镜像宿主契约（plugin_routes.py）——absolute=True 需要「设置 → 应用」的
-      # 外部访问地址，未配置时回 kind=value 错误；absolute=False 返回相对链接。
-      if p.get('absolute') and not host_flags['external_url']:
-       await send({'type':'rpc_result','id':m['id'],'ok':False,'error':{'kind':'value','message':'没有配置外部访问地址（设置 → 应用），无法生成完整链接'}});continue
-      result=('https://movie.example.com' if p.get('absolute') else '')+'/api/v1/plugins/p115-library'+p['path']+'?sig=test'
-     elif method.startswith('files.'):
-      path=Path(p.get('path',p.get('src',''))).resolve()
-      assert path.is_relative_to(root.resolve())
-      if method=='files.stat':result={'size':path.stat().st_size,'is_dir':path.is_dir(),'mtime':path.stat().st_mtime} if path.exists() else None
-      elif method=='files.listdir':result=os.listdir(path)
-      elif method=='files.makedirs':path.mkdir(parents=True,exist_ok=True);result=None
-      elif method=='files.remove':path.unlink();result=None
-      elif method=='files.rename':
-       dest=Path(p['dst']).resolve();assert dest.is_relative_to(root.resolve());path.replace(dest);result=None
-      elif method=='files.open':
-       f=path.open(p['mode']);token=uuid.uuid4().hex
-       socket.send_fds(parent,[token.encode()],[f.fileno()]);f.close();result={'token':token}
-      else:raise AssertionError(method)
-     else:raise AssertionError((method,p))
-     await send({'type':'rpc_result','id':m['id'],'ok':True,'result':result})
-    except Exception as e:
-     failed.append(repr(e));await send({'type':'rpc_result','id':m['id'],'ok':False,'error':type(e).__name__})
- pump_task=asyncio.create_task(pump())
+ ready=asyncio.Event();failed=[];settings_updates=[]
+ token=uuid.uuid4().hex
+ operations=[
+  {'operation_id':'library.get','method':'GET','path':'/api/v1/libraries/{library_id}','arg_locations':{'library_id':'path'},'required':['library_id']},
+  {'operation_id':'library.list','method':'GET','path':'/api/v1/libraries'},
+  {'operation_id':'library.scan.start','method':'POST','path':'/api/v1/libraries/{library_id}/scan','arg_locations':{'library_id':'path','body':'body'},'required':['library_id']},
+ ]
+ async def gateway(scope,receive,send):
+  request=Request(scope,receive)
+  if request.headers.get('authorization')!='Bearer '+token:
+   await JSONResponse({'code':'PERMISSION_DENIED','message':'invalid test token'},status_code=403)(scope,receive,send);return
+  try:
+   path=request.url.path
+   if path.startswith('/api/v1/plugin-runtime/'):
+    service,method=path.removeprefix('/api/v1/plugin-runtime/').split('/')
+    spec=rpc.methods(SERVICES[service])[method]
+    params=await request.json()
+    spec.decode_args(params)  # The mock uses the real SDK contract, including argument validation.
+    name=service+'.'+method
+    messages.append({'type':'rpc','method':name,'params':params})
+    if name=='data.get':result={'found':params['key'] in state,'value':state.get(params['key'])}
+    elif name=='data.set':state[params['key']]=params['value'];result=None
+    elif name=='data.delete':result=state.pop(params['key'],None) is not None
+    elif name=='ops.operations':result=operations
+    elif name=='session.ready':
+     messages.extend({'type':'routes',**route} for route in params['routes'])
+     messages.extend({'type':'contribute',**item} for item in params['contributions'])
+     messages.extend({'type':'on',**item} for item in params['listeners'])
+     assert params['serving'] is True
+     ready.set();result=None
+    elif name=='session.failed':failed.append(params);ready.set();result=None
+    elif name=='routes.sign':
+     if params.get('absolute') and not host_flags['external_url']:
+      raise ValueError('没有配置外部访问地址（设置 → 应用），无法生成完整链接')
+     result=('https://movie.example.com' if params.get('absolute') else '')+'/api/v1/plugins/p115-library'+params['path']+'?sig=test'
+    elif service=='files':
+     target=Path(params.get('path',params.get('src',''))).resolve()
+     assert target.is_relative_to(root.resolve())
+     if method=='stat':result={'size':target.stat().st_size,'is_dir':target.is_dir(),'mtime':target.stat().st_mtime} if target.exists() else None
+     elif method=='listdir':result=os.listdir(target)
+     elif method=='makedirs':target.mkdir(parents=True,exist_ok=True);result=None
+     elif method=='remove':target.unlink();result=None
+     elif method=='rename':
+      dest=Path(params['dst']).resolve();assert dest.is_relative_to(root.resolve());target.replace(dest);result=None
+     elif method=='open':
+      with target.open(params['mode']) as opened:
+       result=uuid.uuid4().hex
+       socket.send_fds(parent,[result.encode()],[opened.fileno()])
+     else:raise AssertionError(name)
+    elif name=='net.proxy':result=None
+    else:raise AssertionError((name,params))
+    # Validate response shapes too, so a mock cannot hide an incompatible service change.
+    spec.decode_result(result)
+   elif path=='/api/v1/libraries':
+    result=[{'id':1,'primary_root':str(root),'root_paths':[str(root)]}]
+   elif path=='/api/v1/libraries/1/scan':
+    scans.append(await request.json());result={'job_id':'scan1'}
+   elif path=='/api/v1/libraries/1':result={'primary_root':str(root)}
+   else:raise AssertionError((request.method,path))
+   response=JSONResponse(result)
+  except Exception as exc:
+   if not isinstance(exc,ValueError):failed.append(repr(exc))
+   status,body=rpc.error_of(exc);response=JSONResponse(body,status_code=status)
+  await response(scope,receive,send)
+ config=uvicorn.Config(gateway,uds=str(gateway_path),interface='asgi3',lifespan='off',log_level='warning',access_log=False)
+ server=uvicorn.Server(config)
+ server_task=asyncio.create_task(server.serve())
+ while not server.started:
+  if server_task.done():server_task.result();raise AssertionError('test gateway did not start')
+  await asyncio.sleep(.01)
+ proc=await asyncio.create_subprocess_exec(sys.executable,'-c',bootstrap,str(plugin),str(child.fileno()),str(listener.fileno()),pass_fds=(child.fileno(),listener.fileno()),stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,env=os.environ.copy())
+ child.close();listener.close()
+ # Current runners read one bootstrap line immediately; there is no stdout hello/RPC handshake.
+ init={'gateway':str(gateway_path),'token':token,'data_dir':str(tmp_path),'config':{'request_interval':.3,'strm_directory':str(root/'auto-strm'),'cloud_cid':'99'}}
+ proc.stdin.write((json.dumps(init)+'\n').encode());await proc.stdin.drain();proc.stdin.close()
+ # Drain both pipes throughout the test; diagnostics must not block the child.
+ output_task=asyncio.create_task(proc.communicate())
+ ready_task=asyncio.create_task(ready.wait())
  try:
-  await asyncio.wait_for(ready.wait(),10);assert not failed,failed
+  done,_=await asyncio.wait((ready_task,output_task),timeout=15,return_when=asyncio.FIRST_COMPLETED)
+  if output_task in done:
+   _,stderr=output_task.result();pytest.fail('SDK child exited during startup: '+stderr.decode())
+  assert ready_task in done,'SDK child did not report ready through the gateway'
+  assert not failed,failed
   assert not any(m['type']=='contribute' and m.get('registry')=='scheduled-tasks' for m in messages)
   zones={m['zone'] for m in messages if m['type']=='routes'};assert zones=={'admin','public'}
   async with httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(uds=str(sockpath)),base_url='http://local/api/v1/plugins/p115-library',timeout=10) as client:
@@ -338,13 +383,15 @@ runpy.run_module('movieclaw_sdk.runner',run_name='__main__')
    assert (root/'map-a/Movie.strm').read_text().startswith('http://new.example.com:9000/'),'直连地址场景 STRM origin 应为覆盖地址'
    host_flags['external_url']=True  # 还原，避免影响后续用例
   assert not failed,failed
-  await send({'type':'dispose'})
-  try:await asyncio.wait_for(disposed.wait(),5)
-  except TimeoutError:
-   proc.kill();print('\nCHILD STDERR:\n',(await proc.stderr.read()).decode()[-4000:]);raise
-  assert await asyncio.wait_for(proc.wait(),5)==0
-  stderr=(await proc.stderr.read()).decode();assert 'CID=secret' not in stderr
+  proc.terminate()  # Current SDK performs ctx.dispose() on SIGTERM.
+  _,stderr=await asyncio.wait_for(asyncio.shield(output_task),10)
+  assert proc.returncode==0,stderr.decode()
+  assert 'CID=secret' not in stderr.decode()
  finally:
   if proc.returncode is None:proc.kill();await proc.wait()
-  sockpath.unlink(missing_ok=True)
-  parent.close();pump_task.cancel();await asyncio.gather(pump_task,return_exceptions=True)
+  if not output_task.done():await output_task
+  ready_task.cancel();await asyncio.gather(ready_task,return_exceptions=True)
+  parent.close()
+  server.should_exit=True
+  await asyncio.wait_for(server_task,5)
+  sockets.cleanup()
