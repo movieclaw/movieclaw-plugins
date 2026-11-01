@@ -12,6 +12,8 @@ import httpx
 from movieclaw_sdk import drives as dv
 from movieclaw_sdk import net
 
+from . import delete_diagnostics
+
 
 def _client(token: str):
     # 安装前的模块发现不应要求第三方依赖已经就绪。
@@ -51,7 +53,12 @@ async def download_info(token: str, info: dict[str, Any], *, user_agent: str | N
 
 
 async def trash(token: str, remote_ids: list[str]) -> None:
-    await _call(partial(_client(token).fs_trash, remote_ids, event="intoRecycle"), "移入回收站")
+    # p123client 0.0.9.4 的 fs_trash 会把顶层键转小写，此处保留回收请求的字段大小写。
+    method = partial(_client(token).request, "file/trash", "POST", json={
+        "driveId": 0, "event": "intoRecycle", "operation": True,
+        "fileTrashInfoList": [{"FileId": int(remote_id)} for remote_id in remote_ids],
+    })
+    await _call(method, "移入回收站")
 
 
 async def upload_request(token: str, payload: dict[str, Any], *, before_send: Callable[[], Awaitable[None]]) -> dict[str, Any]:
@@ -174,7 +181,9 @@ async def _call(method: Callable[..., Awaitable[Any]], operation: str, *, allowe
     try:
         async def request(url: str, method: str = "GET", *, parse, **kwargs):
             request = http.build_request(method, url, **kwargs)
+            delete_diagnostics.observe(request)
             response = await _send(http, request, before_send=before_send)
+            delete_diagnostics.observe(request, response=response)
             if response.status_code == 401:
                 raise dv.AuthExpired("123 登录已失效，请重新登录")
             if response.status_code == 429:
@@ -182,9 +191,11 @@ async def _call(method: Callable[..., Awaitable[Any]], operation: str, *, allowe
             if not response.is_success:
                 raise dv.Transient(f"123 {operation}暂时失败（HTTP {response.status_code}）")
             try:
-                return parse(response, response.content)
+                result = parse(response, response.content)
             except (ValueError, TypeError):
                 raise dv.ApiChanged(f"123 {operation}返回了无法解析的响应") from None
+            delete_diagnostics.observe(request, response=response, result=result, parsed=True)
+            return result
 
         try:
             result = await method(async_=True, request=request)
