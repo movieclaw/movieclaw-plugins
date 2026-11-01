@@ -6,7 +6,7 @@ Sync movie and episode playback reported by MovieClaw to each connected member's
 
 > The default public Trakt application is maintained by MovieClaw. No Client ID registration or Client Secret is required: sign in to your own Trakt account and approve the device authorization.
 
-> `0.3.0` requires official MovieClaw Server **v0.44.0 or a compatible later release**, including the playback event 1.1 contracts from [upstream #1063](https://github.com/movieclaw/MovieClaw/pull/1063). Servers v0.43.0 and earlier cannot install this version. Marketplace availability follows the upstream catalog's review and release process.
+> `0.4.0` requires official MovieClaw Server **v0.44.0 or a compatible later release**, including the playback event 1.1 contracts from [upstream #1063](https://github.com/movieclaw/MovieClaw/pull/1063). Servers v0.43.0 and earlier cannot install this version. Marketplace availability follows the upstream catalog's review and release process.
 
 ## Install and update
 
@@ -44,7 +44,7 @@ MovieClaw Trakt uses Trakt but is not endorsed or certified by Trakt.
 
 ## Release tracks and recovery
 
-Stable releases use `main` and matching `vX.Y.Z` Releases; `0.3.0` targets official Server v0.44.0. Development candidates retain beta labels on `dev`. Our GitHub Release and marketplace publication are separate steps; catalog updates follow upstream review and release procedures.
+Stable releases use `main` and matching `vX.Y.Z` Releases; `0.4.0` targets official Server v0.44.0. Development candidates retain beta labels on `dev`. Our GitHub Release and marketplace publication are separate steps; catalog updates follow upstream review and release procedures.
 
 Retries read current media metadata via `library.list` and `library.items.get`, using the original file ID when available. Completed views are checked against nearby Trakt history before adding a missing view with its original timestamp. Deleted media/file records retire the task; temporarily missing files wait. No media file access or writes are granted. Failed jobs retry with 10-minute to 6-hour backoff. Expired live events are retired, never converted into watched history.
 

@@ -77,19 +77,34 @@ class Transfers:
         )
         return {"tasks": [summary(t) for t in tasks[offset : offset + limit]], "total": len(tasks)}
 
-    async def create(self, member, direction):
+    async def create(self, member, direction, mode="incremental"):
         if direction not in {"export", "import"}:
             raise ValueError("同步方向无效")
+        if mode not in {"incremental", "full"}:
+            raise ValueError("同步模式无效")
         async with self.e.locks[member]:
             account = await self.e.get(member, "account", {})
             if not (await self.e.status(member))["connected"]:
                 raise ValueError("请先为此成员连接 Trakt 账号")
-            if any(
-                t["state"] in ACTIVE | {"ready", "paused"}
-                for t in (await self.listing(member, limit=100000))["tasks"]
-            ):
+            history = (await self.store.scopes("task", entity="history")).values()
+            history = [t for t in history if t["member_id"] == member]
+            if any(t["state"] in ACTIVE | {"ready", "paused"} for t in history):
                 raise ValueError("请先继续或取消当前任务，再重新扫描")
+            previous = max(
+                (
+                    t
+                    for t in history
+                    if t["direction"] == direction
+                    and t["generation"] == account["generation"]
+                    and t["state"] == "complete"
+                ),
+                key=lambda t: timestamp(t["cutoff"]),
+                default=None,
+            )
             task = {
+                "mode": mode,
+                "since": previous["cutoff"] if mode == "incremental" and previous else None,
+                "baseline_local_stamp": previous.get("local_stamp") if previous else None,
                 "id": uuid.uuid4().hex,
                 "member_id": member,
                 "direction": direction,
@@ -227,6 +242,8 @@ class Transfers:
             await self.store.set(unit_key(unit), unit, scope=self.scope(task))
             if task["direction"] == "export" and unit["played"]:
                 for watch in unit["watches"]:
+                    # Local catalog has no change cursor. Keep inspecting source IDs, including
+                    # backdated watches, so receipts and watch-ordering markers remain intact.
                     if timestamp(watch["watched_at"]) <= timestamp(task["cutoff"]):
                         row = {
                             "media": media,
@@ -268,7 +285,17 @@ class Transfers:
                 )
                 task["local_unmatched"] = task["unmatched"]
                 previous = await self.e.get(task["member_id"], "import_stamp")
-                if any(task["remote_stamp"]) and previous == self.import_stamp(task):
+                # Newly added holdings may match old, previously unmatched remote records.
+                if task.get("since") and task.get("baseline_local_stamp") != task.get(
+                    "local_stamp"
+                ):
+                    task["since"] = None
+                    task["range_reset"] = "本地库存变化，补查完整历史"
+                if (
+                    task.get("mode") != "full"
+                    and any(task["remote_stamp"])
+                    and previous == self.import_stamp(task)
+                ):
                     await self.ready(task)
                 else:
                     task["phase"] = "remote"
@@ -297,9 +324,11 @@ class Transfers:
 
     async def remote_page(self, task):
         kind, page = task["remote_kind"], task["remote_page"]
-        rows = await self.request(
-            task, "GET", f"/sync/history/{kind}", params={"page": page, "limit": 100}
-        )
+        params = {"page": page, "limit": 100}
+        if task.get("since"):
+            # Include the boundary minute and let durable receipts remove duplicates.
+            params["start_at"] = iso_time(trakt_minute(task["since"]))
+        rows = await self.request(task, "GET", f"/sync/history/{kind}", params=params)
         if not isinstance(rows, list):
             raise TraktError(502)
         signature = digest(rows)

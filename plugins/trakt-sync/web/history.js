@@ -14,6 +14,7 @@ function precision(t) {
   if (t.direction !== "export") return "";
   return `Trakt 按 UTC 分钟对齐，MovieClaw 原始时间保留。${t.minute_collisions ? `检测到 ${t.minute_collisions} 条同一分钟的额外观看，无法在 Trakt 分别保存；结果会列为跳过。` : "同一分钟的远端匹配只代表分钟级对齐。"}`;
 }
+function range(t) { return `${t.mode === "incremental" ? "增量同步" : "全量扫描"} · ${t.since ? "自 " + date(t.since) : "全部历史"}${t.range_reset ? " · " + t.range_reset : ""}${t.direction === "export" && t.since ? " · 同时补齐未同步的早期本地记录" : ""}`; }
 function description(t) {
   if (t.state === "complete") return `已将 ${date(t.cutoff)} 之前本次匹配且未同步的 ${t.done} 条记录${t.direction === "export" ? "按 Trakt 分钟精度对齐" : "全部同步"}。库外或缺少匹配编号的条目未同步。`;
   return `${labels[t.state] || t.state} · 已完成 ${t.done} · 失败 ${t.failed} · 跳过 ${t.skipped} · 未匹配 ${t.unmatched}`;
@@ -30,10 +31,10 @@ function error(e) { $("error").textContent = e ? e.message || String(e) : ""; $(
 function action(fn) { return async () => { error(null); try { await fn(); } catch(e) { error(e); } }; }
 function render() {
   $("current-section").hidden = !task;
-  $("export").disabled = $("import").disabled = !!(task && !["complete", "complete_with_errors", "cancelled"].includes(task.state));
+  for (const id of ["export", "import", "export-full", "import-full"]) $(id).disabled = !!(task && !["complete", "complete_with_errors", "cancelled"].includes(task.state));
   if (!task) return;
   const phase = active(task) ? (driving ? (task.state === "scanning" ? "正在扫描" : "正在写入") : "等待在此页继续") : labels[task.state];
-  $("current-title").textContent = `${task.direction === "export" ? "MovieClaw → Trakt" : "Trakt → MovieClaw"} · ${phase}`;
+  $("current-title").textContent = `${task.direction === "export" ? "MovieClaw → Trakt" : "Trakt → MovieClaw"} · ${phase} · ${range(task)}`;
   $("progress-text").textContent = task.state === "scanning" ? `已检查 ${task.scanned} 个单元 / 历史记录；待同步 ${task.total} 条，未匹配 ${task.unmatched}` : `${counts(task)}。${description(task)}`;
   $("task-error").textContent = task.error || "";
   $("precision-notice").textContent = precision(task);
@@ -56,7 +57,7 @@ async function history(append = false) {
   const root = $("history"); if (!append) root.replaceChildren();
   for (const t of data.tasks) {
     const row = el("article"); row.className = "card preferences";
-    row.append(el("strong", `${t.direction === "export" ? "MovieClaw → Trakt" : "Trakt → MovieClaw"} · ${date(t.created_at)}`), el("p", description(t)));
+    row.append(el("strong", `${t.direction === "export" ? "MovieClaw → Trakt" : "Trakt → MovieClaw"} · ${date(t.created_at)}`), el("p", `${range(t)}。${description(t)}`));
     const b = el("button", "查看详情"); b.onclick = action(() => details(t.id)); row.append(b);
     if (["scanning", "running", "paused", "ready", "complete_with_errors"].includes(t.state)) {
       const select = el("button", "打开此任务"); select.onclick = action(async () => { stop(); serial++; task = (await api(`/${t.id}`)).task; render(); }); row.append(select);
@@ -69,7 +70,7 @@ async function history(append = false) {
 async function details(id, page = 0, records = false) {
   const data = await api(`/${encodeURIComponent(id)}?page=${page}&records=${records}`);
   detailId = id; detailPage = page; detailRecords = records;
-  $("detail-summary").textContent = `${counts(data.task)}。${description(data.task)} ${precision(data.task)}`;
+  $("detail-summary").textContent = `${range(data.task)}。${counts(data.task)}。${description(data.task)} ${precision(data.task)}`;
   const root = $("detail-items"); root.replaceChildren();
   for (const v of data.items) {
     const row = el("article"); row.className = "card preferences";
@@ -105,7 +106,7 @@ async function drive() {
   }
   await tick();
 }
-for (const direction of ["export", "import"]) $(direction).onclick = action(async () => { task = await api("", "POST", {direction}); await history(); await drive(); });
+for (const direction of ["export", "import"]) for (const mode of ["incremental", "full"]) $(direction + (mode === "full" ? "-full" : "")).onclick = action(async () => { task = await api("", "POST", {direction, mode}); await history(); await drive(); });
 $("confirm").onclick = action(async () => { task = await api(`/${task.id}/confirm`, "POST", {token:task.preview_token}); await drive(); });
 $("preview").onclick = action(() => details(task.id));
 $("continue").onclick = action(async () => { if (["paused", "complete_with_errors"].includes(task.state)) task = await api(`/${task.id}/resume`, "POST"); await drive(); });

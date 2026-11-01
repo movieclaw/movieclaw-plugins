@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 (2026-10-31)
+
+- Default foreground history creation to incremental sync, reusing the last successful scan cutoff per member, account binding and direction, including pre-upgrade batches. Add explicit full-scan buttons and show the selected range in history/details. Failed or cancelled tasks never advance the baseline.
+- Fetch incremental Trakt history from the boundary UTC minute; retain receipt deduplication. Full scans bypass unchanged-activity caching, and changed local holdings trigger a full remote reconciliation. Local catalog reads remain paginated because the host has no change cursor; backdated remote additions require an explicit full scan.
+
 ## 0.3.0 (2026-10-29)
 
 - Resolve and persist Trakt's stable user UUID before history import. Keep a member-scoped UUID-to-source namespace across reconnections and username changes, migrate retained beta bindings without changing their existing source IDs, and require a fresh preview for unfinished legacy imports. Identity lookup failures back off or pause before host reads/writes; interrupted persistence and token refresh retain safe retry behavior.

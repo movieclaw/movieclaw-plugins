@@ -272,6 +272,7 @@ async def apply(ctx: Context):
 
     class Scan(BaseModel):
         direction: str
+        mode: str = "incremental"
 
     class Confirmation(BaseModel):
         token: str
@@ -287,7 +288,7 @@ async def apply(ctx: Context):
     )
     async def scan(payload: Scan, member_id: int = Query(0, ge=0)):
         try:
-            return await transfers.create(member_id, payload.direction)
+            return await transfers.create(member_id, payload.direction, payload.mode)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from None
 
