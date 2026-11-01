@@ -38,7 +38,7 @@ OPERATIONS = (
     "library.items.list",
     "library.items.get",
     "library.items.refresh-metadata",
-    "jobs.wait",
+    "jobs.show",
     "people.show",
     "search.titles",
 )

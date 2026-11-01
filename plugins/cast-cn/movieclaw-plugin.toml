@@ -1,7 +1,7 @@
 [plugin]
 id = "cast-cn"
 title = "演职人员中文刮削"
-version = "0.3.4"
+version = "0.3.5"
 entry = "cast_cn"
 runtime = "process"
 sdk = "^1.0"
@@ -19,7 +19,7 @@ operations = [
   "library.items.list",
   "library.items.get",
   "library.items.refresh-metadata",
-  "jobs.wait",
+  "jobs.show",
   "people.show",
   "search.titles",
 ]

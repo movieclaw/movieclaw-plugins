@@ -50,8 +50,9 @@ _SEARCH_TTL = 7 * 24 * 3600
 # 匹配逻辑变化时递增，旧的负缓存自然失效
 _SEARCH_CACHE_VERSION = "v2"
 _REPORT_LIMIT = 200
-_REFRESH_TIMEOUT_S = 600
 _VERIFY_ATTEMPTS = 2
+# 刷新任务处于这些状态时，本任务释放槽位稍后再查（不做阻塞等待）
+_ACTIVE_REFRESH_STATUSES = {"queued", "running", "retry_wait", "waiting", "cancelling"}
 # 批次窗口：轮询间隔与单批等待上限
 _BATCH_POLL_S = 12
 _BATCH_WAIT_TIMEOUT_S = 45 * 60
@@ -401,7 +402,52 @@ class Runtime:
             phase="refresh",
             message="等待主程序重新吸收 NFO",
         )
-        await self._refresh_item(library_id, media_item_id)
+        # 刷新任务状态机（所有路径统一走同一个轮询计数器，保证「自动重试上限」
+        # 永远不会因等待刷新而触发）：
+        #   在跑 → 释放槽位延迟重查（计数 ≥2 时优雅收尾，复核延至下一轮）
+        #   失败/被清理 → 重建一次
+        #   没有 → 创建一个
+        #   完成 → 进入复核
+        rebuilt = False
+        while True:
+            status = await self._job_status(state.get("refresh_job_id"))
+            if status in _ACTIVE_REFRESH_STATUSES:
+                # 刷新任务还在队列/执行中：**不占槽位等待**——多个条目同时阻塞
+                # 等待时，各自占着一个执行器槽位，而它们的刷新任务又排在队列里
+                # 拿不到槽位，互相饿死（活动中心呈现「一直未完成」）。
+                polls = int(state.get("refresh_polls") or 0) + 1
+                state["refresh_polls"] = polls
+                await self._save_state(media_item_id, state)
+                if polls >= 2:
+                    # 宿主固定 3 次尝试上限：不再空耗重试（否则必然撞「自动重试
+                    # 上限」告警）。本条以「已写入并触发刷新」收尾，pending_refresh
+                    # 保留，下一轮补跑从 pending_refresh 续验。
+                    await self._record(
+                        media_item_id,
+                        status="ok",
+                        title=str(state.get("title") or ""),
+                        library_id=library_id,
+                        matched=int(state.get("matched") or 0),
+                        warnings=(state.get("warnings") or [])[:19]
+                        + ["刷新仍在排队，复核延至下一轮"],
+                    )
+                    state["pending_refresh"] = True
+                    await self._save_state(media_item_id, state)
+                    return {"status": "ok", "deferred_verify": True}
+                raise JobRetry("主程序刷新尚未完成（释放槽位稍后自动复核）", delay_seconds=90)
+            if status in {"failed", "cancelled", "blocked"} and not rebuilt:
+                rebuilt = True
+                state["refresh_job_id"] = None
+                await self._save_state(media_item_id, state)
+                await self._refresh_item(library_id, media_item_id, state)
+                continue
+            if status is None and not rebuilt:
+                rebuilt = True
+                await self._refresh_item(library_id, media_item_id, state)
+                continue
+            break
+        if status in {"failed", "cancelled", "blocked"}:
+            raise JobRetry("主程序刷新未成功，稍后自动重试", delay_seconds=300)
         await context.update_progress(
             mode="indeterminate",
             phase="verify",
@@ -415,6 +461,7 @@ class Runtime:
             # 指纹守卫把吸收跳过了）。只重新刷新没用——必须让重试走完整流程
             # （重新合并 + 重写 NFO + 再刷新），重写会打破指纹守卫。
             state["pending_refresh"] = False
+            state["refresh_job_id"] = None
             await self._save_state(media_item_id, state)
             if attempts < _VERIFY_ATTEMPTS:
                 raise JobRetry(
@@ -431,6 +478,7 @@ class Runtime:
                 "status": "ok",
                 "pending_refresh": False,
                 "verify_attempts": 0,
+                "refresh_job_id": None,
                 "finished_at": _now(),
                 "thumb_missing": verify["thumb_missing"],
             }
@@ -458,46 +506,33 @@ class Runtime:
             "thumb_missing": verify["thumb_missing"],
         }
 
-    async def _refresh_item(self, library_id: int, media_item_id: int) -> None:
+    async def _refresh_item(
+        self, library_id: int, media_item_id: int, state: dict[str, Any]
+    ) -> None:
+        """发起条目元数据刷新（只创建任务，不等待——等待由 JobRetry 续跑承担）。"""
         async with self._refresh_sem:
             data = await self.ops.call(
                 "library.items.refresh-metadata",
                 {"library_id": library_id, "media_item_id": media_item_id},
             )
-            job_id = (data or {}).get("job_id")
-            if not job_id:
-                raise JobRetry("主程序没有返回刷新任务 id，稍后重试", delay_seconds=60)
-            await self._wait_job(str(job_id))
+        job_id = (data or {}).get("job_id")
+        if not job_id:
+            raise JobRetry("主程序没有返回刷新任务 id，稍后重试", delay_seconds=60)
+        state["refresh_job_id"] = str(job_id)
+        await self._save_state(media_item_id, state)
 
-    async def _wait_job(self, job_id: str) -> None:
-        deadline = time.monotonic() + _REFRESH_TIMEOUT_S
-        revision = 0
-        while time.monotonic() < deadline:
-            try:
-                data = await self.ops.call(
-                    "jobs.wait",
-                    {
-                        "job_id": job_id,
-                        "after_revision": revision,
-                        "wait_seconds": 30,
-                    },
-                )
-            except OpsError as exc:
-                if exc.status == 404:
-                    raise JobFailed("刷新任务已不存在", code="CAST_CN_JOB_GONE") from exc
-                raise JobRetry(f"等待刷新任务失败：{exc.message}", delay_seconds=60) from exc
-            job = (data or {}).get("job") or {}
-            revision = int(job.get("revision") or revision)
-            status = str(job.get("status") or "")
-            if status == "succeeded":
-                return
-            if status in {"failed", "cancelled", "blocked"}:
-                error = job.get("error") or {}
-                message = str(error.get("message") or status)
-                raise JobRetry(f"刷新元数据未成功：{message}", delay_seconds=300)
-            if status in {"queued", "running", "retry_wait", "waiting", "cancelling"}:
-                continue
-        raise JobRetry("等待刷新超时，稍后重试", delay_seconds=300)
+    async def _job_status(self, job_id: str | None) -> str | None:
+        """查刷新任务状态；任务不存在（已清理/从未创建）返回 None。"""
+        if not job_id:
+            return None
+        try:
+            data = await self.ops.call("jobs.show", {"job_id": job_id})
+        except OpsError as exc:
+            if exc.status == 404:
+                return None
+            raise
+        job = (data or {}).get("job") or data or {}
+        return str(job.get("status") or "") or None
 
     async def _verify(self, media_item_id: int, expected: list[dict[str, Any]]) -> dict[str, Any]:
         item = await self._fetch_item_by_id(media_item_id)

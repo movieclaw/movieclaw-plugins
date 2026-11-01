@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from movieclaw_sdk.jobs import JobRetry
+
 from cast_cn.douban import DoubanActor
 from cast_cn.runtime import Runtime
 from cast_cn.settings import AvatarPolicy, Settings
@@ -74,6 +76,7 @@ class FakeOps:
         self.refreshed = False
         self.refresh_calls = 0
         self.search_calls = 0
+        self.show_status = "succeeded"
 
     async def call(self, operation_id: str, arguments: dict):
         if operation_id == "library.list":
@@ -90,10 +93,9 @@ class FakeOps:
             self.refresh_calls += 1
             self.refreshed = True
             return {"job_id": "job-1", "created": True}
-        if operation_id == "jobs.wait":
+        if operation_id == "jobs.show":
             return {
-                "changed": True,
-                "job": {"id": "job-1", "status": "succeeded", "revision": 1},
+                "job": {"id": "job-1", "status": self.show_status, "revision": 1},
             }
         if operation_id == "search.titles":
             self.search_calls += 1
@@ -243,6 +245,35 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
         state = await store.get("item:42")
         self.assertEqual(state["status"], "ok")
         self.assertFalse(state["pending_refresh"])
+
+    async def test_refresh_pending_defers_verify_without_retry_cap(self) -> None:
+        """刷新一直排队：第一次重查释放槽位，第二次优雅收尾——永不撞「自动重试上限」。"""
+        files = FakeFiles(_initial_nfo())
+        ops = FakeOps(_before(), _after())
+        ops.show_status = "running"
+        settings = Settings(avatar_policy=AvatarPolicy.TMDB_FIRST, keep_person_links=True)
+        runtime, store, context = _runtime(files, ops, settings)
+
+        # 第一次尝试：写 NFO → 创建刷新任务 → 仍在排队 → JobRetry 释放槽位
+        with self.assertRaises(JobRetry):
+            await runtime.process_item(
+                context, {"media_item_id": 42, "library_id": 1, "manual": True}
+            )
+        state = await store.get("item:42")
+        self.assertTrue(state["pending_refresh"])
+        self.assertEqual(state["refresh_polls"], 1)
+        self.assertEqual(ops.refresh_calls, 1)
+
+        # 第二次尝试（宿主重新领取）：仍然排队 → 优雅收尾，不再消耗重试
+        second = await runtime.process_item(
+            context, {"media_item_id": 42, "library_id": 1, "manual": True}
+        )
+        self.assertEqual(second["status"], "ok")
+        self.assertTrue(second.get("deferred_verify"))
+        self.assertEqual(ops.refresh_calls, 1)
+        state = await store.get("item:42")
+        self.assertTrue(state["pending_refresh"])  # 保留，下一轮补跑续验
+        self.assertEqual(state["status"], "ok")
 
     async def test_dry_run_does_not_write_or_refresh(self) -> None:
         files = FakeFiles(_initial_nfo())
