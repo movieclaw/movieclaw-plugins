@@ -1,0 +1,8 @@
+{
+  "name": "115 网盘与 STRM 媒体库",
+  "short_name": "115网盘",
+  "start_url": ".",
+  "icons": [
+    { "src": "icon.svg", "type": "image/svg+xml", "purpose": "monochrome" }
+  ]
+}
