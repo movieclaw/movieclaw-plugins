@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, SecretStr, ValidationError
 from movieclaw_sdk import drives as dv
 
 from .client import list_page, mkdir, qr_generate, qr_result, trash, user_info
-from . import readback
+from . import delete_diagnostics, readback
 from .upload import MAX_PART_BYTES, Uploads, binding_for
 from .upload_store import valid_ref
 
@@ -200,33 +200,36 @@ class Pan123(dv.DriveBackend):
             raise dv.Conflict("123 回收文件 ID 格式不正确") from None
         if not targets:
             return
-        token = _account_token(account)
-        uid, _ = _identity(await user_info(token))
-        if uid != account.user_id:
-            raise dv.Conflict("123 凭据对应的用户与当前账号不一致，请重新登录")
-        pending = []
-        for remote_id in targets:
+        with delete_diagnostics.trace(targets) as diagnostic:
+            token = _account_token(account)
+            uid, _ = _identity(await user_info(token))
+            if uid != account.user_id:
+                raise dv.Conflict("123 凭据对应的用户与当前账号不一致，请重新登录")
+            pending = []
+            for remote_id in targets:
+                try:
+                    await readback.existing_file(token, remote_id)
+                except dv.NotFound:
+                    continue
+                pending.append(remote_id)
+            if not pending:
+                return
+            diagnostic["phase"] = "trash"
             try:
-                await readback.existing_file(token, remote_id)
+                await trash(token, pending)
             except dv.NotFound:
-                continue
-            pending.append(remote_id)
-        if not pending:
-            return
-        try:
-            await trash(token, pending)
-        except dv.NotFound:
-            # 核验后文件可能消失；写接口的缺失响应不能证明整批已回收。
-            pass
-        remaining = False
-        for remote_id in pending:
-            try:
-                await readback.existing_file(token, remote_id)
-            except dv.NotFound:
-                continue
-            remaining = True
-        if remaining:
-            raise dv.Transient("123 部分文件尚未确认回收，请重试核对剩余文件")
+                # 核验后文件可能消失；写接口的缺失响应不能证明整批已回收。
+                pass
+            diagnostic["phase"] = "postcheck"
+            remaining = False
+            for remote_id in pending:
+                try:
+                    await readback.existing_file(token, remote_id)
+                except dv.NotFound:
+                    continue
+                remaining = True
+            if remaining:
+                raise dv.Transient("123 部分文件尚未确认回收，请重试核对剩余文件")
 
     async def begin_login(self, options: dict[str, str]) -> dv.LoginFlow:
         if options:

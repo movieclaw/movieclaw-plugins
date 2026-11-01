@@ -36,6 +36,51 @@ beta.5 已在实际宿主完成账号容量刷新与 59.46 MiB 单集的秒传�
 该次通过定点扫描入库，不代表下载自动监听或浏览器播放已通过。
 beta.5 的非秒传大文件与中断续传仍待真实验收，不能用离线通过或早期版本的采样替代。
 
+## 删除兼容性与诊断（beta.9 内部测试包）
+
+针对 beta.5 回收未确认的反馈，beta.6 调整回收请求：绕过 P123Client 0.0.9.4 的
+`fs_trash` 顶层字段小写转换，通过其通用 `request` 保留 `driveId` 与 `fileTrashInfoList`。
+继续使用宿主网络出口、预算、超时和错误分类；beta.6–beta.8 的回收 FileId 为字符串，不附加详情或 `operatePlace`。
+大小写参考依赖自身接口说明及 [OpenList 实现](https://github.com/OpenListTeam/OpenList/blob/main/drivers/123/driver.go)，
+不是官方协议保证，也未证明这是线上故障的唯一原因。
+
+离线测试检查最终 HTTP 请求，并覆盖错误大小写被成功应答但未执行、正确请求后回收及重复调用。
+无论 HTTP 200 或业务成功码，仍逐文件确认已回收或明确不存在；部分成功与结果未知继续报错。
+beta.6 在 MovieClaw v0.45.0 的用户实测仍未确认回收，已有日志只有 HTTP 200，尚不能确定原因。
+beta.7 保持该请求与核验流程，只补充 `123-delete-diag` 日志，不新增请求、自动重试或等待。
+日志用临时 `trace` 和文件序号关联，记录请求字段名/ID 类型、HTTP 状态、业务码、受控响应结构、
+详情的 ID 是否匹配及 Type/Trashed；不输出真实 ID、凭据、文件名、URL、原始响应或 message。
+未知字段只计数量；不合格式的状态只记类型，不能把日志摘要当作完整响应。
+`request_prepared` 仅表示请求已构造，预算拒绝或取消仍可阻止发送；`returned` 仅表示插件核验后正常返回，
+不证明宿主已完成本地清理。非 JSON 或 HTTP 错误仍记录 HTTP 状态并沿用原错误分类。
+
+安装 beta.9 后，确认版本及运行状态；只选一个允许删除的测试文件，在 MovieClaw 操作一次。
+若失败，保留条目和原账号状态，提供操作时间即可通过日志定位同一 trace 的 precheck/trash/postcheck。
+不需要发送 Token 或抓取完整认证请求。beta.7 实测诊断已记录业务码 0，但前后 `Trashed=false`；
+延迟约两分钟刷新网页原目录，按路径、文件名及大小定位的文件仍为 `Trashed=false`，未确认回收。
+
+beta.8 内部包补充回收响应 `InfoList` 是否存在、类型、条数和逐项摘要：
+仅记录是否匹配本次实际回收请求、对应文件序号、ID 类型及 Type/Trashed；非对象项只记类型。
+重复项原样保留为多个摘要，未匹配项不输出真实 ID；缺键、null、非法类型和空列表明确区分。
+这只是观察信息，不作为成功依据，仍以随后逐文件核验为准。beta.8 实测已记录空列表，
+但不能补回更早版本的历史响应内容，也不表示删除故障已修复。
+
+beta.9 内部测试包仅将回收请求 `fileTrashInfoList[].FileId` 改为 JSON 整数，其他字段、接口和回收核验不变；
+SDK 接口及详情查询的文件 ID 仍为字符串。依据是 beta.8 在 2026-10-31 19:42:59 返回 code=0、
+`InfoList=[]`，随后目标仍未回收；该观察不能证明 ID 类型是根因。
+离线模拟“字符串 ID 成功应答但不执行”的候选协议，验证整数请求、ID 精度及失败保护；
+模拟通过不代表真实服务要求已确认。
+
+2026-11-02 07:44（北京时间），用户安装 beta.9 后进行单文件回收，已有宿主日志确认：
+
+- 预查目标匹配，`Type=0`、`Trashed=false`；回收请求 `FileId` 类型为整数，详情查询仍为字符串。
+- 回收响应 HTTP 200、业务码 0，`InfoList` 有 1 项且匹配目标。
+- 随后详情再次匹配目标，`Type=0`、`Trashed=true`，插件在核验后正常返回。
+
+这是单文件真实回收成功记录，不只依据成功码判定；本次同步仅复核已有日志，没有再次访问网盘或执行回收。
+未单独核验宿主的本地文件及数据库清理，也未完成真实批量部分成功和重复调用验收；
+这些保护已有离线回归，不能据此声称所有真实场景通过或 ID 类型是此前故障的唯一原因。
+
 ## 文件组织
 
 ```text
@@ -51,6 +96,7 @@ cloud-123/
 │   ├── __init__.py        # 注册、存储注入及加载自检
 │   ├── backend.py         # SDK 契约入口
 │   ├── client.py          # 请求适配与错误分类
+│   ├── delete_diagnostics.py # 删除调用内的脱敏日志
 │   ├── upload.py          # 上传、对账与恢复
 │   ├── upload_store.py    # 会话持久化与清理
 │   └── readback.py        # 详情、取链及 MD5 回读
@@ -75,11 +121,14 @@ PYTHONPATH="$deps_dir" python3.12 -m unittest discover \
   -s plugins/cloud-123/tests -t plugins/cloud-123 -v
 
 python3.12 scripts/generate_index.py --lint
-python3.12 scripts/pack.py plugins/cloud-123 --output /tmp/cloud-123-0.1.0-beta.5.mcplugin
+python3.12 scripts/pack.py plugins/cloud-123 --output /tmp/cloud-123-0.1.0-beta.9.mcplugin
 ```
 
 测试使用真实 SDK 类型和请求适配，在 HTTP transport 层模拟网盘响应，不连接真实网盘；
 网页面板测试仅访问本地回环。`test_account_info.py` 还覆盖登录与目录契约。
+beta.9 打包验证共 373 项离线测试通过，无跳过，包含删除 38 项及加载注册 9 项；
+清单检查、依赖锁检查通过，源码与已审查的内部包一致，锁定依赖未变。
+Linux amd64/arm64 的 CI 依赖安装检查不等同于真实宿主运行及网盘验收。
 手动协议采样见 [tools/README.md](tools/README.md)，不会随插件加载而自动启动。
 
 依赖变化时按仓库 [GUIDE](../../example/GUIDE.md) 重新生成锁文件；普通打包复用已审核的锁。
