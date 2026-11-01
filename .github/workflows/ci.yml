@@ -121,7 +121,10 @@ jobs:
             python3 "$checker" "$dir"
             # Reference copies under example/<id>/ (UPSTREAM.json) have no
             # tests/ on purpose. Do not point this at MovieClaw's own tests/.
-            if [ -d "${dir}/tests" ]; then
+            if [ -f "${dir}/pytest.ini" ]; then
+              python3 -m pip install 'pytest>=8.4,<9' 'pytest-asyncio>=1.1,<2'
+              python3 -m pytest -c "${dir}/pytest.ini" "${dir}/tests" -v
+            elif [ -d "${dir}/tests" ]; then
               python3 -m unittest discover -s "${dir}/tests" -t "$dir" -v
             fi
             echo "::endgroup::"

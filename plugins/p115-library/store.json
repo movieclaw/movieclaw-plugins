@@ -1,0 +1,10 @@
+{
+  "author": "Migflyway",
+  "author_url": "https://github.com/Migflyway",
+  "license": "GPL-3.0-or-later",
+  "origin": "official",
+  "summary": "115 网盘同步 STRM 媒体库，支持扫码登录、增量同步与剧集直链预取。",
+  "category": "library",
+  "icon": "web/icon.svg",
+  "screenshots": []
+}

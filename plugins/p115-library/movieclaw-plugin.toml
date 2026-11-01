@@ -1,0 +1,19 @@
+[plugin]
+id = "p115-library"
+title = "115 网盘与 STRM 媒体库"
+version = "2.8.2"
+entry = "p115_plugin"
+runtime = "process"
+sdk = "^1.0"
+description = "115 网盘目录 → STRM：极速扫描（整树分页列出，5 万文件约 50 次请求）、未变化文件零写入、多并发写入、撞风控自动等待续跑。全部配置在自带网页：MovieClaw 左侧边栏「115网盘」（/apps/p115-library），保存即时生效、无需重启。"
+
+[requires]
+"host-ops" = "^1.0"
+"plugin-data" = "^1.0"
+"plugin-files" = "^1.0"
+"plugin-routes" = "^1.0"
+
+[permissions]
+operations = ["library.scan.start", "library.list"]
+network = true
+paths = [{ path = "library", mode = "rw" }]
