@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-01T08:17:47Z",
+  "generated_at": "2026-11-03T06:04:06Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -27,7 +27,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cast-cn",
-      "downloads": 9,
+      "downloads": 11,
       "latest": "0.3.5",
       "latest_stable": "0.3.5",
       "versions": [
@@ -222,7 +222,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-115",
-      "downloads": 59,
+      "downloads": 60,
       "latest": "0.1.0-beta.3",
       "latest_stable": null,
       "versions": [
@@ -632,7 +632,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-rank-subscribe",
-      "downloads": 12,
+      "downloads": 13,
       "latest": "1.0.1",
       "latest_stable": "1.0.1",
       "versions": [
@@ -736,7 +736,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-wish",
-      "downloads": 10,
+      "downloads": 11,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -1039,7 +1039,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=notifyhub",
-      "downloads": 13,
+      "downloads": 15,
       "latest": "2.3.0",
       "latest_stable": "2.3.0",
       "versions": [
@@ -1176,7 +1176,7 @@
       "id": "p115-import",
       "name": "115 分享转存入库",
       "summary": "115 分享 / ed2k 转存入库：复用原生识别分库与批次季集，转存后范围扫描核验，带看板。",
-      "description": "把 115 分享、ed2k 与磁力链接直接转存进媒体库：复用 MovieClaw 自己的识别、分库、命名与季集仲裁，只扫描本次作品的网盘目录并逐文件核验，同一季集只留最大一份。网页批量改名、按目标目录分组批量移动，分块后按文件 ID 核验并保存逐文件检查点；支持取消与检查点续跑、候选确认、空暂存清理。旧文件先保留，逐条预览具体路径并单独确认后才清理。侧栏带「115 入库」工作台。",
+      "description": "适配 MovieClaw v0.44：链接持久受理、复用原生识别/分库/命名/季集仲裁，转存后仅扫描本次作品网盘目录并逐文件核验。命名与显示语言分离；网页批量异名改名、按目标目录分组批量移动，分块后按文件编号核验并保存逐文件检查点；短查询自适应节流。保持同集体积最大规则，旧文件先保留，预览具体路径并独立确认后才清理。支持取消、检查点续跑、候选确认与空暂存清理；侧栏提供115入库工作台。",
       "category": "library",
       "author": {
         "name": "zzj6666",
@@ -1194,10 +1194,73 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=p115-import",
-      "downloads": 2,
-      "latest": "0.4.7",
-      "latest_stable": "0.4.7",
+      "downloads": 3,
+      "latest": "0.4.14",
+      "latest_stable": "0.4.14",
       "versions": [
+        {
+          "version": "0.4.14",
+          "prerelease": false,
+          "released_at": "2026-11-03T06:04:06Z",
+          "yanked": null,
+          "notes": "- 在侧栏「115 转存」集中展示设置、账号与开放平台授权状态；直接生成登录和授权二维码，保存前可放弃修改。\n- 设置在首次启动时迁移到插件加密数据；保留旧配置供回退。取消重复的插件详情设置表单，移除未使用的旧回调依赖。\n- 转存结果使用 MovieClaw 统一通知，按管理员的通知偏好和已绑定渠道发送，不再单独填写企微通知地址和接收人。通知隐藏分享链接与提取码。\n- 库存核验成功且 TMDB 身份准确时附带公开作品链接，供支持的通知渠道获取图片；不能识别或取图失败时不推测作品。父子任务并发完成时复核通知检查点，避免重复通知；事件未发布成功时不标记为已发送。\n- 继续按批次季集比较文件体积；旧文件先保留，必须预览清单并单独确认后才清理。转存后仅对本作品的网盘目录扫描、逐文件核验。\n\n升级注意：需在「账号 → 通知」检查「115 转存通知」开关与渠道绑定；通知是否有图由具体渠道决定。统一通知为实时投递，不承诺离线补发。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/p115-import-v0.4.14",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/p115-import-v0.4.14/plugins/p115-import",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/p115-import-v0.4.14/plugins/p115-import/README.md",
+            "sha256": "2dcbc2547fcfec9486b67d28c920294268ea212559f34f3c05fd3225f8309173",
+            "size": 3647
+          },
+          "runtime": "process",
+          "sdk": "^1.1",
+          "requires": {
+            "host-ops": "^1.0",
+            "plugin-data": "^1.0",
+            "plugin-files": "^1.0",
+            "plugin-routes": "^1.0",
+            "plugin-jobs": "^1.0",
+            "plugin-events": "^1.0",
+            "job-handlers": "^1.1"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "dl.resolve-target",
+              "discover.get-title-details",
+              "library.list",
+              "library.items.get",
+              "library.scan.start",
+              "library.items.delete-file",
+              "jobs.show",
+              "jobs.list",
+              "jobs.retry",
+              "jobs.cancel",
+              "scrape.show"
+            ],
+            "paths": [
+              {
+                "path": "/app/models/torrent-ner",
+                "mode": "read"
+              }
+            ],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "p115-import-0.4.14.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/p115-import-v0.4.14/p115-import-0.4.14.mcplugin",
+              "sha256": "e276196b9d2bf40f356979f9ef37b4de5ecd8cc2622390eaa93928427f4843dc",
+              "size": 158411
+            }
+          ]
+        },
         {
           "version": "0.4.7",
           "prerelease": false,
@@ -1285,7 +1348,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=p115-library",
-      "downloads": 0,
+      "downloads": 4,
       "latest": "2.8.2",
       "latest_stable": "2.8.2",
       "versions": [
@@ -1572,7 +1635,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 18,
+      "downloads": 21,
       "latest": "0.2.3",
       "latest_stable": "0.2.3",
       "versions": [
@@ -2188,7 +2251,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/o1xhack/movieclaw-trakt/issues/new",
-      "downloads": 13,
+      "downloads": 15,
       "latest": "0.4.0",
       "latest_stable": "0.4.0",
       "versions": [
