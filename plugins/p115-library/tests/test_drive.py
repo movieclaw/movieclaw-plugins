@@ -142,7 +142,7 @@ async def test_login_expiry_is_not_retried(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_server_status_retry_matrix(monkeypatch):
- for status,retried in ((503,True),(429,True),(403,False)):
+ for status,retried in ((503,True),(429,True),(405,True),(403,False)):  # 2.8.3: 405 = 115 风控
   calls={'n':0}
   def respond(r,status=status):
    calls['n']+=1
@@ -564,7 +564,7 @@ def test_manifest_paths_library_only():
  import os,tomllib
  manifest_path=os.path.join(os.path.dirname(p.__file__),'movieclaw-plugin.toml')
  with open(manifest_path,'rb') as f:manifest=tomllib.load(f)
- assert manifest['plugin']['version']=='2.8.2'
+ assert manifest['plugin']['version']=='2.8.3'
  # 2.4.1：网页入口收敛为一个——侧边栏「115网盘」/apps/p115-library。
  # 插件描述不再写 /api/v1/plugins/.../panel 那条旧地址（宿主批准页会显示这段话）。
  desc=manifest['plugin']['description']

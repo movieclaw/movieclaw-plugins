@@ -95,6 +95,44 @@ async def test_scan_rejects_bad_directory_names(monkeypatch):
     assert 'B.mp4' not in [e.get('name') for e in events if 'path' in e]
     assert bad and '不合规' in bad[0]['reason']
 
+def failing_breadcrumb(log,cid,response,**kw):
+    inner=fake_115(log,downfolders=False,**kw)
+    def respond(r):
+        if r.url.path=='/files' and r.url.params.get('cur')=='1' and r.url.params.get('cid')==cid:return response()
+        return inner(r)
+    return respond
+
+@pytest.mark.asyncio
+async def test_failed_directory_lookup_flags_inexact_instead_of_deleted(monkeypatch):
+    # 2.8.3：面包屑查询报错（未知错误码 / HTTP 405 / 网络异常）不能证明目录已删除：
+    # 该目录的文件本轮跳过，但必须标记 inexact，引擎据此不做清理。
+    log=[]
+    monkeypatch.setattr(a.net,'http_transport',lambda _:httpx.MockTransport(failing_breadcrumb(log,'301',lambda:httpx.Response(200,json={'state':False,'errno':12345}))))
+    drive=a.Drive(cfg());drive.cfg.request_interval=0.0
+    events,bad=await collect(drive)
+    assert sorted(e['path'] for e in events if 'path' in e)==['root.mkv','电影/A.mkv','电影/A.srt','电影/合集/B.mp4']
+    assert {'__inexact__':True} in events,'目录查询失败必须让本轮不做删除'
+    assert bad and '查询失败' in bad[0]['reason'] and '已不存在' not in bad[0]['reason']
+
+@pytest.mark.asyncio
+async def test_failed_directory_lookup_never_cleans_up_its_strms(tmp_path,monkeypatch):
+    # 2.8.3 端到端：上一轮已为 剧集/S01/E01.mkv 生成 STRM；本轮该目录的面包屑查询
+    # 被 115 风控（HTTP 405）挡掉——开着清理也不得删除它，同步记录也保留。
+    eng=setup(tmp_path,cleanup_missing=True);eng.cfg.parsed_mappings[0].cid='100'
+    log=[];transport={'r':fake_115(log,downfolders=False)}
+    monkeypatch.setattr(a.net,'http_transport',lambda _:httpx.MockTransport(lambda r:transport['r'](r)))
+    def use_drive():
+        d=a.Drive(cfg());d.cfg.request_interval=0.0;eng.drive.scan=d.scan
+    use_drive();first=await eng.run()
+    target=tmp_path/'115/剧集/S01/E01.strm'
+    assert first['written']==4 and target.exists()
+    transport['r']=failing_breadcrumb(log,'301',lambda:httpx.Response(405))
+    use_drive();second=await eng.run()
+    assert second['deleted']==0 and target.exists(),'目录查询失败不得导致清理：'+repr(second)
+    transport['r']=fake_115(log,downfolders=False)
+    use_drive();third=await eng.run()
+    assert third['deleted']==0 and third['written']==0 and target.exists(),'同步记录应保留，恢复后无需重写：'+repr(third)
+
 @pytest.mark.asyncio
 async def test_scan_tolerates_count_change_and_flags_inexact(monkeypatch):
     # 2.7.1：大库分页期间 115 计数变化（有上传）不再整轮重来，去重继续并标记 inexact（本轮不做删除）

@@ -534,7 +534,7 @@ async def apply(ctx):
     @admin.get('/config/export',operation_id='plugins.p115-library.config.export',summary='导出配置备份（不含 Cookie）')
     async def config_export():
         values={f:getattr(cfg,f) for f in sorted(EDITABLE) if f!='cookie'}
-        body=json.dumps({'plugin':'p115-library','version':'2.8.2','values':values},ensure_ascii=False,indent=2)
+        body=json.dumps({'plugin':'p115-library','version':'2.8.3','values':values},ensure_ascii=False,indent=2)
         return Response(body,media_type='application/json',headers={'Content-Disposition':'attachment; filename="p115-library-config.json"'})
     @admin.post('/config/import',operation_id='plugins.p115-library.config.import',summary='导入配置备份（校验后立即生效，Cookie 不受影响）')
     async def config_import(body:ConfigPayload):
