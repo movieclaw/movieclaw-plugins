@@ -44,3 +44,16 @@ assert(!l.canConfirmOldCleanup({...cleanupPreview,approval_token:''}));
 assert(!l.canConfirmOldCleanup({...cleanupPreview,files:[]}));
 assert(!l.canConfirmOldCleanup({...cleanupPreview,files:[{old:{file_id:9},removed_paths:[]}]}));
 console.log('v0.44：隐藏页面暂停/错误退避与精确删除确认逻辑通过');
+
+/* 设置只提交变化字段；历史企微收件人和地址不属于当前设置。 */
+const cfg={app_id:'123',login_app:'鸿蒙端',offline_enabled:true,offline_retry:false,wecom_entry:true,dry_run:false};
+assert.deepEqual(l.settingsChanges(cfg,{...cfg}),{changes:{},error:''});
+assert.deepEqual(l.settingsChanges(cfg,{...cfg,dry_run:true}),{changes:{dry_run:true},error:''});
+assert.deepEqual(l.settingsChanges(cfg,{...cfg,wecom_user:'new',wecom_push_url:'secret'}),{changes:{},error:''});
+assert.deepEqual(l.settingsConnections(null,'123','123'),{web:'unknown',open:'unknown'});
+assert.deepEqual(l.settingsConnections({web_logged_in:true,open_api_authorized:true,open_api_app_id:'123'},'123','123'),{web:'connected',open:'authorized'});
+assert.equal(l.settingsConnections({web_logged_in:false},'','').web,'needs_login');
+assert.equal(l.settingsConnections({open_api_authorized:true,open_api_app_id:'123'},'123','456').open,'unsaved');
+assert.equal(l.settingsConnections({open_api_authorized:true,open_api_app_id:'888'},'123','123').open,'needs_auth');
+assert.equal(l.settingsConnections({open_api_authorized:false},'','').open,'unconfigured');
+console.log('设置变更与账号/授权状态正反例通过');
