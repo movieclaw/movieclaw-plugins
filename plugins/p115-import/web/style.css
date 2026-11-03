@@ -191,3 +191,44 @@ dialog h2 { font-size: 18px; }
   #title-search-button { margin-left: auto; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* 设置与扫码：优先展示账号状态，较少使用的选项收进「更多设置」。 */
+.settings-panel { margin: -8px 0 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); }
+.settings-panel > summary { cursor: pointer; padding: 13px 18px; font-weight: 600; }
+.settings-summary-hint { margin-left: 10px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.settings-body { padding: 0 18px 18px; }
+.settings-controls { border: 0; margin: 0; padding: 0; min-width: 0; }
+#settings-message:not(:empty) { margin: 2px 0 12px; }
+.login-grid, .settings-grid, .settings-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 12px; }
+.login-card { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 15px; background: var(--soft); }
+.login-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.login-card > p { margin-top: 5px; }
+.login-badge { border-radius: 99px; padding: 2px 9px; font-size: 11px; white-space: nowrap; background: var(--hover); color: var(--muted); }
+.login-badge.is-good { background: color-mix(in srgb, var(--mc-ok, #69c69f) 13%, transparent); color: var(--mc-ok, #69c69f); }
+.login-badge.is-warn { background: color-mix(in srgb, var(--mc-warn, #d9b475) 13%, transparent); color: var(--mc-warn, #d9b475); }
+.settings-field { display: flex; flex-direction: column; gap: 6px; margin-top: 13px; font-size: 12px; font-weight: 600; }
+.settings-field input, .settings-field select { width: 100%; min-width: 0; font-weight: 400; }
+.settings-field .muted { font-weight: 400; }
+.login-card > button { margin-top: 12px; }
+.qr-result { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.qr-result img { display: block; width: 190px; max-width: 100%; height: auto; padding: 8px; background: white; border-radius: 8px; }
+.qr-result p { margin: 8px 0 0; }
+.qr-result button { margin: 6px 0 0 -8px; color: var(--muted); }
+.settings-advanced { margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.settings-advanced > summary { cursor: pointer; padding: 12px 14px; font-weight: 600; }
+.settings-advanced > summary .muted { margin-left: 8px; font-weight: 400; }
+.settings-options, .settings-grid { padding: 0 14px; }
+.settings-option { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; padding: 10px 0; font-size: 13px; cursor: pointer; }
+.settings-option b { display: block; font-weight: 500; }
+.settings-option small { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+.settings-option input { flex: 0 0 auto; margin-top: 4px; }
+.settings-grid { padding-bottom: 2px; }
+.settings-notification { padding: 8px 14px 14px; }
+.settings-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+.settings-actions > span { margin-right: auto; }
+#settings-save { color: var(--mc-accent-contrast, #111722); }
+@media (max-width: 640px) {
+  .settings-summary-hint { display: none; }
+  .settings-body { padding: 0 12px 14px; }
+  .settings-actions > span { flex-basis: 100%; }
+}

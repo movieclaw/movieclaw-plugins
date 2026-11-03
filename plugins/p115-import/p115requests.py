@@ -98,6 +98,24 @@ async def notify_pause(ctx,store,ops,context,ref,message,push,*,retry=False):
         await store.set("request-state:"+ref,saved,secret=True)
 
 
+async def notify_result_once(ctx, store, lock, ref, result, plan, push):
+    """受理任务和转存任务可能同时看到成功；在同一锁内复核通知检查点。"""
+    async with lock:
+        original = await store.get("input:" + ref, default={}) or {}
+        saved = await store.get("request-state:" + ref, default={}) or {}
+        if not original.get("user") or saved.get("notified"):
+            return False
+        text = "【MovieClaw】" + (result.get("message") or "已处理")
+        if result.get("inventory_verified"):
+            text += f"\n已核验，可在「{result.get('library_name') or '媒体库'}」播放"
+        sent = await push(ctx, text, plan=plan, result=result)
+        if sent is False:
+            return False
+        saved["notified"] = True
+        await store.set("request-state:" + ref, saved, secret=True)
+        return True
+
+
 class RequestRunner:
     def __init__(self,ctx,store,jobs,ops,*,plan_body,build_plan,push,execute=None,dispatch_lock=None):
         self.ctx,self.store,self.jobs,self.ops=ctx,store,jobs,ops
@@ -186,11 +204,7 @@ class RequestRunner:
                               metrics={**(result.get("metrics") or {}),"plan_seconds":saved.get("plan_seconds"),
                                        "request_attempt_seconds":round(time.monotonic()-started,3)})
                 await self.store.set("request-result:"+ref,result)
-                if raw.get("user") and not saved.get("notified"):
-                    await self.push(self.ctx,"【MovieClaw】"+(result.get("message") or "入库完成")
-                                    +(f"\n已核验，可在「{result.get('library_name') or '媒体库'}」播放" if result.get("inventory_verified") else ""))
-                    saved["notified"]=True
-                    await self.store.set("request-state:"+ref,saved,secret=True)
+                await notify_result_once(self.ctx, self.store, self.dispatch_lock, ref, result, plan, self.push)
                 return result
             if state.get("status") in ("failed","blocked","cancelled"):
                 message=(state.get("error") or {}).get("message") or "转存任务未成功"

@@ -774,11 +774,12 @@ class Lifecycle(unittest.IsolatedAsyncioTestCase):
         routes=SimpleNamespace(mount=lambda ctx,router,**kw:captured["routes"].extend(router.routes))
         ops=SimpleNamespace(call=AsyncMock())
         jobs=SimpleNamespace(create=AsyncMock(return_value=JobRef("job_1",rq.JOB,"queued",True)))
+        publisher=SimpleNamespace(publish=AsyncMock())
         values={p.PLUGIN_DATA:SimpleNamespace(scoped=lambda ctx:store),
                 p.PLUGIN_FILES:SimpleNamespace(scoped=lambda ctx:SimpleNamespace()),
                 p.PLUGIN_JOBS:SimpleNamespace(scoped=lambda ctx:jobs),p.PLUGIN_ROUTES:routes,
-                p.HOST_OPS:SimpleNamespace(client=AsyncMock(return_value=ops)),
-                p.PLUGIN_CALLBACKS:SimpleNamespace()}
+                p.PLUGIN_EVENTS:SimpleNamespace(register=AsyncMock(return_value=publisher)),
+                p.HOST_OPS:SimpleNamespace(client=AsyncMock(return_value=ops))}
         context.use=lambda key:values[key]
         context.effect=lambda fn:captured["effects"].append(fn)
         context.contribute=lambda key,name,registration:captured["jobs"].append((name,registration))
@@ -792,6 +793,21 @@ class Lifecycle(unittest.IsolatedAsyncioTestCase):
             ops.call.assert_not_awaited()
             self.assertIsNone(__import__("movieclaw_api.services.jobs",fromlist=["_secret_input_path"])._secret_input_path(
                 jobs.create.call_args.kwargs["input"]))
+            await endpoint(p.ApplyBody(link="https://115.com/s/def",yes=True,notify=True))
+            inputs=[v for k,v in store.data.items() if k.startswith("input:")]
+            self.assertEqual(next(v for v in inputs if v["link"].endswith("/def"))["user"],"system-notify")
+            self.assertEqual(next(v for v in inputs if "abc" in v["link"])["user"],"")
+            ingest=next(route.endpoint for route in captured["routes"] if route.path=="/ingest")
+            await ingest(p.IngestBody(link="https://115.com/s/ghi"))
+            inputs=[v for k,v in store.data.items() if k.startswith("input:")]
+            self.assertEqual(next(v for v in inputs if v["link"].endswith("/ghi"))["user"],"system-notify")
+            await store.set("input:r-test", {"user":"system-notify"}, secret=True)
+            await store.set("transfer:r-test", {"request_ref":"r-test", "kind":"tv", "tmdb_id":123}, secret=True)
+            transfer = next(reg.handler for name,reg in captured["jobs"] if name == p.JOB_TRANSFER)
+            with patch.object(p,"run_plan",AsyncMock(return_value={"message":"《测试剧》已核验入库", "inventory_verified":True})):
+                await transfer(SimpleNamespace(job_id="job-transfer"), {"plan_ref":"transfer:r-test"})
+            publisher.publish.assert_awaited_once()
+            self.assertIn("https://www.themoviedb.org/tv/123", publisher.publish.await_args.args[1].message)
         finally:
             for fn in captured["effects"]:
                 result=fn()

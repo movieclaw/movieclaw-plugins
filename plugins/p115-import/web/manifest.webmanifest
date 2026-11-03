@@ -1,6 +1,6 @@
 {
-  "name": "115 入库",
-  "short_name": "115 入库",
+  "name": "115 转存",
+  "short_name": "115 转存",
   "start_url": ".",
   "icons": [{ "src": "icon.svg", "type": "image/svg+xml", "purpose": "monochrome" }]
 }

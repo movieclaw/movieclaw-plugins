@@ -28,11 +28,12 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, ValidationError
 
-from movieclaw_api.plugins.keys import HOST_OPS, PLUGIN_CALLBACKS, PLUGIN_DATA, PLUGIN_FILES, PLUGIN_ROUTES
+from movieclaw_api.plugins.keys import HOST_OPS, PLUGIN_DATA, PLUGIN_FILES, PLUGIN_ROUTES
 from movieclaw_sdk import Context, plugin
 from movieclaw_sdk.ops import OpsError
+from movieclaw_sdk.events import PLUGIN_EVENTS
 from movieclaw_sdk.jobs import (
     JOB_HANDLERS,
     PLUGIN_JOBS,
@@ -54,16 +55,15 @@ import p115board as board
 import p115repair as repair
 import p115controls as controls
 import p115cleanup as old_cleanup
+import p115notify as notify
 from p115compat import cloud_scan_body, library_languages, naming_title
 from p115storage import ChunkedStore
 
 PLUGIN_ID = "p115-import"
-VERSION = "0.4.7"
+VERSION = "0.4.14"
 JOB_TRANSFER = "p115-import:transfer"
 #: 库网盘目录下的暂存目录名（点开头，媒体库扫描会跳过它）
 STAGING_DIR = ".p115-import"
-#: 本机 MovieClaw 端口（同机内部转发用回环）
-HOST_PORT = 3000
 #: 一次最多处理多少个视频（防手滑把整库塞进来）
 MAX_FILES = 400
 SUBTITLE_EXTS = (".srt", ".ass", ".ssa", ".vtt", ".sub", ".sup")
@@ -113,8 +113,8 @@ class Settings(BaseModel):
         title="结果推给谁（企业微信 UserID）",
         description="转存结果推给这个人（成员账号，不是姓名）。谁能发链接由 wecom-notify 的白名单决定；这里只影响结果发给谁，留空则用 wecom-notify 设置里的接收人。",
     )
-    wecom_push_url: str = Field(
-        "",
+    wecom_push_url: SecretStr = Field(
+        default_factory=lambda: SecretStr(""),
         title="结果通知地址（wecom-notify 的推送接口）",
         description="填 wecom-notify 插件给出的签名推送地址；转存成功/失败都由它发消息。留空则结果只写日志。",
     )
@@ -123,6 +123,88 @@ class Settings(BaseModel):
         title="只预演不执行",
         description="打开后 apply 只做识别与体积比较，不转存、不改名、不删任何东西。",
     )
+
+
+class SettingsBody(BaseModel):
+    values: dict[str, Any] = Field(default_factory=dict, description="需要修改的配置项")
+
+
+class SettingsManager:
+    """配置仅在插件工作台管理；旧宿主配置在首次启动时安全迁入。"""
+    KEY = "workbench-settings-v1"
+
+    def __init__(self, store, current):
+        self.store = store
+        self.current = current
+        self.lock = asyncio.Lock()
+
+    @staticmethod
+    def serialize(settings):
+        values = settings.model_dump(mode="python")
+        values["wecom_push_url"] = settings.wecom_push_url.get_secret_value()
+        return values
+
+    @classmethod
+    async def load(cls, store, legacy):
+        saved = await store.get(cls.KEY, default=None)
+        if saved is None:
+            original = legacy.model_dump(mode="python") if isinstance(legacy, BaseModel) else (legacy or {})
+            current = Settings.model_validate(original)
+            saved = cls.serialize(current)
+            await store.set(cls.KEY, saved, secret=True)
+            if await store.get(cls.KEY, default=None) != saved:
+                raise RuntimeError("配置迁移未能核验，已停止加载，原设置仍保留")
+        else:
+            current = Settings.model_validate(saved)
+        return cls(store, current)
+
+    def view(self):
+        values = self.serialize(self.current)
+        # 旧企微字段保留在加密数据中供回退，不再用于发送或显示在工作台。
+        values.pop("wecom_user", None)
+        values.pop("wecom_push_url", None)
+        schema = Settings.model_json_schema()
+        schema["properties"].pop("wecom_user", None)
+        schema["properties"].pop("wecom_push_url", None)
+        return {"editable": True, "schema": schema, "values": values, "secrets_set": []}
+
+    async def update(self, changes):
+        unknown = set(changes) - set(Settings.model_fields)
+        if unknown:
+            raise ValueError("包含未知设置项")
+        bools = {"offline_enabled", "offline_retry", "wecom_entry", "dry_run"}
+        for key, value in changes.items():
+            if key in bools and not isinstance(value, bool):
+                raise ValueError("开关设置必须为真或假")
+            if key not in bools and not isinstance(value, str):
+                raise ValueError("文本设置必须是字符串")
+        async with self.lock:
+            values = self.serialize(self.current)
+            values.update(changes)
+            try:
+                updated = Settings.model_validate(values)
+            except ValidationError:
+                raise ValueError("设置格式不正确，请检查 AppID 等输入") from None
+            if updated.login_app not in Settings.model_json_schema()["properties"]["login_app"]["enum"]:
+                raise ValueError("请选择列表中的扫码登录端")
+            # 先加密持久化，再切换内存配置；写入失败不影响当前配置。
+            await self.store.set(self.KEY, self.serialize(updated), secret=True)
+            self.current = updated
+            return self.view()
+
+
+class SettingsContext:
+    """只替换配置快照，其余能力仍由原宿主上下文提供。"""
+    def __init__(self, ctx, manager):
+        self._ctx = ctx
+        self._manager = manager
+
+    @property
+    def config(self):
+        return self._manager.current
+
+    def __getattr__(self, name):
+        return getattr(self._ctx, name)
 
 
 # ---------------------------------------------------------------------- 小工具
@@ -1045,37 +1127,6 @@ async def _wait_job(ops,job_id,*,deadline=600):
         return False,0
 
 
-async def _push_wecom(ctx, text: str) -> None:
-    """把结果交给 wecom-notify 发（出口统一在那个插件，凭据与排版都归它）。"""
-    url = (ctx.config.wecom_push_url or "").strip()
-    port = HOST_PORT
-    try:
-        from movieclaw_api.core.config import get_settings as _gs
-
-        port = int(getattr(_gs(), "port", HOST_PORT) or HOST_PORT)
-    except Exception:  # noqa: BLE001 -- 拿不到就用默认端口
-        pass
-    if url and "/api/v1/hooks/" in url:
-        # 同机调用走回环：不依赖反代与证书，路径里的密钥原样保留
-        from urllib.parse import urlsplit, urlunsplit
-
-        parts = urlsplit(url)
-        url = urlunsplit(("http", f"127.0.0.1:{port}", parts.path, parts.query, ""))
-    if not url:
-        ctx.logger.info("没配 wecom-notify 的推送地址，结果只写日志：%s",
-                        text.replace("\n", " | "))
-        return
-    try:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(url, json={"text": text})
-        if response.status_code >= 400:
-            ctx.logger.warning("wecom-notify 没接受这条推送（HTTP %s）", response.status_code)
-    except Exception as exc:  # noqa: BLE001 -- 通知失败不影响入库
-        ctx.logger.warning("推给 wecom-notify 失败（%s），结果保留在活动任务中", exc.__class__.__name__)
-
-
 async def run_plan(ctx, plan, context=None):
     """仅适配 115 搬运，持久化/重试/扫描/台账验收复用 MovieClaw。"""
     store=ChunkedStore(ctx.use(PLUGIN_DATA).scoped(ctx))
@@ -1205,7 +1256,7 @@ class PlanBody(BaseModel):
 
 class ApplyBody(PlanBody):
     yes: bool = Field(False, description="确认执行；不加 --yes 只预演")
-    notify: bool = Field(False, description="完成后把结果通知到已配的通知人（网页提交框默认勾选；命令行默认不打扰）")
+    notify: bool = Field(False, description="通过系统通知发送转存进度（网页默认勾选；命令行默认不打扰）")
 
 
 class RecognizeBody(BaseModel):
@@ -1268,7 +1319,7 @@ class ResumeBody(BaseModel):
 @plugin(
     PLUGIN_ID,
     title="115 分享转存入库",
-    inject=(HOST_OPS, PLUGIN_DATA, PLUGIN_ROUTES, PLUGIN_JOBS, PLUGIN_CALLBACKS, PLUGIN_FILES),
+    inject=(HOST_OPS, PLUGIN_DATA, PLUGIN_ROUTES, PLUGIN_JOBS, PLUGIN_FILES, PLUGIN_EVENTS),
     permissions=(
         "dl.resolve-target",
         "discover.get-title-details",
@@ -1282,20 +1333,26 @@ class ResumeBody(BaseModel):
         "jobs.cancel",
         "scrape.show",
     ),
-    config=Settings,
 )
 async def apply(ctx: Context) -> None:
     global _core_parser, _pan, _submit_lock
+    store = ChunkedStore(ctx.use(PLUGIN_DATA).scoped(ctx))
+    manager = await SettingsManager.load(store, ctx.config)
+    ctx = SettingsContext(ctx, manager)
     _core_parser = recognition.CoreParser(ctx.use(PLUGIN_FILES).scoped(ctx), ctx.logger)
     ctx.effect(_core_parser.close)
-    store = ChunkedStore(ctx.use(PLUGIN_DATA).scoped(ctx))
     _pan=api.Pan(store,lambda:(ctx.config.app_id or "").strip())
     ctx.effect(_pan.close)
     _submit_lock=asyncio.Lock()
     routes = ctx.use(PLUGIN_ROUTES)
     jobs = ctx.use(PLUGIN_JOBS).scoped(ctx)
     ops = await ctx.use(HOST_OPS).client(ctx)
-    runner=requests.RequestRunner(ctx,store,jobs,ops,plan_body=PlanBody,build_plan=build_plan,push=_push_wecom,dispatch_lock=_submit_lock)
+    publisher = await ctx.use(PLUGIN_EVENTS).register(ctx, notify.NOTICE)
+
+    async def push_notification(context, text, *, plan=None, result=None):
+        return await notify.publish(publisher, context.logger, text, plan=plan, result=result)
+
+    runner=requests.RequestRunner(ctx,store,jobs,ops,plan_body=PlanBody,build_plan=build_plan,push=push_notification,dispatch_lock=_submit_lock)
 
     async def handler(context: JobContext, data: dict) -> dict:
         plan = await store.get(data["plan_ref"],default=None) if data.get("plan_ref") else data.get("plan")
@@ -1307,30 +1364,25 @@ async def apply(ctx: Context) -> None:
             result["request_ref"]=ref
             result["job_id"]=context.job_id
             if ref:
-                original=await store.get("input:"+ref,default={}) or {}
                 checkpoint=await store.get("request-state:"+ref,default={}) or {}
                 result.setdefault("metrics",{})["plan_seconds"]=checkpoint.get("plan_seconds")
                 await store.set("request-result:"+ref,result)
-                if original.get("user") and not checkpoint.get("notified"):
-                    await _push_wecom(ctx,"【MovieClaw】"+result.get("message","已处理")
-                        +(f"\n已核验，可在「{result.get('library_name') or '媒体库'}」播放" if result.get("inventory_verified") else ""))
-                    checkpoint["notified"]=True
-                    await store.set("request-state:"+ref,checkpoint,secret=True)
+                await requests.notify_result_once(ctx, store, _submit_lock, ref, result, plan, push_notification)
             return result
         except (api.AuthExpired,api.ShareGone,api.ShareLocked,api.Conflict) as exc:
-            await requests.notify_pause(ctx,store,ops,context,plan.get("request_ref"),exc.message,_push_wecom)
+            await requests.notify_pause(ctx,store,ops,context,plan.get("request_ref"),exc.message,push_notification)
             raise JobBlocked(exc.message) from exc
         except api.RiskControl as exc:
-            await requests.notify_pause(ctx,store,ops,context,plan.get("request_ref"),exc.message,_push_wecom)
+            await requests.notify_pause(ctx,store,ops,context,plan.get("request_ref"),exc.message,push_notification)
             raise JobBlocked(exc.message) from exc
         except (api.ApiError,OpsError) as exc:
             message = exc.message if isinstance(exc,api.ApiError) else "宿主接口暂时不可用"
             delay = getattr(exc,"retry_after",None) or 30
-            await requests.notify_pause(ctx,store,ops,context,plan.get("request_ref"),message,_push_wecom,retry=True)
+            await requests.notify_pause(ctx,store,ops,context,plan.get("request_ref"),message,push_notification,retry=True)
             raise JobRetry(message+"；检查点已保存，稍后自动继续",delay_seconds=delay) from exc
         except (JobBlocked, JobRetry) as exc:
             ctx.logger.warning("《%s》处理暂停：%s",plan.get("title") or "转存",exc.message)
-            await requests.notify_pause(ctx,store,ops,context,plan.get("request_ref"),exc.message,_push_wecom,
+            await requests.notify_pause(ctx,store,ops,context,plan.get("request_ref"),exc.message,push_notification,
                                         retry=isinstance(exc,JobRetry))
             raise
 
@@ -1418,6 +1470,19 @@ async def apply(ctx: Context) -> None:
 
     router = APIRouter()
 
+    @router.get("/settings", operation_id=f"plugins.{PLUGIN_ID}.settings.show",
+                summary="115 转存工作台设置（通知地址不回显）")
+    async def show_settings():
+        return manager.view()
+
+    @router.put("/settings", operation_id=f"plugins.{PLUGIN_ID}.settings.update",
+                summary="保存115转存工作台设置")
+    async def update_settings(body: SettingsBody):
+        try:
+            return await manager.update(body.values)
+        except ValueError as exc:
+            raise HTTPException(400, detail=str(exc)) from exc
+
     @router.post("/cleanup-old",operation_id=f"plugins.{PLUGIN_ID}.cleanup-old",
                  summary="只预览洗版旧文件；确认具体路径与编号后才能清理（默认不删除）")
     async def cleanup_old_now(body: CleanupOldBody):
@@ -1469,8 +1534,7 @@ async def apply(ctx: Context) -> None:
             "offline_enabled": bool(ctx.config.offline_enabled),
             "offline_retry": bool(ctx.config.offline_retry),
             "wecom_entry": bool(ctx.config.wecom_entry),
-            "wecom_user": ctx.config.wecom_user.strip(),
-            "wecom_push_url_set": bool((ctx.config.wecom_push_url or "").strip()),
+            "notification_delivery": "system",
             "wecom_last_hit": await store.get("wecom_last_hit", default=None),
             "login_page": "/api/v1/plugins/p115-import/login",
             "login_page_note": "在已登录 MovieClaw 的浏览器里打开这个地址，选登录端就能出二维码",
@@ -1569,7 +1633,7 @@ async def apply(ctx: Context) -> None:
         submitted=[]
         for link in batches:
             submitted.append(await requests.submit(ctx,store,jobs,ops,body.model_copy(update={"link":link}),
-                user=ctx.config.wecom_user.strip() if body.notify else "",lock=_submit_lock))
+                user="system-notify" if body.notify else "",lock=_submit_lock))
         return submitted[0] if len(submitted)==1 else {"status":"started","requests":submitted,
                   "message":f"已持久化接收 {len(submitted)} 批链接，各批独立处理"}
 
@@ -1817,7 +1881,7 @@ async def apply(ctx: Context) -> None:
         submitted=[]
         for link in batches:
             submitted.append(await requests.submit(ctx,store,jobs,ops,body.model_copy(update={"link":link}),
-                user=body.user or ctx.config.wecom_user,lock=_submit_lock))
+                user=body.user or "system-notify",lock=_submit_lock))
         await store.set("wecom_last_hit",{"at":int(time.time()),"user":body.user,
                         "links":len(submitted),"result":"已持久化受理"})
         if len(submitted)==1:

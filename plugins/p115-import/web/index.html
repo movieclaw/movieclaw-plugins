@@ -3,22 +3,62 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>115 入库</title>
+  <title>115 转存</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=0.4.6">
+  <link rel="stylesheet" href="style.css?v=0.4.13">
 </head>
 <body>
   <header class="page-header">
     <div>
       <div class="heading-line">
-        <h1>115 入库</h1>
+        <h1>115 转存</h1>
         <details id="authcard" class="connection"><summary><span class="spinner"></span>连接中</summary></details>
       </div>
       <p class="subtitle">粘贴链接，自动识别并存入媒体库。</p>
     </div>
     <a class="header-link" href="/tasks" target="_top">任务中心 ↗</a>
   </header>
+
+  <details class="settings-panel" id="settings-panel">
+    <summary><span>设置与登录</span><span class="settings-summary-hint">账号 · 授权 · 更多设置</span></summary>
+    <div class="settings-body">
+      <div id="settings-message" role="status" class="small muted"></div>
+      <form id="settings-form" hidden>
+        <fieldset id="settings-controls" class="settings-controls">
+        <div class="login-grid">
+          <section class="login-card" aria-labelledby="login-web-heading">
+            <div class="login-card-head"><h2 id="login-web-heading">115 账号</h2><span id="login-web-badge" class="login-badge">检查中</span></div>
+            <p id="login-web-detail" class="small muted">用于转存分享链接和文件改名。</p>
+            <label class="settings-field" for="setting-login_app">扫码登录端<select id="setting-login_app" aria-describedby="login-app-help"></select></label>
+            <p id="login-app-help" class="small muted">请选择其他工具未使用的登录端，避免互相踢下线。</p>
+            <button id="login-web-start" type="button">扫码登录</button>
+            <div id="login-web-result" class="qr-result" hidden><img id="login-web-qr" alt="115 登录二维码" hidden><p id="login-web-status" role="status"></p><a id="login-web-link" target="_blank" rel="noopener noreferrer" hidden>二维码无法显示？打开扫码链接</a><button id="login-web-close" type="button" class="ghost small">关闭二维码</button></div>
+          </section>
+          <section class="login-card" aria-labelledby="login-open-heading">
+            <div class="login-card-head"><h2 id="login-open-heading">开放平台</h2><span id="login-open-badge" class="login-badge">检查中</span></div>
+            <p id="login-open-detail" class="small muted">授权后可使用官方接口管理文件。</p>
+            <label class="settings-field" for="setting-app_id">AppID<input id="setting-app_id" inputmode="numeric" pattern="[0-9]{0,20}" maxlength="20" autocomplete="off" aria-describedby="open-app-help"></label>
+            <p id="open-app-help" class="small muted">填写或修改 AppID 后，请先保存再扫码授权。</p>
+            <button id="login-open-start" type="button">扫码授权</button>
+            <div id="login-open-result" class="qr-result" hidden><img id="login-open-qr" alt="115 开放平台授权二维码" hidden><p id="login-open-status" role="status"></p><a id="login-open-link" target="_blank" rel="noopener noreferrer" hidden>二维码无法显示？打开扫码链接</a><button id="login-open-close" type="button" class="ghost small">关闭二维码</button></div>
+          </section>
+        </div>
+        <details class="settings-advanced" id="settings-advanced">
+          <summary><span>更多设置</span><span class="small muted">云下载、企业微信和预演</span></summary>
+          <div class="settings-options">
+            <label class="settings-option"><span><b>允许电驴 / 磁力</b><small>通过 115 云下载，可能消耗离线配额。</small></span><input type="checkbox" id="setting-offline_enabled"></label>
+            <label class="settings-option"><span><b>云下载失败后自动重试</b><small>失败后再尝试一次。</small></span><input type="checkbox" id="setting-offline_retry"></label>
+            <label class="settings-option"><span><b>接受企业微信链接</b><small>接收已配对用户发来的链接。</small></span><input type="checkbox" id="setting-wecom_entry"></label>
+            <label class="settings-option"><span><b>只预演，不执行入库</b><small>开启后只检查，不会转存文件。</small></span><input type="checkbox" id="setting-dry_run"></label>
+          </div>
+          <p class="settings-notification small muted">转存通知使用已绑定的系统通知渠道，可在「账号 → 通知」中调整。</p>
+        </details>
+        </fieldset>
+        <div class="settings-actions"><span class="small muted" id="settings-dirty-note">已保存</span><button class="ghost" type="button" id="settings-reset" hidden>放弃修改</button><button class="primary" type="submit" id="settings-save" disabled>保存修改</button></div>
+      </form>
+    </div>
+  </details>
 
   <section class="composer" aria-labelledby="composer-heading">
     <div class="composer-top"><h2 id="composer-heading">添加链接</h2><span class="small">115 · 磁力 · 电驴</span></div>
@@ -33,7 +73,7 @@
         <button class="chip ghost" id="btn-title-clear" aria-label="清除指定作品，恢复自动识别" hidden>×</button>
       </div>
       <div class="composer-submit">
-        <label class="notify-label" title="完成后通过企业微信通知"><input type="checkbox" id="notify-box" checked>完成通知</label>
+        <label class="notify-label" title="通过已绑定的系统通知渠道发送转存进度"><input type="checkbox" id="notify-box" checked>完成通知</label>
         <button class="ghost" id="btn-preview" disabled>预演</button>
         <button class="primary" id="btn-submit" disabled>提交入库 <span aria-hidden="true">↑</span></button>
       </div>
@@ -88,7 +128,7 @@
   </dialog>
   <div class="toast" id="toast" role="status"></div>
 
-  <script src="logic.js?v=0.4.6"></script>
+  <script src="logic.js?v=0.4.13"></script>
   <script src="view.js?v=0.4.6"></script>
   <script>
   (function () {
@@ -156,7 +196,7 @@
           + '<div class="connection-line"><span class="muted">企微入口</span><span>' + (st.wecom_entry ? "已开启" : "已关闭") + '</span></div>'
           + (hit && hit.at ? '<div class="small muted">最近收件 ' + esc(fmtTime(new Date(hit.at * 1000).toISOString())) + '</div>' : '')
           + (st.dry_run ? '<div class="warn small">当前只预演，不执行入库</div>' : '')
-          + (need ? '<div class="connection-notice"><a href="' + BASE + '/login" target="_top">扫码登录 ↗</a></div>' : '') + '</div>';
+          + (need ? '<div class="connection-notice">请在页面上方「设置与登录」中扫码登录</div>' : '') + '</div>';
         if (need) $("authcard").open = true;
 
       } catch (err) {
@@ -621,6 +661,7 @@
     $("maintenance").addEventListener("toggle", () => {
       if ($("maintenance").open && !$("cleanup-lib").options.length) loadLibraries();
     });
+    window.addEventListener("p115-auth-changed", loadStatus);
     // 登录状态查的是 115 接口，频率放慢；看板轮询不碰它
     setInterval(() => { if (!document.hidden) loadStatus(); }, 180000);
     document.addEventListener("visibilitychange", () => {
@@ -636,5 +677,6 @@
     });
   })();
   </script>
+  <script src="settings.js?v=0.4.13"></script>
 </body>
 </html>

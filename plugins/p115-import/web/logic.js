@@ -173,3 +173,21 @@ function canConfirmOldCleanup(value) {
       && Array.isArray(f.removed_paths) && f.removed_paths.length > 0));
 }
 if (typeof module !== "undefined" && module.exports) Object.assign(module.exports, { boardPollDelay, canConfirmOldCleanup });
+
+/* 设置工作台：只提交发生变化的字段，不触碰已保留的历史配置。 */
+function settingsChanges(original, current) {
+  const previous = original || {}, now = current || {}, changes = {};
+  const keys = ["app_id", "login_app", "offline_enabled", "offline_retry", "wecom_entry", "dry_run"];
+  for (const key of keys) if (now[key] !== previous[key]) changes[key] = now[key];
+  return { changes, error: "" };
+}
+function settingsConnections(status, savedAppId, enteredAppId) {
+  if (!status) return { web: "unknown", open: "unknown" };
+  const saved = String(savedAppId || "").trim(), entered = String(enteredAppId || "").trim();
+  let open = "unconfigured";
+  if (saved !== entered) open = "unsaved";
+  else if (saved && status.open_api_authorized && String(status.open_api_app_id || "") === saved) open = "authorized";
+  else if (saved) open = "needs_auth";
+  return { web: status.web_logged_in ? "connected" : "needs_login", open };
+}
+if (typeof module !== "undefined" && module.exports) Object.assign(module.exports, { settingsChanges, settingsConnections });
