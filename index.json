@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-03T06:04:06Z",
+  "generated_at": "2026-11-03T10:03:03Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -27,7 +27,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cast-cn",
-      "downloads": 11,
+      "downloads": 12,
       "latest": "0.3.5",
       "latest_stable": "0.3.5",
       "versions": [
@@ -1194,7 +1194,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=p115-import",
-      "downloads": 3,
+      "downloads": 4,
       "latest": "0.4.14",
       "latest_stable": "0.4.14",
       "versions": [
@@ -1349,9 +1349,60 @@
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=p115-library",
       "downloads": 4,
-      "latest": "2.8.2",
-      "latest_stable": "2.8.2",
+      "latest": "2.8.3",
+      "latest_stable": "2.8.3",
       "versions": [
+        {
+          "version": "2.8.3",
+          "prerelease": false,
+          "released_at": "2026-11-03T10:03:03Z",
+          "yanked": null,
+          "notes": "- 修复：极速扫描时目录查询失败（如 115 风控返回 HTTP 405、网络异常）被误判为「目录已删除」，开启清理时会删掉该目录已生成的 STRM；现在本轮只跳过该目录且不做清理。\n- 修复：逐目录扫描的断点在同步完整跑完后仍保留，导致下次全量几乎跳过所有目录，开启清理时还会误删它们的 STRM；现在断点只用于续传中断的同步，完整跑完后自动清除，续传那一轮也不做清理。\n- 115 风控常见的 HTTP 405 改为等待冷却后自动重试，与 429/5xx 一致。\n- 控制台同步状态区的错误信息、限速原因等文字改为转义显示，不再按 HTML 解析。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/p115-library-v2.8.3",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/p115-library-v2.8.3/plugins/p115-library",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/p115-library-v2.8.3/plugins/p115-library/README.md",
+            "sha256": "cedf0ed1792753319379e4ab92ab3301e088ac230056859d6305e83f79469a3b",
+            "size": 51676
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "host-ops": "^1.0",
+            "plugin-data": "^1.0",
+            "plugin-files": "^1.0",
+            "plugin-routes": "^1.0"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "library.scan.start",
+              "library.list"
+            ],
+            "paths": [
+              {
+                "path": "library",
+                "mode": "rw"
+              }
+            ],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "p115-library-2.8.3.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/p115-library-v2.8.3/p115-library-2.8.3.mcplugin",
+              "sha256": "fbf154556d48b57ad23476cd5900fb6f0b9225309ff8c97b62d9e4fcffbba26d",
+              "size": 339494
+            }
+          ]
+        },
         {
           "version": "2.8.2",
           "prerelease": false,
@@ -1635,7 +1686,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 21,
+      "downloads": 23,
       "latest": "0.2.3",
       "latest_stable": "0.2.3",
       "versions": [
@@ -2164,7 +2215,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=strategy-linkage",
-      "downloads": 5,
+      "downloads": 6,
       "latest": "1.0.0",
       "latest_stable": "1.0.0",
       "versions": [
@@ -2251,7 +2302,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/o1xhack/movieclaw-trakt/issues/new",
-      "downloads": 15,
+      "downloads": 16,
       "latest": "0.4.0",
       "latest_stable": "0.4.0",
       "versions": [
