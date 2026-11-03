@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from functools import partial
+import logging
 import re
+from time import monotonic
 from typing import Any
 
 import httpx
@@ -13,6 +15,8 @@ from movieclaw_sdk import drives as dv
 from movieclaw_sdk import net
 
 from . import delete_diagnostics
+
+_logger = logging.getLogger(__name__)
 
 
 def _client(token: str):
@@ -114,10 +118,18 @@ async def _send(http, request, *, before_send=None, stream=False):
 async def put_part(url: str, data: bytes, digest: str, *, before_send) -> None:
     # 内容出口独立持有，不带 API Token/Cookie，不跟随预签名地址的重定向。
     http = httpx.AsyncClient(transport=net.http_transport("cloud-123"), trust_env=False,
-                             follow_redirects=False, timeout=httpx.Timeout(20, connect=5))
+                             follow_redirects=False, timeout=httpx.Timeout(20, connect=5, read=60))
     completed = False
+    started = monotonic()
     try:
-        request = http.build_request("PUT", url, content=data)
+        # Keep one signed PUT and its exact length, but let write timeout bound
+        # stalled transport writes instead of the duration of the entire part.
+        async def body():
+            for offset in range(0, len(data), 64 * 1024):
+                yield data[offset:offset + 64 * 1024]
+
+        request = http.build_request("PUT", url, content=body(),
+                                     headers={"Content-Length": str(len(data))})
         response = await _send(http, request, before_send=before_send, stream=True)
         verified = False
         try:
@@ -139,7 +151,18 @@ async def put_part(url: str, data: bytes, digest: str, *, before_send) -> None:
         completed = True
     except dv.DriveError:
         raise
-    except Exception:
+    except Exception as exc:
+        # 只记录固定类别；字节数是本片长度，耗时含宿主放行等待，不代表已发送量或速率。
+        category = next((kind.__name__ for kind in (
+            httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout,
+            httpx.TimeoutException, httpx.TransportError,
+        ) if isinstance(exc, kind)), "OtherError")
+        try:
+            _logger.warning("123-put-diag category=%s bytes=%d elapsed_ms=%d",
+                            category, len(data), round((monotonic() - started) * 1000))
+        except Exception:
+            # 日志写入失败不能覆盖原来的上传异常。
+            pass
         raise dv.Transient("123 分片上传连接失败，请重试对账") from None
     finally:
         try:

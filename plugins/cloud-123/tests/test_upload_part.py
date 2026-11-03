@@ -7,9 +7,11 @@ import hashlib
 import json
 import time
 from dataclasses import replace
+from unittest.mock import patch
 
 import httpx
 from movieclaw_sdk import drives as dv, net
+from cloud_123 import client
 from cloud_123.backend import Pan123
 from tests.test_begin_upload import PART_SIZE
 from tests.test_begin_upload import UploadFixture
@@ -79,6 +81,96 @@ class UploadPartFixture(UploadFixture):
 
 
 class UploadPartTest(UploadPartFixture):
+    async def test_put_diagnostics_classify_without_exposing_error_or_request(self):
+        await self.start(True)
+        self.accept_put = False
+        secret = 'Token Cookie signature session_key FileId=999 private response'
+        request = httpx.Request('PUT', 'https://private.invalid/path?signature=secret',
+                                headers={'Authorization':'Bearer private', 'Cookie':'private'})
+        secret_type = type('PrivateTokenError', (RuntimeError,), {})
+        cases = [(httpx.ConnectTimeout,'ConnectTimeout'), (httpx.ReadTimeout,'ReadTimeout'),
+                 (httpx.WriteTimeout,'WriteTimeout'), (httpx.PoolTimeout,'PoolTimeout'),
+                 (httpx.TimeoutException,'TimeoutException'),
+                 (httpx.RemoteProtocolError,'TransportError'), (secret_type,'OtherError')]
+        for kind,category in cases:
+            with self.subTest(category=category):
+                error = kind(secret,request=request) if issubclass(kind,httpx.RequestError) else kind(secret)
+                async def fail(request):raise error
+                self.put_hook = fail
+                before = len(self.puts())
+                with patch.object(client,'monotonic',side_effect=[10.0,10.125]), \
+                        self.assertLogs(client._logger,level='WARNING') as logs:
+                    with self.assertRaises(dv.Transient) as caught:await self.put()
+                self.assertEqual(str(caught.exception),'123 分片上传连接失败，请重试对账')
+                self.assertTrue(caught.exception.__suppress_context__)
+                self.assertEqual(len(logs.records),1)
+                self.assertEqual(logs.records[0].getMessage(),
+                                 f'123-put-diag category={category} bytes={PART_SIZE} elapsed_ms=125')
+                self.assertIsNone(logs.records[0].exc_info)
+                self.assertIsNone(logs.records[0].stack_info)
+                self.assertEqual(len(self.puts()),before+1)
+                self.assertIsNone(self.stored('part:0'))
+                self.assertEqual(self.paced,len(self.requests))
+
+    async def test_put_diagnostic_and_close_failure_keep_original_classification(self):
+        await self.start()
+        async def fail(request):
+            self.close_error = RuntimeError('private close')
+            raise httpx.ReadTimeout('private request')
+        self.put_hook = fail
+        with patch.object(client._logger,'warning',side_effect=OSError('private log')) as log:
+            with self.assertRaises(dv.Transient) as caught:await self.put()
+        self.assertEqual(str(caught.exception),'123 分片上传连接失败，请重试对账')
+        log.assert_called_once()
+        self.assertEqual(len(self.puts()),1)
+        self.assertIsNone(self.stored('part:0'))
+
+    async def test_put_diagnostics_do_not_swallow_cancel_or_send_after_cancel(self):
+        await self.start()
+        entered = asyncio.Event()
+        async def hang(request):
+            self.close_error = RuntimeError('private close')
+            entered.set()
+            await asyncio.Event().wait()
+        self.put_hook = hang
+        with patch.object(client._logger,'warning') as log:
+            task = asyncio.create_task(self.put())
+            await entered.wait()
+            before = len(self.requests),len(self.store.calls)
+            task.cancel('cancel sentinel')
+            with self.assertRaises(asyncio.CancelledError) as caught:await task
+            await asyncio.sleep(0)
+            self.assertEqual(caught.exception.args,('cancel sentinel',))
+            self.assertEqual((len(self.requests),len(self.store.calls)),before)
+            log.assert_not_called()
+        self.assertEqual(len(self.puts()),1)
+        self.assertIsNone(self.stored('part:0'))
+
+    async def test_put_diagnostics_keep_drive_error_identity(self):
+        await self.start()
+        original = dv.RateLimited('controlled failure')
+        async def fail(request):raise original
+        self.put_hook = fail
+        with patch.object(client._logger,'warning') as log:
+            with self.assertRaises(dv.RateLimited) as caught:await self.put()
+            self.assertIs(caught.exception,original)
+            log.assert_not_called()
+        self.assertEqual(len(self.puts()),1)
+        self.assertIsNone(self.stored('part:0'))
+
+    async def test_put_success_has_no_diagnostic_and_retains_timeout_and_confirmation(self):
+        await self.start()
+        async def check(request):
+            self.assertEqual(request.extensions['timeout'],
+                             {'connect':5,'read':60,'write':20,'pool':20})
+        self.put_hook = check
+        with patch.object(client._logger,'warning') as log:
+            self.assertEqual(await self.put(),self.state)
+            log.assert_not_called()
+        self.assertEqual(len(self.puts()),1)
+        self.assertEqual(self.stored('part:0')['etag'],self.fp.md5.lower())
+        self.assertEqual(self.paced,len(self.requests))
+
     async def test_single_auth_put_md5_confirmation_and_state(self):
         await self.start()
         self.assertEqual(await self.put(),self.state)
