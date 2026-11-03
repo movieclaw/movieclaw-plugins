@@ -384,6 +384,14 @@ class SyncEngine:
             if nk not in nodes:
                 try:await self.store.delete(nk)
                 except Exception:pass
+    async def clear_checkpoint(self,key):
+        """Drop a checkpoint root plus every chunk node; returns whether one existed."""
+        root=await self.store.get(key,default=None)
+        if root is None:return False
+        for nk in (root.get('nodes') or []) if isinstance(root,dict) else []:
+            try:await self.store.delete(nk)
+            except Exception:pass
+        await self.store.delete(key);return True
     async def append_checkpoint(self,key,done,flushed_done):
         """Incrementally append the dirs that finished since the last flush
         (2.6.3). Rewriting every chunk on each completion was why the progress
@@ -1005,7 +1013,10 @@ class SyncEngine:
 
         # Walk/scan (network, paced by the API interval) and the STRM writers
         # (host IPC) are concurrent tasks joined by a bounded queue.
-        inexact=False  # 115's count moved during a fast listing: no deletions this run
+        # No deletions this run when the listing is not complete: 115's count
+        # moved / a directory lookup failed during a fast listing, or (2.8.3)
+        # a resumed legacy walk skipped checkpointed subtrees.
+        inexact=bool(resume_skip)
         def wanted_name(name):
             suffix=PurePosixPath(name).suffix.lower()
             return suffix in exts or (sidecar_enabled and suffix in SIDECAR)
@@ -1255,7 +1266,7 @@ class SyncEngine:
             await keep_progress('同步已停止');raise
         errors=[t.exception() for t in all_tasks if t.done() and not t.cancelled() and t.exception() is not None]
         # Persist whatever directories finished BEFORE re-raising (legacy walk).
-        if not dry_run and done and not fast_walk:
+        if not dry_run and done and not fast_walk and (failure or errors):
             await best_effort(self.save_checkpoint(ckpt_key,done))
         if failure or errors:
             first=failure[0] if failure else errors[0]
@@ -1344,8 +1355,9 @@ class SyncEngine:
             # 2.7.0: an unchanged library no longer rewrites (and deletes) every
             # manifest chunk on every run.
             if current!=previous or not previous:await self.save_manifest(key,current)
-            if done and not fast_walk:
-                await self.save_checkpoint(ckpt_key,done)
+            # 2.8.3: the checkpoint only resumes an interrupted run; a completed
+            # run drops it so the next full sync walks every directory again.
+            await self.clear_checkpoint(ckpt_key)
             await self.store.set(meta_key,{'clean':True,'url_sig':url_sig,'at':int(time.time())})
             # 2.7.13: incremental syncs ask MovieClaw to rescan the mapping when
             # they changed something (or a previous incremental's request

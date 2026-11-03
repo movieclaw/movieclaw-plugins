@@ -255,10 +255,10 @@ async def test_streaming_writes_tree_as_it_scans(tmp_path):
  assert 'a' in done and 'b' not in done,'断点只记已完成目录：'+repr(done)
 
 @pytest.mark.asyncio
-async def test_full_resume_skips_completed_dirs(tmp_path):
- # 2.6.0 断点续传核心：第一次全量把「已完成的目录」写进本地 checkpoint；
- # 第二次全量把整棵已完成子树作为 skip_dirs 传给 walk，不再重复枚举；增量仍全枚举。
- engine=setup(tmp_path)
+async def test_completed_full_clears_checkpoint_and_next_full_walks_everything(tmp_path):
+ # 2.8.3：断点只用于续传「中断的」那一轮；完整跑完即清除。此前完整跑完会把
+ # 整棵树写进断点，下次全量几乎跳过全部目录，开了清理还会删掉它们的 STRM。
+ engine=setup(tmp_path,cleanup_missing=True)
  tree={'0':[{'id':'a','name':'甲','dir':True},{'id':'b','name':'乙','dir':True}],
        'a':[{'id':'1','name':'甲.mkv','dir':False}],
        'b':[{'id':'2','name':'乙.mkv','dir':False}]}
@@ -280,13 +280,14 @@ async def test_full_resume_skips_completed_dirs(tmp_path):
  result=await engine.run('full')
  assert result['written']==2,result
  assert sorted(enumerated)==['乙/乙.mkv','甲/甲.mkv'],enumerated
- done=await engine.load_checkpoint('checkpoint:'+scope_key(engine.cfg.parsed_mappings[0]))
- assert set(done)>={'0','a','b'},'整棵树完成都记入断点：'+repr(done)
+ key='checkpoint:'+scope_key(engine.cfg.parsed_mappings[0])
+ assert not await engine.load_checkpoint(key) and key not in engine.store.data,'完整跑完后断点应被清除'
+ assert not [k for k in engine.store.data if k.startswith(key+':n:')],'断点分片也应一并删除'
  enumerated.clear()
  result=await engine.run('full')
- assert result['written']==0 and result['seen']==0,'续传应零枚举、零写入：'+repr(result)
- assert not enumerated,'已完成目录的文件不得再次枚举：'+repr(enumerated)
- assert skip_log and 'a' in skip_log[-1] and 'b' in skip_log[-1],'skip_dirs 应包含已完成目录：'+repr(skip_log[-1])
+ assert sorted(enumerated)==['乙/乙.mkv','甲/甲.mkv'],'下次全量应完整枚举：'+repr(enumerated)
+ assert not skip_log[-1],'完整跑完后不得再跳过目录：'+repr(skip_log[-1])
+ assert result['deleted']==0 and len(list(tmp_path.rglob('*.strm')))==2,'STRM 不得被清理：'+repr(result)
  enumerated.clear()
  result=await engine.run('incremental')
  assert sorted(enumerated)==['乙/乙.mkv','甲/甲.mkv'],'增量应全枚举捕捉变化：'+repr(enumerated)
@@ -322,6 +323,36 @@ async def test_resume_after_failure_skips_completed_dirs(tmp_path):
  result=await engine.run('full')
  assert sorted(enumerated)==['乙/乙.mkv'],'续传应只枚举未完成目录：'+repr(enumerated)
  assert result['written']==1,'未完成目录应重建 STRM：'+repr(result)
+
+@pytest.mark.asyncio
+async def test_resumed_full_never_cleans_up_files_in_skipped_dirs(tmp_path):
+ # 2.8.3 纵深防御：续传跳过的目录里的文件本轮没被枚举，不在 current 里；
+ # 开着清理时它们的 STRM 不得被当成「网盘已删除」而删掉，同步记录也保留。
+ engine=setup(tmp_path)
+ tree={'0':[{'id':'b','name':'乙','dir':True},{'id':'a','name':'甲','dir':True}],
+       'a':[{'id':'1','name':'甲.mkv','dir':False}],
+       'b':[{'id':'2','name':'乙.mkv','dir':False}]}
+ fail_at=['b']
+ async def walk(cid,cancel,bad_sink=None,skip_dirs=None):
+  stack=[(str(cid),'',None)]
+  while stack:
+   cur,rel,parent=stack.pop()
+   if skip_dirs and cur in skip_dirs and cur!=str(cid):continue
+   if cur==fail_at[0]:raise DriveError('分页失败')
+   for r in tree[cur]:
+    full=rel+'/'+r['name'] if rel else r['name']
+    if r['dir']:stack.append((r['id'],full,cur))
+    else:yield {'id':r['id'],'name':r['name'],'is_dir':False,'size':100,'pickcode':'pc'+r['id'],'sha1':'h','mtime':'1','path':full,'parent_cid':cur}
+   yield {'__end_dir__':True,'cid':cur,'parent_cid':parent}
+ engine.drive.walk=walk
+ with pytest.raises(DriveError):await engine.run('full')
+ assert len(list(tmp_path.rglob('*.strm')))==1
+ engine.cfg.cleanup_missing=True;fail_at[0]=None
+ result=await engine.run('full')
+ assert result['deleted']==0,'续传跳过目录的 STRM 不得被清理：'+repr(result)
+ assert sorted(p.name for p in tmp_path.rglob('*.strm'))==['乙.strm','甲.strm']
+ result=await engine.run('full')
+ assert result['deleted']==0 and len(list(tmp_path.rglob('*.strm')))==2,'续传完成后的下一轮全量仍应保留全部 STRM'
 
 @pytest.mark.asyncio
 async def test_checkpoint_chunking_stays_under_64kb(tmp_path):

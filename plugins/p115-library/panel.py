@@ -397,18 +397,19 @@ let cronTimer;
 function previewCron(){clearTimeout(cronTimer);cronTimer=setTimeout(async()=>{let expr=document.querySelector('#f-sync_cron').value.trim();let list=document.querySelector('#cron-runs'),err=document.querySelector('#cron-error');err.textContent='';try{let d=await api('/sync/next-runs'+(expr?'?expr='+encodeURIComponent(expr):''));list.replaceChildren();for(let r of d.runs){let li=document.createElement('li');li.textContent=r;list.append(li)}}catch(e){list.replaceChildren();err.textContent=e.message}},400)}
 
 // ---------- sync status & actions ----------
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
 function renderSyncStatus(el,s){if(!el)return;let next=s.next_run_at?fmtTime(s.next_run_at):'—';
-let progress=s.state==='running'?`<div class="kv" style="color:var(--orange)">实时进度：已扫描 ${s.seen||0} · 写入 ${s.written||0} · 未变化 ${s.unchanged||0}${s.skipped?` · 跳过 ${s.skipped}`:''}${s.running_for?` · 已运行 ${s.running_for}s`:''}（每 5 秒自动刷新）</div>`:'';
+let progress=s.state==='running'?`<div class="kv" style="color:var(--orange)">实时进度：已扫描 ${esc(s.seen||0)} · 写入 ${esc(s.written||0)} · 未变化 ${esc(s.unchanged||0)}${s.skipped?` · 跳过 ${esc(s.skipped)}`:''}${s.running_for?` · 已运行 ${esc(s.running_for)}s`:''}（每 5 秒自动刷新）</div>`:'';
 // 2.4.0：撞上 115 限速时同步并没有失败，只是在等冷却——没有这行就只看见计
 // 数器不动，看上去像卡死（此前多次被当成故障）。
-let cooling=s.state==='running'&&s.throttle_wait>0?`<div class="kv" style="color:var(--orange)">⏸ 115 限速冷却中：${s.throttle_wait}s 后自动继续扫描并继续生成 STRM${s.throttle_count?`（本次第 ${s.throttle_count}/${s.throttle_limit||'?'} 次等待）`:''}${s.throttle_reason?`<div style="opacity:.8;font-size:12px">${s.throttle_reason}</div>`:''}已生成的 STRM 不受影响，无需从头重来。</div>`:'';
+let cooling=s.state==='running'&&s.throttle_wait>0?`<div class="kv" style="color:var(--orange)">⏸ 115 限速冷却中：${esc(s.throttle_wait)}s 后自动继续扫描并继续生成 STRM${s.throttle_count?`（本次第 ${esc(s.throttle_count)}/${esc(s.throttle_limit||'?')} 次等待）`:''}${s.throttle_reason?`<div style="opacity:.8;font-size:12px">${esc(s.throttle_reason)}</div>`:''}已生成的 STRM 不受影响，无需从头重来。</div>`:'';
 // 写入数长时间不涨通常是在校验已存在的 STRM（内容一致就不需要重写），而不是卡住。
 let verifying=s.state==='running'&&!s.throttle_wait&&(s.seen||0)>0&&!(s.written||0)&&(s.unchanged||0)>0?`<div class="kv" style="opacity:.8;font-size:12px">正在边扫描边核对：当前文件已存在且内容一致，计入「未变化」而不重复写入；遇到新文件或有变化的文件会立即生成。</div>`:'';
-el.innerHTML=`<div class="kv"><b>状态：</b>${stateNames[s.state]||s.state||'—'}${s.mode?`（${s.mode==='full'?'全量':'增量'}）`:''}${s.mapping_count>1?` · ${s.mapping_count} 个映射`:''}</div>`+progress+cooling+verifying+
-`<div class="kv"><b>上次同步：</b>${fmtTime(s.synced_at)} · 写入 ${s.written||0} · 未变化 ${s.unchanged||0} · 附属 ${s.sidecars||0} · 清理 ${s.deleted||0}${s.skipped?` · 跳过 ${s.skipped}`:''}</div>`+
-`<div class="kv"><b>下次计划：</b>${next} · cron：${s.cron||'—'}</div>`+
-`<div class="kv"><b>断点记录：</b>${s.checkpoint_dirs?`已记录 ${s.checkpoint_dirs} 个目录，下次「全量同步」将跳过它们；点「🗑️ 清理断点」可重新完整扫描`:`暂无——第一次全量同步完整跑完后才会积累`}</div>`+
-(s.error?`<div class="kv" style="color:var(--red)">${s.error}</div>`:'')+(s.life_error?`<div class="kv" style="color:var(--orange)">${s.life_error}</div>`:'')+(s.scan_notice?`<div class="kv" style="color:var(--orange)">${s.scan_notice}</div>`:'')+(s.skipped?`<div class="kv" style="color:var(--orange)">上次同步跳过 ${s.skipped} 个网盘异常条目（未生成 STRM），原因见「运行日志」</div>`:'')}
+el.innerHTML=`<div class="kv"><b>状态：</b>${esc(stateNames[s.state]||s.state||'—')}${s.mode?`（${s.mode==='full'?'全量':'增量'}）`:''}${s.mapping_count>1?` · ${esc(s.mapping_count)} 个映射`:''}</div>`+progress+cooling+verifying+
+`<div class="kv"><b>上次同步：</b>${esc(fmtTime(s.synced_at))} · 写入 ${esc(s.written||0)} · 未变化 ${esc(s.unchanged||0)} · 附属 ${esc(s.sidecars||0)} · 清理 ${esc(s.deleted||0)}${s.skipped?` · 跳过 ${esc(s.skipped)}`:''}</div>`+
+`<div class="kv"><b>下次计划：</b>${esc(next)} · cron：${esc(s.cron||'—')}</div>`+
+`<div class="kv"><b>断点记录：</b>${s.checkpoint_dirs?`已记录 ${esc(s.checkpoint_dirs)} 个目录（上次全量同步未跑完），下次「全量同步」将跳过它们；点「🗑️ 清理断点」可重新完整扫描`:`暂无——仅在全量同步中途停止/中断时记录，完整跑完后自动清除`}</div>`+
+(s.error?`<div class="kv" style="color:var(--red)">${esc(s.error)}</div>`:'')+(s.life_error?`<div class="kv" style="color:var(--orange)">${esc(s.life_error)}</div>`:'')+(s.scan_notice?`<div class="kv" style="color:var(--orange)">${esc(s.scan_notice)}</div>`:'')+(s.skipped?`<div class="kv" style="color:var(--orange)">上次同步跳过 ${esc(s.skipped)} 个网盘异常条目（未生成 STRM），原因见「运行日志」</div>`:'')}
 async function refreshSync(){try{let s=await api('/strm/status');renderSyncStatus(document.querySelector('#full-status'),s);renderSyncStatus(document.querySelector('#incr-status'),s);syncRunning=s.state==='running';applyGates()}catch(e){}}
 async function startSync(mode){try{await api('/strm/'+mode,{method:'POST'});toast(mode==='full'?'全量同步已开始':'增量同步已开始','ok');setTimeout(refreshSync,800)}catch(e){}}
 async function stopSync(){try{let d=await api('/strm/stop',{method:'POST'});toast(d.message||(d.ok?'同步已停止':'当前没有正在进行的同步'),d.ok?'ok':'err');setTimeout(refreshSync,800)}catch(e){toast('停止失败：'+(e.message||e),'err')}}

@@ -155,3 +155,17 @@ def test_usage_guide_page_in_console():
     assert '新建媒体库' in page and '媒体库目录' in page and '写入被拒绝' in page and '手动扫描' in page
     assert "go('guide')" in html[html.index('id="page-full"'):],'全量同步页的提示应能跳到使用说明'
     assert "if(!BOOT_HASH&&!v.cloud_cid&&!v.mappings)go('guide')" in html,'未配置时首次打开直接显示使用说明'
+
+
+def test_sync_status_escapes_server_strings(split):
+    """2.8.3: renderSyncStatus writes innerHTML; every server/115-derived
+    string (error text, throttle reason, cron, state...) must go through esc()
+    so a crafted file name or error message cannot inject markup."""
+    js,_=split
+    m=re.search(r"function esc\(v\)\{(.+?)\}\n",js)
+    assert m and all(c in m.group(1) for c in ('&amp;','&lt;','&gt;','&quot;','&#39;')),'缺少 HTML 转义函数 esc()'
+    body=re.search(r'function renderSyncStatus\(el,s\)\{(.+?)\nasync function refreshSync',js,re.S).group(1)
+    for field in ('error','life_error','scan_notice','throttle_reason','cron','state','checkpoint_dirs','throttle_limit'):
+        assert 'esc(s.'+field in body or 'esc(stateNames[s.state]||s.state' in body and field=='state','%s 未转义'%field
+    raw=[x for x in re.findall(r'\$\{([^}`]*)\}',body) if not x.startswith('esc(') and x!="s.mode==='full'?'全量':'增量'"]
+    assert not raw,'状态区存在未转义的插值: %r'%raw

@@ -39,8 +39,9 @@ class ThrottleError(DriveError):
 # honest reaction is to wait, not to abort.
 RETRYABLE_ERRNO={590075,990003,990005}
 # HTTP statuses that mean "try again later" (429/408 are explicit; the 5xx
-# set is what 115's CDN/edge actually serves while shedding load).
-RETRYABLE_STATUS={408,429,500,502,503,504}
+# set is what 115's CDN/edge actually serves while shedding load; 2.8.3: 405
+# is how 115 answers risk control).
+RETRYABLE_STATUS={405,408,429,500,502,503,504}
 COOLDOWN_CAP=600.
 
 
@@ -411,6 +412,7 @@ class Drive:
                 base=base+'/'+name if base else name;rel[nid]=base
             return rel[cid]
         async def resolve(cid):
+            nonlocal inexact
             if cid in rel:return rel[cid]
             if cid in broken:return None
             if chain(cid) is not None:return rel[cid]
@@ -428,9 +430,11 @@ class Drive:
                         base=base+'/'+name if base else name;rel[c['cid']]=base
             except DriveError as e:
                 # Credential trouble / exhausted throttle retries are fatal;
-                # anything else means this one directory vanished mid-scan.
+                # anything else is an unanswered lookup, not proof the directory
+                # is gone: skip its files and flag the run inexact (2.8.3) so
+                # their STRMs are never cleaned up because of it.
                 if '990001' in str(e) or '已等待重试' in str(e) or 'Cookie' in str(e):raise
-                reason='所在目录已不存在（扫描期间被移动或删除）'
+                reason='所在目录查询失败（%s），本次跳过、不做清理'%str(e)[:80];inexact=True
             if cid not in rel:broken[cid]=reason;return None
             return rel[cid]
         while True:
