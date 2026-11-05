@@ -572,7 +572,8 @@
 
       // 只放真正要处理的提醒
       const alerts = [];
-      if (!libs.length) alerts.push(alertBox("还没选目标媒体库", "不会处理任何片子。", true, "settings"));
+      if (s.library_source === "none") alerts.push(alertBox("还没选媒体库", "插件不会处理任何片子：到「设置」的「目标媒体库」里勾选要补头像的库并保存。", true, "settings"));
+      else if (!libs.length) alerts.push(alertBox("还没选目标媒体库", "不会处理任何片子。", true, "settings"));
       const host = r.host_display || {};
       const hidden = Number(host.not_shown || 0), shown = Number(host.shown || 0);
       if (host.state ? host.state === "hidden" : (hidden > 0 && shown === 0)) {
@@ -599,7 +600,9 @@
         if (last.search) parts.push(searchSummary(last.search));
         $("ov-last").textContent = parts.join("；") + (last.notes && last.notes.length ? `。${last.notes.join("；")}` : "");
       } else {
-        $("ov-last").textContent = "还没有运行过。点「立即预览」看看会补哪些头像。";
+        $("ov-last").textContent = s.library_source === "none"
+          ? "还没有运行过。先到「设置」里勾选目标媒体库，再点「立即预览」。"
+          : "还没有运行过。点「立即预览」看看会补哪些头像。";
       }
       $("ov-runs-box").hidden = runs.length < 2;
       $("ov-runs").replaceChildren(runsTable(runs.slice(0, 5)));
@@ -1050,7 +1053,6 @@
     }
     function libsDirty() {
       if (!S.libs) return false;
-      if (S.libs.source === "default") return Boolean(S.libsTouched);
       const before = (S.libs.items || []).filter((l) => l.selected).map((l) => l.id).sort((a, b) => a - b);
       const now = (S.libsSel ? [...S.libsSel] : before).sort((a, b) => a - b);
       return !same(before, now);
@@ -1212,7 +1214,7 @@
       }
       box.append(help, libs);
       const notes = [...((S.libs && S.libs.notes) || [])];
-      if (S.libs && S.libs.source === "default") notes.unshift("还没勾选过：暂按库名「小姐姐」处理，保存一次即可固定下来。");
+      if (S.libs && S.libs.source === "none") notes.unshift("还没选媒体库：勾选要补头像的库并保存，插件才会开始处理。");
       if (notes.length) box.appendChild(node("div", notes.join("；"), "hint warn"));
       return box;
     }
