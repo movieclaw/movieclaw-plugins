@@ -1,7 +1,7 @@
 [plugin]
 id = "playback-cleanup"
 title = "续播进度清理"
-version = "0.1.0"
+version = "0.1.1"
 entry = "playback_cleanup"
 runtime = "process"
 sdk = "^1.0"

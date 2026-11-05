@@ -39,6 +39,10 @@ HISTORY_LIMIT = 120  # 插件数据单值上限 64KB
 RECENT_LIMIT = 60
 RUN_ITEMS_LIMIT = 40
 CATALOG_PAGE = 100
+#: 宿主 catalog 默认只给 movie / tv；「其他」库的 video 须显式要。旧宿主（0.46.0）的操作目录里
+#: 没有 ``kinds``，带上会在发请求前就报 INVALID_ARGUMENTS——那时退回不带，只看影视。
+CATALOG_KINDS = ["movie", "tv", "video"]
+SYNC_KINDS = ("movie", "tv", "video")
 ITEMS_PAGE = 200
 STATE_BATCH = 100  # sync.state 单次最多 100 条
 ITEMS_TTL = 600.0  # 库内条目缓存 10 分钟
@@ -133,10 +137,14 @@ def build_change(row: dict, position_ms: int, expected: str | None) -> dict[str,
 
 
 def has_identity(row: dict) -> bool:
+    """能写回的单元：有条目 id、类型是 movie / tv / video。
+
+    不要求 TMDB / IMDb：宿主对两个外部编号都没有的本地条目只凭 media_item_id + kind 定位
+    （请求也不带编号）；有编号的条目由 ``build_change`` 带上吻合的编号。旧宿主对无编号条目
+    会回 ``mismatch``，照实显示。
+    """
     media = row.get("media") or {}
-    return media.get("kind") in ("movie", "tv") and bool(
-        media.get("tmdb_id") or media.get("imdb_id")
-    )
+    return media.get("id") is not None and media.get("kind") in SYNC_KINDS
 
 
 def label(row: dict) -> str:
@@ -169,6 +177,7 @@ class Runtime:
         self._store_lock = asyncio.Lock()
         self._sweep: asyncio.Task | None = None
         self._sweep_info: dict[str, Any] | None = None
+        self._kinds_ok = True  # 宿主 catalog 认不认 kinds；第一次被拒后不再带
 
     # ------------------------------------------------------------------ 设置与选择
     async def settings(self) -> Settings:
@@ -205,10 +214,10 @@ class Runtime:
 
     @staticmethod
     def eligible(row: dict) -> tuple[bool, str | None]:
-        """宿主的观看同步只覆盖电影 / 剧集条目（且要有 TMDB / IMDb 编号）。"""
-        if row.get("kind") in ("movie", "tv"):
+        """宿主的观看同步覆盖电影 / 剧集 / 「其他」视频条目。"""
+        if row.get("kind") in SYNC_KINDS:
             return True, None
-        return False, "宿主观看同步只覆盖电影 / 剧集；这个库里大概率没有能清的续播进度"
+        return False, "宿主观看同步只覆盖电影 / 剧集 / 视频；这个库里大概率没有能清的续播进度"
 
     async def choices(self) -> dict[str, Any]:
         settings = await self.settings()
@@ -307,7 +316,7 @@ class Runtime:
             params: dict[str, Any] = {"member_id": member_id, "limit": CATALOG_PAGE}
             if cursor:
                 params["cursor"] = cursor
-            page = await self.ops.call("playback.sync.catalog", params)
+            page = await self._catalog_page(params)
             for row in (page or {}).get("items") or []:
                 if isinstance(row, dict):
                     yield row
@@ -315,16 +324,29 @@ class Runtime:
             if not cursor:
                 return
 
+    async def _catalog_page(self, params: dict[str, Any]) -> Any:
+        """读一页 catalog，带上 ``kinds``（含 video）；旧宿主不认这个参数时退回不带。"""
+        if self._kinds_ok:
+            try:
+                return await self.ops.call(
+                    "playback.sync.catalog", {**params, "kinds": list(CATALOG_KINDS)}
+                )
+            except OpsError as exc:
+                if exc.code != "INVALID_ARGUMENTS" or "kinds" not in str(exc.message):
+                    raise
+                self._kinds_ok = False
+                self.logger.info("playback-cleanup：宿主 catalog 不支持 kinds，只看电影 / 剧集")
+        return await self.ops.call("playback.sync.catalog", params)
+
     async def lookup(self, unit: Unit) -> dict | None:
         """直接定位一个单元的当前状态：游标跳到它前面，读一小页。"""
         member_id, media_item_id, season, episode = unit
-        page = await self.ops.call(
-            "playback.sync.catalog",
+        page = await self._catalog_page(
             {
                 "member_id": member_id,
                 "cursor": seek_cursor(media_item_id, season, episode),
                 "limit": 5,
-            },
+            }
         )
         for row in (page or {}).get("items") or []:
             if isinstance(row, dict) and catalog_unit(member_id, row) == unit:
@@ -456,7 +478,7 @@ class Runtime:
             return "ignored"
         if int(member_id) not in settings.member_ids:
             return "other_member"
-        if getattr(media, "kind", None) not in ("movie", "tv"):
+        if getattr(media, "kind", None) not in SYNC_KINDS:
             return "other_kind"
         try:
             if not await self.in_library(settings.library_id, int(media.id)):
@@ -464,7 +486,8 @@ class Runtime:
         except SkipItem as exc:
             self.logger.warning("playback-cleanup：%s", exc)
             return "failed"
-        unit_ref = getattr(payload, "unit", None)
+        # 电影 / 视频只有一个 0/0 单元，只有剧集看事件里的季集号
+        unit_ref = getattr(payload, "unit", None) if media.kind == "tv" else None
         season = int(getattr(unit_ref, "season", 0) or 0) if unit_ref else 0
         episode = int(getattr(unit_ref, "episode", 0) or 0) if unit_ref else 0
         unit: Unit = (int(member_id), int(media.id), season, episode)

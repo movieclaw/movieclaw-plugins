@@ -159,13 +159,105 @@ async def test_schedule_noop_when_sweep_off_or_disabled(runtime, host, store):
     assert (await runtime.sweep(reason="manual", dry_run=False))["counts"]["cleared"] == 2
 
 
-async def test_items_without_identity_are_skipped(runtime, host, store):
-    host.add_media(10, 1, tmdb_id=None)
+async def test_local_movie_without_external_ids_is_cleared(runtime, host, store):
+    host.add_media(10, 1, tmdb_id=None, title="本地电影")
     host.progress(0, 10, pos=5000)
     await configure(store)
     result = await runtime.sweep(reason="manual", dry_run=False)
-    assert result["items"][0]["status"] == "no_identity"
-    assert host.state_calls() == []
+    assert result["items"][0]["status"] == "cleared"
+    assert host.states[(0, 10, 0, 0)]["position_ms"] == 0
+    (call,) = host.state_calls()
+    change = call["changes"][0]
+    assert change["kind"] == "movie" and "tmdb_id" not in change and "imdb_id" not in change
+    # 撤销同样不带编号
+    entry = store.data[HISTORY_KEY][0]
+    assert entry["tmdb_id"] is None
+    done = await runtime.undo(entry["id"])
+    assert done["undo_status"] == "applied"
+    assert host.states[(0, 10, 0, 0)]["position_ms"] == 5000
+
+
+async def test_local_video_without_ids_is_cleared(runtime, host, store):
+    host.add_media(40, 3, kind="video", title="家庭录像")
+    host.progress(0, 40, pos=90_000)
+    await configure(store, library_id=3)
+    # 不带 kinds 的 catalog（旧宿主 / 默认）不含 video；插件总是带上
+    assert host.op_playback_sync_catalog({"member_id": 0})["items"] == []
+    result = await runtime.sweep(reason="manual", dry_run=False)
+    assert result["counts"]["cleared"] == 1
+    assert result["items"][0]["title"] == "家庭录像"
+    assert host.states[(0, 40, 0, 0)]["position_ms"] == 0
+    catalogs = [p for n, p in host.calls if n == "playback.sync.catalog"]
+    assert catalogs and all(p["kinds"] == ["movie", "tv", "video"] for p in catalogs)
+    change = host.state_calls()[0]["changes"][0]
+    assert change["kind"] == "video" and "season" not in change and "tmdb_id" not in change
+
+
+async def test_old_host_without_kinds_falls_back(runtime, host, store):
+    host.old_host = True
+    host.add_media(10, 1)
+    host.add_media(40, 1, kind="video")
+    host.progress(0, 10, pos=5000)
+    host.progress(0, 40, pos=5000)
+    await configure(store)
+    result = await runtime.sweep(reason="manual", dry_run=False)
+    assert [i["media_item_id"] for i in result["items"]] == [10]
+    assert result["counts"]["cleared"] == 1 and result["status"] == "ok"
+    catalogs = [p for n, p in host.calls if n == "playback.sync.catalog"]
+    assert "kinds" in catalogs[0] and all("kinds" not in p for p in catalogs[1:])
+    # 记住了：之后的 lookup 不再先试 kinds
+    n = len(host.calls)
+    assert (await runtime.lookup((0, 10, 0, 0)))["position_ms"] == 0
+    assert len(host.calls) == n + 1 and "kinds" not in host.calls[-1][1]
+
+
+async def test_old_host_local_null_write_is_mismatch(runtime, host, store):
+    """旧宿主对无编号条目的写回回 mismatch：照实显示，不当成清掉了。"""
+    host.add_media(10, 1, tmdb_id=None)
+    host.progress(0, 10, pos=5000)
+    # 0.46.0 的 same_identity：必须声明吻合的 TMDB / IMDb 编号
+    host.same_identity = lambda media, c: bool(
+        media and media["kind"] == c["kind"] and (
+            (c.get("tmdb_id") and c["tmdb_id"] == media.get("tmdb_id"))
+            or (c.get("imdb_id") and c["imdb_id"] == media.get("imdb_id"))
+        )
+    )
+    await configure(store)
+    result = await runtime.sweep(reason="manual", dry_run=False)
+    assert result["items"][0]["status"] == "mismatch"
+    assert result["counts"]["skipped"] == 1 and HISTORY_KEY not in store.data
+
+
+async def test_item_with_tmdb_still_sends_it(runtime, host, store):
+    host.add_media(10, 1)
+    host.progress(0, 10, pos=5000)
+    await configure(store)
+    result = await runtime.sweep(reason="manual", dry_run=False)
+    assert result["items"][0]["status"] == "cleared"
+    assert host.state_calls()[0]["changes"][0]["tmdb_id"] == 1010
+
+
+async def test_forged_tmdb_on_local_item_is_mismatch(runtime, host, store):
+    host.add_media(10, 1, tmdb_id=None)
+    host.progress(0, 10, pos=5000)
+    await configure(store)
+    row = await runtime.lookup((0, 10, 0, 0))
+    row["media"]["tmdb_id"] = 999  # 过期映射 / 伪造的编号
+    (result,) = await runtime.clear(0, [row], source="manual")
+    assert result["status"] == "mismatch"
+    assert host.states[(0, 10, 0, 0)]["position_ms"] == 5000
+
+
+async def test_item_with_tmdb_requires_it(host):
+    host.add_media(10, 1)
+    host.progress(0, 10, pos=5000)
+    st = host.states[(0, 10, 0, 0)]
+    expected = st["updated_at"] + "+00:00"
+    out = host.op_playback_sync_state(
+        {"member_id": 0, "changes": [{"media_item_id": 10, "kind": "movie",
+                                      "expected_updated_at": expected, "position_ms": 0}]}
+    )
+    assert out["outcomes"][0]["status"] == "mismatch"
 
 
 async def test_multiple_members(runtime, host, store):
@@ -198,6 +290,17 @@ async def test_event_ignores_other_library_and_member(runtime, host, store):
     assert await runtime.on_playback(event(7, 10)) == "other_member"
     await runtime.drain()
     assert host.state_calls() == []
+
+
+async def test_event_schedules_for_video(runtime, host, store):
+    host.add_media(40, 3, kind="video")
+    host.progress(0, 40, pos=90_000)
+    await configure(store, library_id=3)
+    assert await runtime.on_playback(event(0, 40, "video")) == "scheduled"
+    await runtime.drain()
+    assert host.states[(0, 40, 0, 0)]["position_ms"] == 0
+    assert store.data[RECENT_KEY][0]["status"] == "cleared"
+    assert await runtime.on_playback(event(0, 40, "music")) == "other_kind"
 
 
 async def test_event_clears_after_delay(runtime, host, store):
@@ -371,7 +474,10 @@ async def test_save_settings_validates(runtime, host, store):
     assert [m["id"] for m in choices["members"]] == [0, 7]
     assert choices["members"][0]["name"] == "超管"
     video = next(lib for lib in choices["libraries"] if lib["kind"] == "video")
-    assert not video["eligible"] and video["reason"]
+    assert video["eligible"] and video["reason"] is None
+    host.libraries.append({"id": 4, "name": "音乐", "kind": "music", "source": "local"})
+    music = next(lib for lib in (await runtime.choices())["libraries"] if lib["kind"] == "music")
+    assert not music["eligible"] and music["reason"]
     with pytest.raises(SkipItem):
         await runtime.save_settings({"library_id": 99})
     with pytest.raises(SkipItem):
