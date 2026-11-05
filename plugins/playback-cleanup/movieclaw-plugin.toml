@@ -1,0 +1,26 @@
+[plugin]
+id = "playback-cleanup"
+title = "续播进度清理"
+version = "0.1.0"
+entry = "playback_cleanup"
+runtime = "process"
+sdk = "^1.0"
+description = "选中的成员在选中的媒体库里播放结束后，延迟几十秒自动清掉续播进度（只清 position_ms，不动已看 / 收藏 / 播放次数）；可选每小时兜底扫描，默认只预览，可撤销。"
+
+[requires]
+"scheduled-tasks" = "^1.0"
+"plugin-data" = "^1.0"
+"plugin-routes" = "^1.0"
+"kernel/durable-events" = "^1.0"
+"playback.stopped" = "^1.1"
+"playback.completed" = "^1.1"
+
+[permissions]
+operations = [
+  "members.list",
+  "library.list",
+  "library.items.list",
+  "playback.sync.catalog",
+  "playback.sync.state",
+]
+events = ["playback.stopped", "playback.completed"]

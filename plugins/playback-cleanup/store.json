@@ -1,0 +1,9 @@
+{
+  "author": "Migflyway",
+  "author_url": "https://github.com/Migflyway",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "播放结束后自动清掉选定库、选定成员的续播进度：只清续播位置，不动已看与收藏；默认只预览，可撤销。",
+  "category": "library",
+  "icon": "icon.svg"
+}

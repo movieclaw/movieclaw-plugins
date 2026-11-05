@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta name="color-scheme" content="dark">
+  <title>续播进度清理</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    :root {
+      color-scheme: dark;
+      --text: var(--mc-text, #eceef1);
+      --muted: var(--mc-text-muted, #9aa3ad);
+      --line: var(--mc-line, #30343a);
+      --accent: var(--mc-accent, #8d51f9);
+      --ok: var(--mc-ok, #3ccf91);
+      --warn: var(--mc-warn, #e7b44a);
+      --bad: var(--mc-danger, #ef6b6b);
+      --card: color-mix(in srgb, var(--mc-bg, #111) 35%, transparent);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 28px 80px; font-family: var(--mc-font, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif); color: var(--text); background: transparent; font-size: 14px; line-height: 1.5; }
+    .wrap { max-width: 1040px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    h1 { font-size: 20px; margin: 0; font-weight: 650; }
+    h2 { font-size: 15px; margin: 0 0 4px; font-weight: 600; }
+    a { color: var(--accent); }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+    .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+
+    nav.tabs { display: flex; gap: 4px; margin: 18px 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+    nav.tabs::-webkit-scrollbar { display: none; }
+    nav.tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--muted); white-space: nowrap; font-size: 14px; }
+    nav.tabs button:hover { color: var(--text); border-color: transparent; }
+    nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+    .count { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 4px; border-radius: 999px; font-size: 11px; line-height: 18px; text-align: center; background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--text); }
+    .count:empty { display: none; }
+
+    .card { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; background: var(--card); }
+    .stack > * + * { margin-top: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .stat .num { font-size: 24px; font-weight: 650; margin-top: 2px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .between { justify-content: space-between; }
+    button { appearance: none; border: 1px solid var(--line); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); padding: 8px 14px; border-radius: 10px; font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    button:hover { border-color: var(--accent); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.plain { background: transparent; }
+    button.danger { color: var(--bad); background: transparent; }
+    button.mini { padding: 4px 9px; font-size: 12px; border-radius: 8px; }
+
+    .alert { border: 1px solid var(--warn); border-radius: 12px; padding: 10px 14px; font-size: 13px; background: color-mix(in srgb, var(--warn) 8%, transparent); }
+    .alert.bad { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
+    .alert.info { border-color: var(--line); background: transparent; }
+    .alert b { display: block; margin-bottom: 2px; }
+    .hint { font-size: 12px; color: var(--muted); }
+    .hint.warn { color: var(--warn); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    .status { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+    .status.cleared, .status.applied, .status.ok { color: var(--ok); }
+    .status.preview, .status.partial { color: var(--warn); }
+    .status.conflict, .status.failed { color: var(--bad); }
+    .status.undone { color: var(--accent); }
+    .status.skip { color: var(--muted); }
+    .scroll { overflow-x: auto; }
+    .empty { color: var(--muted); padding: 18px 4px; text-align: center; }
+
+    .field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .field:last-child { border-bottom: 0; }
+    .field .ctl { justify-self: end; }
+    .field label.name { font-weight: 600; }
+    select, input[type="number"] { appearance: none; background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; font: inherit; font-size: 13px; min-width: 220px; }
+    input[type="number"] { min-width: 100px; width: 110px; }
+    select option { background: #1b1d21; color: #eceef1; }
+    .switch { position: relative; width: 40px; height: 22px; flex: none; }
+    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: background .15s; cursor: pointer; }
+    .switch span::after { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform .15s; }
+    .switch input:checked + span { background: var(--accent); }
+    .switch input:checked + span::after { transform: translateX(18px); }
+    .members { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1 / -1; }
+    .members label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; font-size: 13px; }
+    .members label.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+    .members input { accent-color: var(--accent); }
+
+    .savebar { position: sticky; bottom: 12px; margin-top: 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--mc-bg, #111) 88%, transparent); backdrop-filter: blur(8px); }
+    .savebar[hidden] { display: none; }
+
+    #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: min(560px, 92vw); padding: 10px 16px; border-radius: 12px; font-size: 13px; background: color-mix(in srgb, var(--mc-bg, #111) 92%, transparent); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.35); z-index: 10; }
+    #toast.bad { border-color: var(--bad); }
+    #toast.lift { bottom: 96px; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 720px) {
+      body { padding: 14px 14px 80px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .field { grid-template-columns: minmax(0, 1fr); }
+      .field .ctl { justify-self: start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>续播进度清理</h1>
+        <div class="muted small">播放结束后自动清掉选定成员在选定媒体库里的续播进度。只清续播位置，不动已看、收藏和播放次数。</div>
+      </div>
+      <span class="badge" id="state-badge"><span class="dot" id="state-dot"></span><span id="state-text">加载中…</span></span>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="overview" aria-selected="true">概览</button>
+      <button type="button" role="tab" data-tab="settings" aria-selected="false">设置</button>
+      <button type="button" role="tab" data-tab="history" aria-selected="false">清理记录<span class="count" id="history-count"></span></button>
+    </nav>
+
+    <!-- 概览 -->
+    <section id="tab-overview" class="stack">
+      <div id="alerts" class="stack"></div>
+      <div class="grid">
+        <div class="card stat"><div class="muted small">上次清掉</div><div class="num" id="n-cleared">–</div></div>
+        <div class="card stat"><div class="muted small">上次预览到</div><div class="num" id="n-previewed">–</div></div>
+        <div class="card stat"><div class="muted small">冲突</div><div class="num" id="n-conflicts">–</div></div>
+        <div class="card stat"><div class="muted small">跳过</div><div class="num" id="n-skipped">–</div></div>
+      </div>
+      <div class="card">
+        <div class="row between">
+          <div>
+            <h2>手动运行</h2>
+            <div class="hint" id="run-hint">扫一遍选中的媒体库，找出选中成员还留着的续播进度。</div>
+          </div>
+          <div class="row">
+            <button type="button" id="btn-preview">立即预览</button>
+            <button type="button" class="primary" id="btn-run">立即清理一次</button>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px">「立即预览」只列出来、不写入；「立即清理一次」确认后真的清，不受「只预览」开关影响。</div>
+      </div>
+      <div class="card">
+        <div class="row between"><h2>上次扫描</h2><span class="hint" id="last-meta"></span></div>
+        <div class="scroll"><table>
+          <thead><tr><th>标题</th><th>成员</th><th>续播位置</th><th>结果</th></tr></thead>
+          <tbody id="last-items"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="row between"><h2>播放结束后的自动处理</h2><span class="hint" id="pending-meta"></span></div>
+        <div class="scroll"><table>
+          <thead><tr><th>时间</th><th>标题</th><th>成员</th><th>续播位置</th><th>结果</th></tr></thead>
+          <tbody id="recent-items"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section id="tab-settings" class="stack" hidden>
+      <div id="settings-notes" class="stack"></div>
+      <div class="card">
+        <div class="field">
+          <div>
+            <label class="name" for="f-library">目标媒体库</label>
+            <div class="hint">只处理这个库里的电影 / 剧集。不选时插件什么都不做。</div>
+            <div class="hint warn" id="library-warn" hidden></div>
+          </div>
+          <div class="ctl"><select id="f-library"></select></div>
+        </div>
+        <div class="field">
+          <div>
+            <span class="name" style="font-weight:600">成员</span>
+            <div class="hint">只清勾选成员的续播进度。超管的成员 id 是 0。不勾任何人时插件什么都不做。</div>
+          </div>
+          <div class="members" id="f-members"></div>
+        </div>
+        <div class="field">
+          <div>
+            <label class="name" for="f-delay">播放结束后延迟秒数</label>
+            <div class="hint">停止 / 看完后等多少秒再清（5–300），躲开客户端最后一次进度上报。默认 45。</div>
+          </div>
+          <div class="ctl"><input type="number" id="f-delay" min="5" max="300" step="1"></div>
+        </div>
+        <div class="field">
+          <div>
+            <label class="name" for="f-sweep">兜底扫描</label>
+            <div class="hint">每小时扫一遍选中的库，清掉残留的续播进度（比如插件当时没收到事件）。关掉则只靠播放事件。</div>
+          </div>
+          <label class="switch ctl"><input type="checkbox" id="f-sweep"><span></span></label>
+        </div>
+        <div class="field">
+          <div>
+            <label class="name" for="f-enabled">启用</label>
+            <div class="hint">关掉后播放事件和兜底扫描都不做事；手动预览 / 清理仍可用。</div>
+          </div>
+          <label class="switch ctl"><input type="checkbox" id="f-enabled"><span></span></label>
+        </div>
+        <div class="field">
+          <div>
+            <label class="name" for="f-dry">只预览（自动处理）</label>
+            <div class="hint">默认打开：播放结束后的清理和兜底扫描只记录会清什么，不真的写。确认结果没问题再关掉。</div>
+          </div>
+          <label class="switch ctl"><input type="checkbox" id="f-dry"><span></span></label>
+        </div>
+      </div>
+      <div class="savebar" id="savebar" hidden>
+        <span id="savebar-text">有改动未保存</span>
+        <div class="row">
+          <button type="button" class="plain" id="btn-reset">放弃</button>
+          <button type="button" class="primary" id="btn-save">保存</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 清理记录 -->
+    <section id="tab-history" class="stack" hidden>
+      <div class="alert info">撤销会把续播进度写回清理前的位置。之后又播过（状态变了）就撤销不了，会显示冲突。</div>
+      <div class="card">
+        <div class="scroll"><table>
+          <thead><tr><th>时间</th><th>标题</th><th>成员</th><th>清理前位置</th><th>来源</th><th>状态</th><th></th></tr></thead>
+          <tbody id="history-items"></tbody>
+        </table></div>
+      </div>
+    </section>
+  </div>
+  <div id="toast" hidden></div>
+
+  <script>
+    const BASE = "/api/v1/plugins/playback-cleanup";
+    const TABS = ["overview", "settings", "history"];
+    const STATUS_LABEL = {
+      cleared: "已清理", preview: "预览", conflict: "冲突", failed: "失败", unchanged: "无变化",
+      not_found: "找不到", mismatch: "身份不符", no_identity: "无 TMDB/IMDb", already_zero: "已是 0",
+      applied: "已撤销", ok: "完成", partial: "部分完成",
+    };
+    const SOURCE_LABEL = { event: "播放结束", schedule: "兜底扫描", manual: "手动清理", preview: "手动预览" };
+    const STATE_TEXT = {
+      no_selection: ["还没选媒体库", "warn"], no_members: ["还没选成员", "warn"],
+      disabled: ["已停用", "warn"], ready: ["运行中", ""],
+    };
+    const $ = (id) => document.getElementById(id);
+    const state = { tab: "overview", report: null, choices: null, form: null, saved: null, members: {}, poll: null };
+
+    // 动态内容只经 textContent / setAttribute 写入，不拼 HTML
+    function node(tag, text, cls) {
+      const el = document.createElement(tag);
+      if (text != null) el.textContent = String(text);
+      if (cls) el.className = cls;
+      return el;
+    }
+    function button(text, cls, onClick) {
+      const b = node("button", text, cls);
+      b.type = "button";
+      if (onClick) b.addEventListener("click", onClick);
+      return b;
+    }
+    function when(value) {
+      if (!value) return "–";
+      const d = new Date(value);
+      return isNaN(d) ? "–" : d.toLocaleString("zh-CN", { hour12: false });
+    }
+    function position(ms) {
+      const s = Math.floor((Number(ms) || 0) / 1000);
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+      const pad = (n) => String(n).padStart(2, "0");
+      return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`;
+    }
+    function memberName(id) {
+      return state.members[id] || (Number(id) === 0 ? "超管" : `成员 ${id}`);
+    }
+    function statusNode(status, override) {
+      const span = node("span", override || STATUS_LABEL[status] || status || "其他", "status");
+      const cls = ["cleared", "applied", "ok", "preview", "partial", "conflict", "failed", "undone"].includes(status) ? status : "skip";
+      span.classList.add(cls);
+      return span;
+    }
+    function emptyRow(tbody, cols, text) {
+      const tr = node("tr");
+      const td = node("td", text, "empty");
+      td.colSpan = cols;
+      tr.append(td);
+      tbody.append(tr);
+    }
+    let toastTimer = null;
+    function toast(message, bad) {
+      const el = $("toast");
+      clearTimeout(toastTimer);
+      el.textContent = message;
+      el.className = bad ? "bad" : "";
+      el.classList.toggle("lift", state.tab === "settings" && !$("savebar").hidden);
+      el.hidden = false;
+      toastTimer = setTimeout(() => { el.hidden = true; }, bad ? 8000 : 4500);
+    }
+
+    const HAS_CJK = /[぀-ヿ㐀-鿿]/;
+    function errorText(status, data) {
+      const detail = data && (typeof data.detail === "string" ? data.detail : data.message);
+      if (typeof detail === "string" && HAS_CJK.test(detail)) return detail;
+      if (status === 401) return "登录已过期，请刷新页面";
+      if (status === 403) return "需要管理员才能使用这个页面";
+      if (status === 404) return "插件接口不存在，插件可能没启动";
+      return `请求失败（${status}）`;
+    }
+    async function request(path, body, method) {
+      const init = { credentials: "same-origin", headers: { Accept: "application/json" } };
+      if (body !== undefined || method) {
+        init.method = method || "POST";
+        init.headers["Content-Type"] = "application/json";
+        init.body = JSON.stringify(body === undefined ? {} : body);
+      }
+      let res;
+      try { res = await fetch(BASE + path, init); } catch (_) { throw new Error("连不上服务器，请检查网络"); }
+      let data = null;
+      try { data = await res.json(); } catch (_) { /* 不是 JSON */ }
+      if (!res.ok || (data && data.success === false)) throw new Error(errorText(res.status, data));
+      return data && data.data !== undefined && data.success !== undefined ? data.data : data;
+    }
+
+    // ---------------------------------------------------------------- 标签页
+    function showTab(tab) {
+      if (!TABS.includes(tab)) tab = "overview";
+      state.tab = tab;
+      for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+      for (const t of TABS) $("tab-" + t).hidden = t !== tab;
+      if (location.hash !== "#" + tab) history.replaceState(null, "", "#" + tab);
+      if (tab === "history") loadHistory();
+      if (tab === "settings" && !state.choices) loadSettings();
+    }
+    for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => showTab(b.dataset.tab));
+
+    // ---------------------------------------------------------------- 概览
+    function alertBox(title, text, cls, action) {
+      const box = node("div", null, "alert" + (cls ? " " + cls : ""));
+      box.append(node("b", title), node("span", text));
+      if (action) { const r = node("div", null, "row"); r.style.marginTop = "8px"; r.append(action); box.append(r); }
+      return box;
+    }
+    function renderReport() {
+      const r = state.report;
+      if (!r) return;
+      const s = r.settings || {};
+      const [text, dot] = STATE_TEXT[r.state] || ["未知", "warn"];
+      $("state-text").textContent = r.state === "ready" && s.dry_run ? "运行中（只预览）" : text;
+      $("state-dot").className = "dot" + (dot ? " " + dot : "");
+
+      const alerts = $("alerts");
+      alerts.replaceChildren();
+      const toSettings = () => button("去设置", "mini", () => showTab("settings"));
+      if (r.state === "no_selection") alerts.append(alertBox("还没选媒体库", "没选目标媒体库时，播放事件、兜底扫描和手动运行都不会做任何事。", "bad", toSettings()));
+      else if (r.state === "no_members") alerts.append(alertBox("还没选成员", "勾选要清续播进度的成员（超管是 0）后才会工作。", "bad", toSettings()));
+      if (r.state !== "no_selection" && !s.enabled) alerts.append(alertBox("插件已停用", "播放结束后不会自动清理，兜底扫描也不跑；手动运行仍可用。", "", toSettings()));
+      if (s.dry_run && r.state !== "no_selection" && r.state !== "no_members") alerts.append(alertBox("只预览模式", "自动处理（播放结束后、兜底扫描）目前只记录会清什么，不真的写。确认没问题后到「设置」关掉「只预览」。", "", toSettings()));
+      if (r.state !== "no_selection" && s.enabled && !s.sweep_enabled) alerts.append(alertBox("兜底扫描已关", "只靠播放事件；插件没收到事件（比如重启期间）的续播进度不会被补清。", "info"));
+
+      const blocked = r.state === "no_selection" || r.state === "no_members";
+      const running = !!r.running;
+      $("btn-preview").disabled = blocked || running;
+      $("btn-run").disabled = blocked || running;
+      $("run-hint").textContent = running
+        ? `正在${r.running.dry_run ? "预览" : "清理"}…（${when(r.running.started_at)} 开始）`
+        : "扫一遍选中的媒体库，找出选中成员还留着的续播进度。";
+
+      const run = r.last_run;
+      const c = (run && run.counts) || {};
+      $("n-cleared").textContent = run ? (c.cleared ?? 0) : "–";
+      $("n-previewed").textContent = run ? (c.previewed ?? 0) : "–";
+      $("n-conflicts").textContent = run ? (c.conflicts ?? 0) : "–";
+      $("n-skipped").textContent = run ? ((c.skipped ?? 0) + (c.failed ?? 0)) : "–";
+      $("last-meta").textContent = run
+        ? `${SOURCE_LABEL[run.reason] || run.reason}${run.dry_run ? "（只预览）" : ""} · ${when(run.finished_at)} · ${STATUS_LABEL[run.status] || run.status}`
+        : "还没有扫描过";
+      const tbody = $("last-items");
+      tbody.replaceChildren();
+      for (const note of (run && run.notes) || []) {
+        const tr = node("tr"); const td = node("td", note, "hint warn"); td.colSpan = 4; tr.append(td); tbody.append(tr);
+      }
+      const items = (run && run.items) || [];
+      if (!items.length) emptyRow(tbody, 4, run ? "这次没有需要清的续播进度" : "点「立即预览」看看会清哪些");
+      for (const it of items) {
+        const tr = node("tr");
+        tr.append(node("td", it.title), node("td", memberName(it.member_id)), node("td", position(it.position_ms)));
+        const td = node("td"); td.append(statusNode(it.status)); tr.append(td);
+        tbody.append(tr);
+      }
+
+      $("pending-meta").textContent = r.pending ? `${r.pending} 个等待延迟到点` : "";
+      const recent = $("recent-items");
+      recent.replaceChildren();
+      const rows = r.recent || [];
+      if (!rows.length) emptyRow(recent, 5, "还没有处理过播放结束事件");
+      for (const it of rows.slice(0, 20)) {
+        const tr = node("tr");
+        tr.append(node("td", when(it.at)), node("td", it.title), node("td", memberName(it.member_id)), node("td", position(it.position_ms)));
+        const td = node("td"); td.append(statusNode(it.status)); tr.append(td);
+        recent.append(tr);
+      }
+      $("history-count").textContent = r.undoable ? String(r.undoable) : "";
+    }
+    async function loadReport() {
+      try {
+        state.report = await request("/report");
+        renderReport();
+        clearTimeout(state.poll);
+        if (state.report.running) state.poll = setTimeout(loadReport, 2000);
+      } catch (e) { toast(e.message, true); }
+    }
+    async function start(path, label) {
+      try {
+        const res = await request(path, {});
+        toast(res.started ? `已开始${label}` : "已经有一次在跑了，等它结束");
+        await loadReport();
+      } catch (e) { toast(e.message, true); }
+    }
+    $("btn-preview").addEventListener("click", () => start("/preview", "预览"));
+    $("btn-run").addEventListener("click", () => {
+      const s = (state.report && state.report.settings) || {};
+      const names = (s.member_ids || []).map(memberName).join("、");
+      if (!confirm(`立即清理一次：把「${names}」在目标媒体库里所有残留的续播进度清零。\n\n只清续播位置，已看、收藏和播放次数不变；可在「清理记录」里逐条撤销。\n这一步不受「只预览」开关影响，会真的写入。继续吗？`)) return;
+      start("/run", "清理");
+    });
+
+    // ---------------------------------------------------------------- 设置
+    function readForm() {
+      const lib = $("f-library").value;
+      return {
+        library_id: lib ? Number(lib) : null,
+        member_ids: [...document.querySelectorAll("#f-members input:checked")].map((i) => Number(i.value)),
+        delay_seconds: Number($("f-delay").value),
+        sweep_enabled: $("f-sweep").checked,
+        enabled: $("f-enabled").checked,
+        dry_run: $("f-dry").checked,
+      };
+    }
+    function diffCount() {
+      if (!state.saved) return 0;
+      const now = readForm();
+      let n = 0;
+      for (const k of Object.keys(now)) {
+        const a = JSON.stringify(k === "member_ids" ? [...now[k]].sort() : now[k]);
+        const b = JSON.stringify(k === "member_ids" ? [...(state.saved[k] || [])].sort() : state.saved[k]);
+        if (a !== b) n += 1;
+      }
+      return n;
+    }
+    function refreshSavebar() {
+      const n = diffCount();
+      $("savebar").hidden = n === 0;
+      $("savebar-text").textContent = `有 ${n} 项改动未保存`;
+      for (const l of document.querySelectorAll("#f-members label")) l.classList.toggle("on", l.querySelector("input").checked);
+      const sel = $("f-library").selectedOptions[0];
+      const warn = sel && sel.dataset.reason;
+      $("library-warn").hidden = !warn;
+      $("library-warn").textContent = warn || "";
+    }
+    function renderSettings() {
+      const c = state.choices;
+      const s = c.settings;
+      state.saved = JSON.parse(JSON.stringify(s));
+      const notes = $("settings-notes");
+      notes.replaceChildren();
+      for (const n of c.notes || []) notes.append(alertBox("注意", n, "bad"));
+
+      const sel = $("f-library");
+      sel.replaceChildren(node("option", "未选择（插件不做任何事）"));
+      sel.firstChild.value = "";
+      const libs = [...c.libraries].sort((a, b) => Number(b.eligible) - Number(a.eligible));
+      for (const lib of libs) {
+        const opt = node("option", lib.eligible ? lib.name : `${lib.name}（${lib.kind || "未知类型"}，不建议）`);
+        opt.value = String(lib.id);
+        if (lib.reason) opt.dataset.reason = lib.reason;
+        sel.append(opt);
+      }
+      sel.value = s.library_id == null ? "" : String(s.library_id);
+
+      const box = $("f-members");
+      box.replaceChildren();
+      state.members = {};
+      for (const m of c.members) {
+        state.members[m.id] = m.name;
+        const lab = node("label");
+        const input = node("input");
+        input.type = "checkbox";
+        input.value = String(m.id);
+        input.checked = (s.member_ids || []).includes(m.id);
+        input.addEventListener("change", refreshSavebar);
+        lab.append(input, node("span", m.id === 0 ? "超管 (0)" : `${m.name}（${m.id}）`));
+        if (!m.active) lab.append(node("span", "已停用", "hint"));
+        box.append(lab);
+      }
+      $("f-delay").value = String(s.delay_seconds);
+      $("f-sweep").checked = !!s.sweep_enabled;
+      $("f-enabled").checked = !!s.enabled;
+      $("f-dry").checked = !!s.dry_run;
+      refreshSavebar();
+    }
+    async function loadSettings() {
+      try {
+        state.choices = await request("/settings");
+        renderSettings();
+        renderReport();
+      } catch (e) { toast(e.message, true); }
+    }
+    for (const id of ["f-library", "f-delay", "f-sweep", "f-enabled", "f-dry"]) {
+      $(id).addEventListener("input", refreshSavebar);
+      $(id).addEventListener("change", refreshSavebar);
+    }
+    $("btn-reset").addEventListener("click", () => renderSettings());
+    $("btn-save").addEventListener("click", async () => {
+      const form = readForm();
+      if (!Number.isInteger(form.delay_seconds) || form.delay_seconds < 5 || form.delay_seconds > 300) {
+        toast("延迟秒数要在 5 到 300 之间", true);
+        return;
+      }
+      if (state.saved && state.saved.dry_run && !form.dry_run &&
+          !confirm("关掉「只预览」后，选中成员在目标库里播放结束时会真的清掉续播进度。继续吗？")) return;
+      $("btn-save").disabled = true;
+      try {
+        state.choices = await request("/settings", form, "PUT");
+        renderSettings();
+        toast("已保存");
+        await loadReport();
+      } catch (e) { toast(e.message, true); }
+      finally { $("btn-save").disabled = false; }
+    });
+
+    // ---------------------------------------------------------------- 清理记录
+    async function loadHistory() {
+      const tbody = $("history-items");
+      try {
+        const data = await request("/history");
+        tbody.replaceChildren();
+        const rows = data.items || [];
+        if (!rows.length) emptyRow(tbody, 7, "还没有真的清理过");
+        for (const it of rows) {
+          const tr = node("tr");
+          tr.append(
+            node("td", when(it.at)), node("td", it.title), node("td", memberName(it.member_id)),
+            node("td", position(it.prior_position_ms)), node("td", SOURCE_LABEL[it.source] || it.source),
+          );
+          const st = node("td");
+          if (it.undo_status === "applied") st.append(statusNode("undone", "已撤销"));
+          else if (it.undo_status === "conflict") st.append(statusNode("conflict", "撤销冲突（之后又播过）"));
+          else if (it.undo_status) st.append(statusNode(it.undo_status));
+          else st.append(statusNode("cleared"));
+          tr.append(st);
+          const act = node("td");
+          if (it.undoable) {
+            act.append(button("撤销", "mini plain", async (ev) => {
+              ev.target.disabled = true;
+              try {
+                const res = await request("/undo", { id: it.id });
+                toast(res.undo_status === "applied" ? `已恢复到 ${position(it.prior_position_ms)}` : "撤销不了：这之后又播过", res.undo_status !== "applied");
+              } catch (e) { toast(e.message, true); }
+              await loadHistory();
+              await loadReport();
+            }));
+          }
+          tr.append(act);
+          tbody.append(tr);
+        }
+      } catch (e) { toast(e.message, true); }
+    }
+
+    // ---------------------------------------------------------------- 启动
+    (async () => {
+      const first = (location.hash || "").slice(1);
+      await Promise.all([loadReport(), loadSettings()]);
+      showTab(TABS.includes(first) ? first : "overview");
+    })();
+  </script>
+</body>
+</html>
