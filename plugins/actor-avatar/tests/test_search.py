@@ -22,6 +22,7 @@ from actor_avatar.runtime import (
     RUN_JOB,
     SEARCH_JOB,
     SEARCH_TRIED_KEY,
+    SELECTION_KEY,
     UNMATCHED_KEY,
     Runtime,
     SkipItem,
@@ -439,6 +440,8 @@ def renv(files, store, logger, media_root, filetree_data, web, clock):
     jobs = FakeJobs()
 
     def make(**overrides):
+        # 0.5.1 起没有默认库：测试默认当作已在页面勾选了「小姐姐」(9)
+        store.data.setdefault(SELECTION_KEY, {"ids": [9], "at": "2026-11-05T00:00:00+00:00"})
         settings = make_settings(**overrides)
         search_http = httpx.AsyncClient(transport=httpx.MockTransport(web.handler))
         return Runtime(

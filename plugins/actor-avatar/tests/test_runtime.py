@@ -6,11 +6,13 @@ import os
 import httpx
 import pytest
 from actor_avatar import nfo
+from actor_avatar.ai import AiError
 from actor_avatar.aliases import NameTableCache
 from actor_avatar.filetree import FiletreeCache
 from actor_avatar.runtime import (
     ALIASES_KEY,
     ARMED_KEY,
+    NO_SELECTION_NOTE,
     NOT_ARMED_NOTE,
     PENDING_KEY,
     RUN_JOB,
@@ -64,6 +66,9 @@ def env(files, store, logger, media_root, filetree_data):
         names = overrides.pop("_names", False)
         ai = overrides.pop("_ai", None)
         base_url = overrides.pop("_base_url", "https://mc.example.com")
+        if overrides.pop("_select", True) and "libraries" not in overrides:
+            # 0.5.1 起没有默认库：测试默认当作已在页面勾选了「小姐姐」(9)
+            store.data.setdefault(SELECTION_KEY, {"ids": [9], "at": "2026-11-05T00:00:00+00:00"})
         settings = Settings.model_validate(
             {"dry_run": False, "request_interval_ms": 0, **overrides}
         )
@@ -111,11 +116,73 @@ async def test_only_local_video_libraries(env):
     assert any("不存在" in n for n in notes)
 
 
-async def test_default_selection_by_name(env):
-    rt = env.make()
+async def test_no_selection_means_no_library(env):
+    rt = env.make(_select=False)
     ids, source, notes = await rt.selection()
-    assert ids == [9] and source == "default" and notes == []
-    # 默认值不落库：以后改库名也还是按名字找
+    assert ids == [] and source == "none" and notes == []
+    assert not await rt.has_selection()
+    # 不按库名猜「小姐姐」，也不落库
+    assert SELECTION_KEY not in env.store.data
+    assert await rt.target_libraries() == ([], [])
+    choices = await rt.library_choices()
+    assert choices["source"] == "none" and choices["selected"] == []
+    assert not any(i["selected"] for i in choices["items"])
+    report = await rt.report()
+    assert report["settings"]["library_source"] == "none"
+    assert report["settings"]["libraries"] == []
+
+
+async def test_no_selection_runs_are_noops(env, caplog):
+    path = env.ops.add_item(1, "SSIS-001", [{"name": "涼森れむ"}])
+    rt = env.make(_select=False)
+    env.ops.calls.clear()
+    with caplog.at_level("INFO", logger="actor-avatar-test"):
+        for data in (
+            {"reason": "schedule"},
+            {"reason": "manual", "dry_run": False},
+            {"reason": "arrived", "library_id": 9, "media_item_ids": [1]},
+        ):
+            summary = await rt.run(None, data)
+            assert summary["status"] == "no_selection"
+            assert summary["notes"] == [NO_SELECTION_NOTE] and summary["libraries"] == []
+    assert sum("还没选媒体库" in r.getMessage() for r in caplog.records) == 3
+    # 不调任何宿主操作、不写文件、不写存储（连运行记录和写入解锁都不记）
+    assert env.ops.calls == [] and env.ops.refreshed == []
+    assert not path.exists()
+    assert env.store.data == {}
+    assert env.mirror.requests == []
+
+
+async def test_no_selection_blocks_search_and_ai(env):
+    rt = env.make(_select=False, _ai=object())
+    with pytest.raises(SkipItem, match="还没选媒体库"):
+        await rt.enqueue_search("涼森れむ")
+    with pytest.raises(AiError, match="还没选媒体库"):
+        await rt.ai_suggest("涼森れむ")
+    assert env.jobs.created == [] and env.store.data == {}
+
+
+async def test_stored_selection_unchanged(env):
+    # 页面保存过的勾选照旧生效；勾了又全取消也算「选过」（no_library，不是 no_selection）
+    env.store.data[SELECTION_KEY] = {"ids": [12], "at": "x"}
+    rt = env.make(_select=False)
+    assert await rt.selection() == ([12], "panel", [])
+    env.store.data[SELECTION_KEY] = {"ids": [], "at": "x"}
+    assert await rt.selection() == ([], "panel", [])
+    assert await rt.has_selection()
+    assert (await rt.run(None, {"reason": "manual"}))["status"] == "no_library"
+
+
+async def test_legacy_name_setting_migrates_once(env):
+    rt = env.make(libraries=["小姐姐"])
+    ids, source, notes = await rt.selection()
+    assert ids == [9] and source == "panel" and notes == []
+    assert env.store.data[SELECTION_KEY]["migrated_from"] == ["小姐姐"]
+    # 旧设置里的库都找不到：不迁移，来源 legacy
+    env.store.data.clear()
+    rt = env.make(libraries=["不存在"])
+    ids, source, notes = await rt.selection()
+    assert ids == [] and source == "legacy" and any("不存在" in n for n in notes)
     assert SELECTION_KEY not in env.store.data
 
 

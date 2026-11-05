@@ -23,7 +23,7 @@ from .filetree import FiletreeCache, FiletreeError, image_url
 from .junk import junk_reason
 from .matching import Avatar, AvatarIndex, Match, fold
 from .search import HOW_LABEL, SOURCE_LABEL, Blocked, Candidate, Searcher, item_num, normalize_num
-from .settings import DEFAULT_LIBRARY, Settings, ThumbMode
+from .settings import Settings, ThumbMode
 
 RUN_JOB = "actor-avatar:run"
 UNDO_JOB = "actor-avatar:undo"
@@ -63,6 +63,7 @@ NOT_ARMED_NOTE = (
     "「只预览不写入」已关闭，但还没在插件页面亲手点过「写入」：自动运行先按预览处理。"
     "在插件页面点一次「写入」后，入库与定时任务才会自动写"
 )
+NO_SELECTION_NOTE = "还没选媒体库：到插件页面「设置」里勾选要补头像的库并保存，插件才会开始处理"
 HOST_GAP_NOTE = (
     "宿主刷新后没显示 NFO 里的演员头像（MovieClaw 本身的问题，需要宿主修复）；"
     "已停在探路的第一部，没再改别的 NFO。宿主修好后再运行会自动接着写，并把之前写过的条目重新刷新"
@@ -248,20 +249,21 @@ class Runtime:
         return [r for r in (rows or []) if isinstance(r, dict) and r.get("id") is not None]
 
     async def selection(self, rows: list[dict] | None = None) -> tuple[list[int], str, list[str]]:
-        """目标库 id、来源（panel / legacy / default）与提示。
+        """目标库 id、来源（panel / legacy / none）与提示。
 
         插件页面勾选过就用勾选的；否则读 0.1.x 设置里的库名 / 数字 id，解析成 id 后存成勾选
-        结果（只迁移一次）；都没有时按库名「小姐姐」找。
+        结果（只迁移一次）；都没有时不选任何库（来源 none），要在插件页面勾选。
         """
         stored = await self.store.get(SELECTION_KEY, default=None)
         if isinstance(stored, dict) and isinstance(stored.get("ids"), list):
             return [int(i) for i in stored["ids"]], "panel", []
-        rows = await self._library_rows() if rows is None else rows
         legacy = self.settings.legacy_library_refs()
-        refs = legacy or [DEFAULT_LIBRARY]
+        if not legacy:
+            return [], "none", []
+        rows = await self._library_rows() if rows is None else rows
         ids: list[int] = []
         notes: list[str] = []
-        for ref in refs:
+        for ref in legacy:
             hit = next(
                 (r for r in rows if str(r.get("name")) == ref or str(r.get("id")) == ref), None
             )
@@ -274,7 +276,14 @@ class Runtime:
                 SELECTION_KEY, {"ids": ids, "at": _now(), "migrated_from": legacy[:20]}
             )
             return ids, "panel", notes
-        return ids, "legacy" if legacy else "default", notes
+        return ids, "legacy", notes
+
+    async def has_selection(self) -> bool:
+        """勾选过（哪怕一个都没勾）或有 0.1.x 旧设置；都没有时插件什么都不做。"""
+        stored = await self.store.get(SELECTION_KEY, default=None)
+        if isinstance(stored, dict) and isinstance(stored.get("ids"), list):
+            return True
+        return bool(self.settings.legacy_library_refs())
 
     async def library_choices(self) -> dict[str, Any]:
         """插件页面的库选择器：服务器上全部库，标出能不能选、选没选。"""
@@ -363,6 +372,17 @@ class Runtime:
         started = time.time()
         dry_run = self.settings.dry_run if data.get("dry_run") is None else bool(data["dry_run"])
         reason = data.get("reason") or "manual"
+        if not await self.has_selection():
+            # 没选库：不读条目、不写任何东西（连运行记录也不记），页面靠报告里的 library_source 提示
+            self.logger.info("actor-avatar：还没选媒体库，跳过本轮（%s）", reason)
+            return {
+                "at": _now(),
+                "reason": reason,
+                "dry_run": dry_run,
+                "libraries": [],
+                "notes": [NO_SELECTION_NOTE],
+                "status": "no_selection",
+            }
         gated = False
         if not dry_run:
             if reason in GATED_REASONS:
@@ -1296,6 +1316,8 @@ class Runtime:
         """页面上点「AI 推荐别名」：问一次，查得到的候选放进「待确认」。"""
         if self.ai is None:
             raise AiError("没有拿到 AI 助手（需要在安装时批准 agent:none）")
+        if not await self.has_selection():
+            raise AiError(NO_SELECTION_NOTE)
         index = await self._index()
         table, _ = await self.name_table()
         seen = (await self._dict(UNMATCHED_KEY)).get(actor) or {}
@@ -1392,6 +1414,8 @@ class Runtime:
     async def enqueue_search(self, actor: str) -> Any:
         """页面上点「搜索头像」：排一个后台任务（只搜这一位），页面轮询状态。"""
         actor = actor.strip()
+        if not await self.has_selection():
+            raise SkipItem(NO_SELECTION_NOTE)
         if not self.settings.search_enabled:
             raise SkipItem("搜索补头像已在设置里关闭")
         if self.searcher is None or not self.searcher.enabled_sources():
@@ -1630,9 +1654,11 @@ class Runtime:
         hosted = self.settings.thumb_mode == ThumbMode.HOSTED
         if hosted or uploads:
             warning = link_warning
+        library_source = None
         try:
             choices = await self.library_choices()
             libraries = [i["name"] for i in choices["items"] if i["selected"]]
+            library_source = choices["source"]
         except SkipItem:
             libraries = []
         names_meta = await self.names.meta() if self.names is not None else {}
@@ -1640,6 +1666,8 @@ class Runtime:
             "settings": {
                 "enabled": self.settings.enabled,
                 "libraries": libraries,
+                # none = 从没勾选过（也没有 0.1.x 旧设置）：页面提示先去选库
+                "library_source": library_source,
                 "dry_run": self.settings.dry_run,
                 "write_armed": await self.armed(),
                 "name_table": self.settings.name_table,

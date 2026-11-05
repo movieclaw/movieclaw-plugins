@@ -1,6 +1,6 @@
 """演员头像补全插件入口。
 
-用 gfriends 头像库给本地视频库（默认「小姐姐」）的演员补头像：
+用 gfriends 头像库给插件页面勾选的本地视频库的演员补头像（没选库时什么都不做）：
 只往条目旁的 NFO 写 ``<actor><thumb>``，再触发一次「重新读取 NFO」，不改主程序数据库。
 """
 
@@ -200,7 +200,7 @@ async def apply(ctx: Context) -> None:
             if (media := getattr(item, "media", None)) is not None
             and getattr(media, "id", None) is not None
         ]
-        if library_id is None or not ids:
+        if library_id is None or not ids or not await runtime.has_selection():
             return
         libraries, _notes = await runtime.target_libraries()
         if int(library_id) not in {int(lib["id"]) for lib in libraries}:
@@ -210,8 +210,12 @@ async def apply(ctx: Context) -> None:
     ctx.on(LIBRARY_ITEMS_ARRIVED, on_arrived, id="actor-avatar:arrived", durable=True)
 
     async def sweep_tick() -> None:
-        if runtime.settings.enabled:
-            await runtime.enqueue_run(reason="schedule")
+        if not runtime.settings.enabled:
+            return
+        if not await runtime.has_selection():
+            ctx.logger.info("actor-avatar：还没选媒体库，跳过定时任务")
+            return
+        await runtime.enqueue_run(reason="schedule")
 
     ctx.contribute(
         SCHEDULED_TASKS,

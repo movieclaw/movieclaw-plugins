@@ -1,7 +1,7 @@
 [plugin]
 id = "actor-avatar"
 title = "演员头像补全"
-version = "0.5.0"
+version = "0.5.1"
 entry = "actor_avatar"
 runtime = "process"
 sdk = "^1.0"

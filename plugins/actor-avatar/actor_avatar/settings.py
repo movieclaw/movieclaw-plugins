@@ -34,10 +34,6 @@ class ThumbMode(StrEnum):
     HOSTED = "插件下载并托管"
 
 
-#: 0.1.x 的默认目标库（库名）
-DEFAULT_LIBRARY = "小姐姐"
-
-
 class Settings(BaseModel):
     # 保留 0.1.x 存下的 ``libraries`` 等旧字段（不进表单），迁移时要读
     model_config = ConfigDict(extra="allow")
