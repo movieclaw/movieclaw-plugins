@@ -1,0 +1,6 @@
+{
+  "name": "演员头像补全",
+  "short_name": "演员头像",
+  "start_url": ".",
+  "icons": [{ "src": "icon.svg", "type": "image/svg+xml", "purpose": "monochrome" }]
+}

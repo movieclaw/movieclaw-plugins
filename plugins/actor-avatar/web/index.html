@@ -1,0 +1,1480 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta name="color-scheme" content="dark">
+  <title>演员头像补全</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    :root {
+      color-scheme: dark;
+      --text: var(--mc-text, #eceef1);
+      --muted: var(--mc-text-muted, #9aa3ad);
+      --line: var(--mc-line, #30343a);
+      --accent: var(--mc-accent, #8d51f9);
+      --ok: var(--mc-ok, #3ccf91);
+      --warn: var(--mc-warn, #e7b44a);
+      --bad: var(--mc-danger, #ef6b6b);
+      --card: color-mix(in srgb, var(--mc-bg, #111) 35%, transparent);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 28px 80px; font-family: var(--mc-font, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif); color: var(--text); background: transparent; font-size: 14px; line-height: 1.5; }
+    .wrap { max-width: 1040px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    h1 { font-size: 20px; margin: 0; font-weight: 650; }
+    h2 { font-size: 15px; margin: 0 0 4px; font-weight: 600; }
+    h3 { font-size: 13px; margin: 0 0 8px; font-weight: 600; color: var(--muted); }
+    a { color: var(--accent); }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+    .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+
+    nav.tabs { display: flex; gap: 4px; margin: 18px 0 18px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+    nav.tabs::-webkit-scrollbar { display: none; }
+    nav.tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--muted); white-space: nowrap; font-size: 14px; }
+    nav.tabs button:hover { color: var(--text); border-color: transparent; }
+    nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+    .count { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 4px; border-radius: 999px; font-size: 11px; line-height: 18px; text-align: center; background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--text); }
+    .count:empty { display: none; }
+
+    .card { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; background: var(--card); }
+    .stack > * + * { margin-top: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .stat { cursor: default; }
+    .stat.link { cursor: pointer; } .stat.link:hover { border-color: var(--accent); }
+    .stat .num { font-size: 24px; font-weight: 650; margin-top: 2px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .between { justify-content: space-between; }
+    button, .btn { appearance: none; border: 1px solid var(--line); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); padding: 8px 14px; border-radius: 10px; font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    button:hover, .btn:hover { border-color: var(--accent); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.plain, .btn.plain { background: transparent; }
+    button.danger { color: var(--bad); background: transparent; }
+    button.mini, .btn.mini { padding: 4px 9px; font-size: 12px; border-radius: 8px; }
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .seg button { border: 0; border-radius: 0; background: transparent; padding: 6px 12px; color: var(--muted); }
+    .seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
+
+    .alert { border: 1px solid var(--warn); border-radius: 12px; padding: 10px 14px; font-size: 13px; background: color-mix(in srgb, var(--warn) 8%, transparent); }
+    .alert.bad { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
+    .alert b { display: block; margin-bottom: 2px; }
+    .hint { font-size: 12px; color: var(--muted); }
+    .hint.warn { color: var(--warn); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    .status { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+    .status.written, .status.ok { color: var(--ok); }
+    .status.preview { color: var(--warn); }
+    .status.failed { color: var(--bad); }
+    .status.noop, .status.skipped { color: var(--muted); }
+    .status.undone { color: var(--accent); }
+    .status.search { color: var(--accent); }
+    .tags { color: var(--muted); font-size: 12px; }
+    .empty { padding: 26px 0; text-align: center; color: var(--muted); font-size: 13px; }
+    .error { color: var(--bad); font-size: 13px; }
+
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .toolbar input[type=search], .toolbar select { flex: 1 1 200px; max-width: 320px; }
+    input[type=text], input[type=search], input[type=number], input[type=url], input[type=password], select {
+      padding: 7px 10px; border-radius: 9px; font: inherit; font-size: 13px; border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--mc-bg, #111) 55%, transparent); color: var(--text); min-width: 0;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    input.invalid { border-color: var(--bad); }
+    .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: 12px; color: var(--muted); }
+    .pager:empty { display: none; }
+
+    .list > .item { padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .list > .item:last-child { border-bottom: 0; }
+    .item-head { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+    .item-name { font-weight: 600; }
+    .cands { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .cand { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 104px; font-size: 12px; text-align: center; }
+    .cand img { width: 92px; height: 122px; object-fit: cover; border-radius: 8px; background: var(--line); }
+    .cand.wide { width: 220px; align-items: stretch; text-align: left; }
+    .cand.wide img { width: 100%; height: 160px; object-fit: contain; }
+    .cand .meta { display: grid; gap: 2px; font-size: 12px; color: var(--muted); word-break: break-all; }
+    .cand .meta b { color: var(--text); font-weight: 600; }
+    .via.guess { border-color: var(--warn); color: var(--warn); }
+    .via.exact { border-color: var(--ok); color: var(--ok); }
+    .search-line { margin-top: 6px; font-size: 12px; color: var(--muted); }
+    .search-line.ok { color: var(--ok); } .search-line.warn { color: var(--warn); } .search-line.bad { color: var(--bad); }
+    .item-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .via { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); }
+    .fix { margin-top: 10px; padding: 12px; border-radius: 10px; border: 1px dashed var(--line); display: grid; gap: 10px; }
+    .fix label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+    .fix .row input[type=text] { flex: 1 1 180px; }
+    .fix input[type=file] { font-size: 12px; max-width: 230px; }
+    .thumb { width: 44px; height: 58px; object-fit: cover; border-radius: 6px; background: var(--line); }
+    details > summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+    details[open] > summary { margin-bottom: 10px; }
+
+    /* 设置 */
+    .group h2 { margin-bottom: 2px; }
+    .group > .hint { margin-bottom: 8px; }
+    .field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 18px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+    .field:first-of-type { border-top: 0; }
+    .field.wide { grid-template-columns: minmax(0, 1fr); }
+    .field .label { font-weight: 500; }
+    .field .hint, .field .ferr, .field .note { grid-column: 1 / -1; }
+    .field .ctl { justify-self: end; }
+    .field.wide .ctl { justify-self: stretch; }
+    .field .ctl input[type=number] { width: 120px; text-align: right; }
+    .field .ctl select { min-width: 180px; }
+    .field .ctl input[type=url] { width: 100%; }
+    .field .ctl input[type=password] { width: 240px; }
+    .ferr { color: var(--bad); font-size: 12px; }
+    .changed .label::after { content: " · 已改"; color: var(--accent); font-size: 12px; font-weight: 400; }
+    .switch { position: relative; display: inline-block; width: 42px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: .15s; cursor: pointer; }
+    .switch span::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: .15s; }
+    .switch input:checked + span { background: var(--accent); }
+    .switch input:checked + span::before { transform: translateX(18px); }
+    .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .libs { display: grid; gap: 6px; margin-top: 6px; }
+    .lib { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .lib input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .lib.off { color: var(--muted); }
+    .savebar { position: sticky; bottom: 12px; margin-top: 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--mc-bg, #111) 88%, transparent); backdrop-filter: blur(8px); }
+    .savebar[hidden] { display: none; }
+
+    #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: min(560px, 92vw); padding: 10px 16px; border-radius: 12px; font-size: 13px; background: color-mix(in srgb, var(--mc-bg, #111) 92%, transparent); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.35); z-index: 10; }
+    #toast.bad { border-color: var(--bad); }
+    #toast.lift { bottom: 96px; }  /* 设置页底部保存条露出时，别盖住它 */
+    #toast[hidden] { display: none; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 720px) {
+      body { padding: 14px 14px 80px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .field { grid-template-columns: minmax(0, 1fr); }
+      .field .ctl { justify-self: start; }
+      .hide-sm { display: none; }
+      th.hide-sm, td.hide-sm { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>演员头像补全</h1>
+        <div class="muted small">用 gfriends 头像库给演员补头像，只改 NFO 里的头像，可随时撤销。</div>
+      </div>
+      <div class="badge"><span class="dot" id="status-dot"></span><span id="status-text">加载中…</span></div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="overview">概览</button>
+      <button type="button" role="tab" data-tab="pending">待确认<span class="count" id="count-pending"></span></button>
+      <button type="button" role="tab" data-tab="unmatched">没配上的演员<span class="count" id="count-unmatched"></span></button>
+      <button type="button" role="tab" data-tab="history">写入记录</button>
+      <button type="button" role="tab" data-tab="settings">设置</button>
+    </nav>
+
+    <div id="load-error" class="alert bad" hidden></div>
+
+    <!-- 概览 -->
+    <section id="tab-overview" class="stack" hidden>
+      <div id="ov-alerts" class="stack"></div>
+      <div class="card">
+        <div class="row between">
+          <div>
+            <h2 id="ov-mode">–</h2>
+            <div class="hint" id="ov-mode-hint"></div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button id="btn-preview" type="button" class="primary">立即预览</button>
+          <button id="btn-run" type="button">立即写入一轮</button>
+          <button id="btn-disarm" type="button" class="plain" hidden>停止自动写入</button>
+        </div>
+        <div class="hint" style="margin-top:10px">「立即预览」只算出会补哪些头像，不碰文件；「立即写入一轮」真正写 NFO 并刷新，可在「写入记录」里撤销。</div>
+      </div>
+      <div class="grid">
+        <div class="card stat"><div class="muted small">已写入条目</div><div class="num" id="stat-items">–</div></div>
+        <div class="card stat"><div class="muted small">已写入头像</div><div class="num" id="stat-avatars">–</div></div>
+        <div class="card stat link" data-goto="pending"><div class="muted small">待确认</div><div class="num" id="stat-pending">–</div></div>
+        <div class="card stat link" data-goto="unmatched"><div class="muted small">没配上的演员</div><div class="num" id="stat-unmatched">–</div></div>
+      </div>
+      <div class="card">
+        <h2>最近一轮</h2>
+        <div id="ov-last" class="hint">还没有运行过。</div>
+        <details id="ov-runs-box" style="margin-top:10px" hidden>
+          <summary>最近几轮明细</summary>
+          <div id="ov-runs"></div>
+        </details>
+      </div>
+    </section>
+
+    <!-- 待确认 -->
+    <section id="tab-pending" hidden>
+      <div class="card">
+        <h2>待确认</h2>
+        <div class="hint" style="margin-bottom:12px">演员名在头像库里查不到时，从片名推断、AI 推荐或按番号搜索来的候选。点「就是她」后重跑相关的片（gfriends 的记为别名，搜索来的直接写来源图片地址）；「都不是」以后不再提示。</div>
+        <div class="toolbar"><input type="search" id="q-pending" placeholder="搜演员或片名"></div>
+        <div id="pending-list"></div>
+        <div class="pager" id="pager-pending"></div>
+      </div>
+    </section>
+
+    <!-- 没配上的演员 -->
+    <section id="tab-unmatched" hidden>
+      <div class="card">
+        <div class="row between" style="margin-bottom:10px">
+          <div class="seg" id="seg-unmatched">
+            <button type="button" data-seg="actors" aria-pressed="true">没配上</button>
+            <button type="button" data-seg="manual" aria-pressed="false">已手动设置</button>
+          </div>
+          <span class="hint" id="ai-status"></span>
+        </div>
+        <div id="seg-actors">
+          <div class="hint" style="margin-bottom:10px">最近几轮查不到头像的演员。点「搜索头像」按片子的番号去 av-wiki / javdb / DMM 查演员表找头像；点「处理」可以手动对上 gfriends 里的名字、上传头像，或让 AI 推荐别名。搜索和 AI 的结果都只进「待确认」。</div>
+          <div id="upload-note" class="hint warn" style="margin-bottom:10px" hidden></div>
+          <div class="toolbar"><input type="search" id="q-actors" placeholder="搜演员或片名"></div>
+          <div id="actors-list"></div>
+          <div class="pager" id="pager-actors"></div>
+          <details id="junk-box" style="margin-top:16px" hidden>
+            <summary id="junk-summary">刮削器写进来的非艺名</summary>
+            <div class="hint" style="margin-bottom:8px">像「京香 大学生モデル」「あおいさん」这种介绍文字不拿去匹配；知道是谁的话也可以手动处理。</div>
+            <div class="toolbar"><input type="search" id="q-junk" placeholder="搜名字"></div>
+            <div id="junk-list"></div>
+            <div class="pager" id="pager-junk"></div>
+          </details>
+        </div>
+        <div id="seg-manual" hidden>
+          <div class="hint" style="margin-bottom:10px">删除手动设置不会动已经写进 NFO 的头像；要撤掉请到「写入记录」里撤销。</div>
+          <div class="toolbar"><input type="search" id="q-manual" placeholder="搜演员"></div>
+          <div id="manual-list"></div>
+          <div class="pager" id="pager-manual"></div>
+        </div>
+      </div>
+      <datalist id="gf-names"></datalist>
+    </section>
+
+    <!-- 写入记录 -->
+    <section id="tab-history" hidden>
+      <div class="card">
+        <div class="row between" style="margin-bottom:10px">
+          <div class="seg" id="seg-history">
+            <button type="button" data-seg="ledger" aria-pressed="true">已写入</button>
+            <button type="button" data-seg="events" aria-pressed="false">处理明细</button>
+            <button type="button" data-seg="runs" aria-pressed="false">运行记录</button>
+          </div>
+          <button id="btn-undo-all" type="button" class="danger mini">全部撤销</button>
+        </div>
+        <div id="seg-ledger">
+          <div class="toolbar"><input type="search" id="q-ledger" placeholder="搜片名或演员"></div>
+          <div id="ledger-list"></div>
+          <div class="pager" id="pager-ledger"></div>
+        </div>
+        <div id="seg-events" hidden>
+          <div class="toolbar">
+            <input type="search" id="q-events" placeholder="搜片名或说明">
+            <select id="f-events">
+              <option value="">全部状态</option>
+              <option value="written">已写入</option>
+              <option value="preview">预览</option>
+              <option value="noop">无变化</option>
+              <option value="skipped">跳过</option>
+              <option value="failed">失败</option>
+              <option value="undone">已撤销</option>
+              <option value="search">搜索</option>
+            </select>
+          </div>
+          <div id="events-list"></div>
+          <div class="pager" id="pager-events"></div>
+        </div>
+        <div id="seg-runs" hidden>
+          <div id="runs-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section id="tab-settings" hidden>
+      <div id="settings-error" class="alert bad" hidden></div>
+      <div id="settings-form" class="stack"></div>
+      <div class="savebar" id="savebar" hidden>
+        <span id="savebar-text">有改动未保存</span>
+        <div class="row">
+          <button type="button" class="plain" id="btn-discard">放弃</button>
+          <button type="button" class="primary" id="btn-save">保存</button>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:14px">这里的设置和主程序「设置 → 插件 → 演员头像补全」是同一份，改哪边都一样；保存后插件会自动重启几秒。</div>
+    </section>
+  </div>
+  <div id="toast" hidden></div>
+  <script>
+    "use strict";
+    const BASE = "/api/v1/plugins/actor-avatar";
+    // 插件设置走主程序的通用设置接口（与「设置 → 插件」页同一份数据；保存后主程序会校验并重启插件）
+    const HOST_SETTINGS = "/api/v1/app/plugins/actor-avatar/settings";
+    const TABS = ["overview", "pending", "unmatched", "history", "settings"];
+    const STATUS_LABEL = {
+      written: "已写入", preview: "预览", noop: "无变化", skipped: "跳过",
+      failed: "失败", undone: "已撤销", pending: "待确认", ok: "完成", search: "搜索",
+    };
+    const REASON_LABEL = {
+      manual: "手动", arrived: "新片入库", schedule: "定时任务", confirm: "确认后重跑",
+      "manual-entry": "手动设置后重跑", undo: "撤销", search: "搜索后自动写入",
+    };
+    const PAGE = { pending: 10, actors: 15, junk: 15, manual: 20, ledger: 20, events: 25 };
+    const $ = (id) => document.getElementById(id);
+    const state = { tab: "overview", report: null, ai: null, busy: false, seg: { unmatched: "actors", history: "ledger" }, search: {} };
+
+    // 动态内容只经 textContent / setAttribute 写入，不拼 HTML
+    function node(tag, text, cls) {
+      const el = document.createElement(tag);
+      if (text != null) el.textContent = String(text);
+      if (cls) el.className = cls;
+      return el;
+    }
+    function button(text, cls, onClick) {
+      const b = node("button", text, cls);
+      b.type = "button";
+      if (onClick) b.addEventListener("click", onClick);
+      return b;
+    }
+    function when(value) {
+      if (!value) return "–";
+      const d = typeof value === "number" ? new Date(value * 1000) : new Date(value);
+      return isNaN(d) ? "–" : d.toLocaleString("zh-CN", { hour12: false });
+    }
+    function proxied(url) {
+      return `/api/v1/images/proxy?w=192&url=${encodeURIComponent(url)}`;
+    }
+    function statusNode(status) {
+      const span = node("span", STATUS_LABEL[status] || "其他", "status");
+      if (/^[a-z_]+$/.test(status || "")) span.classList.add(status);
+      return span;
+    }
+    function itemLink(item) {
+      const title = item.title || `条目 #${item.media_item_id ?? "?"}`;
+      const lib = Number(item.library_id), id = Number(item.media_item_id);
+      if (Number.isInteger(lib) && Number.isInteger(id) && lib > 0 && id > 0) {
+        const a = node("a", title);
+        a.href = `/library/${lib}/item/${id}`;
+        a.target = "_top";
+        return a;
+      }
+      return node("span", title);
+    }
+    function table(headers, rows, smallHidden) {
+      const hide = new Set(smallHidden || []);
+      const t = document.createElement("table");
+      const thead = document.createElement("thead");
+      const tr = document.createElement("tr");
+      headers.forEach((h, i) => tr.appendChild(node("th", h, hide.has(i) ? "hide-sm" : null)));
+      thead.appendChild(tr);
+      const tbody = document.createElement("tbody");
+      for (const cells of rows) {
+        const row = document.createElement("tr");
+        cells.forEach((cell, i) => {
+          const td = document.createElement("td");
+          if (hide.has(i)) td.className = "hide-sm";
+          if (cell instanceof Node) td.appendChild(cell); else td.textContent = cell == null ? "" : String(cell);
+          row.appendChild(td);
+        });
+        tbody.appendChild(row);
+      }
+      t.append(thead, tbody);
+      return t;
+    }
+    function describe(e) {
+      const parts = [];
+      if (e.reason) parts.push(e.reason);
+      if (e.written && e.written.length) parts.push(`写入：${e.written.join("、")}`);
+      if (e.files) parts.push(`将用：${Object.entries(e.files).map(([k, v]) => `${k} → ${v}`).join("；")}`);
+      if (e.kept && e.kept.length) parts.push(`保留原头像：${e.kept.join("、")}`);
+      if (e.has_avatar && e.has_avatar.length) parts.push(`已有头像：${e.has_avatar.join("、")}`);
+      if (e.unmatched && e.unmatched.length) parts.push(`没找到：${e.unmatched.join("、")}`);
+      if (e.junk && Object.keys(e.junk).length) parts.push(`非艺名：${Object.keys(e.junk).join("、")}`);
+      if (e.removed && e.removed.length) parts.push(`撤掉：${e.removed.join("、")}`);
+      return parts.join(" · ");
+    }
+    function tokens(t) {
+      t = t || {};
+      const total = t.total_tokens ?? ((t.prompt_tokens || 0) + (t.completion_tokens || 0));
+      return `${total || 0} 个 token`;
+    }
+
+    let toastTimer = null;
+    function toast(message, bad) {
+      const el = $("toast");
+      clearTimeout(toastTimer);
+      el.hidden = !message;
+      el.textContent = message || "";
+      el.className = bad ? "bad" : "";
+      el.classList.toggle("lift", state.tab === "settings" && !$("savebar").hidden);
+      if (message) toastTimer = setTimeout(() => { el.hidden = true; }, bad ? 8000 : 4500);
+    }
+
+    async function request(url, body, method) {
+      const init = { credentials: "same-origin", headers: { Accept: "application/json" } };
+      if (body !== undefined) {
+        init.method = method || "POST";
+        init.headers["Content-Type"] = "application/json";
+        init.body = JSON.stringify(body);
+      }
+      let res;
+      try { res = await fetch(url, init); } catch (_) { throw new Error("连不上服务器，请检查网络"); }
+      let data = null;
+      try { data = await res.json(); } catch (_) { /* 不是 JSON */ }
+      if (!res.ok || (data && data.success === false)) {
+        const err = new Error(errorText(res.status, data));
+        err.status = res.status;
+        throw err;
+      }
+      return data && data.data !== undefined && data.success !== undefined ? data.data : data;
+    }
+    // 主程序 / 插件的出错说明只在含中文时原样显示；英文兜底文字（如 "request failed"）换成中文
+    const HAS_CJK = /[\u3040-\u30ff\u3400-\u9fff]/;
+    // 给人看的出错说明：没有中文的（底层英文异常）换成中文兜底
+    function zh(text, fallback) {
+      const t = text && (text.message || text);
+      return typeof t === "string" && HAS_CJK.test(t) ? t : fallback;
+    }
+    function errorText(status, data) {
+      const detail = data && (typeof data.detail === "string" ? data.detail : data.message);
+      if (typeof detail === "string" && HAS_CJK.test(detail)) return detail;
+      if (status === 401) return "登录已过期，请刷新页面重新登录";
+      if (status === 403) return "没有权限（需要管理员）";
+      if (status === 404) return "接口不存在：插件可能正在重启或已停用";
+      if (status === 422 || status === 400) return "提交的内容不对";
+      if (status === 502 || status === 503 || status === 504) return "插件暂时没响应，可能正在重启，请稍后再试";
+      return status ? `请求失败（状态 ${status}）` : "请求失败";
+    }
+    const api = (path, body, method) => request(BASE + path, body, method);
+    const hostSettings = (values) => values === undefined
+      ? request(HOST_SETTINGS)
+      : request(HOST_SETTINGS, { values }, "PUT");
+
+    function lockButtons(on) {
+      document.querySelectorAll("button:not([data-keep])").forEach((b) => { b.disabled = on; });
+      if (!on) document.querySelectorAll("button[data-ai]").forEach((b) => { b.disabled = !(state.ai && state.ai.available); });
+    }
+    async function act(path, body, okText) {
+      if (state.busy) return;
+      state.busy = true;
+      lockButtons(true);
+      try {
+        const res = await api(path, body);
+        toast(res && res.job_id ? `${okText}（任务已排队）` : okText);
+        await refresh();
+      } catch (err) {
+        toast(`操作失败：${zh(err, "出了点问题，请稍后再试")}`, true);
+      } finally {
+        state.busy = false;
+        lockButtons(false);
+      }
+    }
+
+    // ---------------------------------------------------------------- 分页列表
+    const lists = {};
+    function list(key, rows, opts) {
+      const prev = lists[key] || { page: 0, q: "", filter: "" };
+      lists[key] = { ...prev, rows: rows || [], ...opts };
+      renderList(key);
+    }
+    function renderList(key) {
+      const L = lists[key];
+      if (!L) return;
+      const q = (L.q || "").trim().toLowerCase();
+      let rows = L.rows;
+      if (L.filter && L.filterBy) rows = rows.filter((r) => L.filterBy(r, L.filter));
+      if (q) rows = rows.filter((r) => (L.text(r) || "").toLowerCase().includes(q));
+      const size = PAGE[key] || 20;
+      const pages = Math.max(1, Math.ceil(rows.length / size));
+      L.page = Math.min(L.page, pages - 1);
+      const slice = rows.slice(L.page * size, L.page * size + size);
+      const host = $(`${key}-list`);
+      host.replaceChildren();
+      if (!slice.length) host.appendChild(node("div", q || L.filter ? "没有符合条件的记录。" : L.empty, "empty"));
+      else host.appendChild(L.render(slice));
+      const pager = $(`pager-${key}`);
+      pager.replaceChildren();
+      if (rows.length > size) {
+        const prevBtn = button("上一页", "mini plain", () => { L.page -= 1; renderList(key); });
+        const nextBtn = button("下一页", "mini plain", () => { L.page += 1; renderList(key); });
+        prevBtn.dataset.keep = nextBtn.dataset.keep = "1";
+        prevBtn.disabled = L.page === 0;
+        nextBtn.disabled = L.page >= pages - 1;
+        pager.append(node("span", `共 ${rows.length} 条 · 第 ${L.page + 1} / ${pages} 页`), prevBtn, nextBtn);
+      } else if (rows.length > 5) {
+        pager.appendChild(node("span", `共 ${rows.length} 条`));
+      }
+    }
+    function bindSearch(key, inputId, selectId) {
+      $(inputId).addEventListener("input", (e) => {
+        const L = lists[key] || (lists[key] = { page: 0, q: "" });
+        L.q = e.target.value; L.page = 0; renderList(key);
+      });
+      if (selectId) $(selectId).addEventListener("change", (e) => {
+        const L = lists[key] || (lists[key] = { page: 0, q: "" });
+        L.filter = e.target.value; L.page = 0; renderList(key);
+      });
+    }
+
+    // ---------------------------------------------------------------- 概览
+    function alertBox(title, text, bad, gotoTab) {
+      const box = node("div", null, bad ? "alert bad" : "alert");
+      box.appendChild(node("b", title));
+      box.appendChild(node("span", text));
+      if (gotoTab) {
+        const a = node("a", " 去设置");
+        a.href = `#${gotoTab}`;
+        box.appendChild(a);
+      }
+      return box;
+    }
+    function renderReport(r) {
+      const s = r.settings || {};
+      const libs = s.libraries || [];
+      const unmatched = r.unmatched || {};
+      $("count-pending").textContent = r.pending ? String(r.pending) : "";
+      $("count-unmatched").textContent = unmatched.actors ? String(unmatched.actors) : "";
+      $("stat-items").textContent = String((r.ledger || {}).items ?? 0);
+      $("stat-avatars").textContent = String((r.ledger || {}).avatars ?? 0);
+      $("stat-pending").textContent = String(r.pending ?? 0);
+      $("stat-unmatched").textContent = String(unmatched.actors ?? 0);
+
+      const dot = $("status-dot");
+      dot.className = "dot";
+      let mode, hint;
+      if (!s.enabled) {
+        dot.classList.add("bad"); mode = "已停用";
+        hint = "不响应新片入库和定时任务；手动预览、写入和撤销仍可用。";
+      } else if (s.dry_run) {
+        dot.classList.add("warn"); mode = "只预览模式";
+        hint = "不会改任何文件。想自动写入：先在「设置」里关掉「只预览」，再回这里点一次「立即写入一轮」。";
+      } else if (!s.write_armed) {
+        dot.classList.add("warn"); mode = "自动运行仍只预览";
+        hint = "已关掉「只预览」，但还没在这里手动写入过一次；入库和定时任务暂时只预览。";
+      } else {
+        mode = "自动写入已开启";
+        hint = s.process_arrivals === false ? "定时任务会直接写 NFO（新片入库不处理）。" : "新片入库和定时任务会直接写 NFO。";
+      }
+      $("status-text").textContent = mode;
+      $("ov-mode").textContent = mode;
+      $("ov-mode-hint").textContent = `${hint} 目标媒体库：${libs.length ? libs.join("、") : "未选"}。`;
+      $("btn-disarm").hidden = !s.write_armed;
+
+      // 只放真正要处理的提醒
+      const alerts = [];
+      if (!libs.length) alerts.push(alertBox("还没选目标媒体库", "不会处理任何片子。", true, "settings"));
+      const host = r.host_display || {};
+      const hidden = Number(host.not_shown || 0), shown = Number(host.shown || 0);
+      if (host.state ? host.state === "hidden" : (hidden > 0 && shown === 0)) {
+        alerts.push(alertBox("头像写进去了，但详情页还看不到",
+          `最近一次复核（${when(host.checked_at)}）主程序重读 NFO 后仍不显示演员头像，这是主程序的已知问题。` +
+          "写入已暂停在第一部，主程序修好后会自动接着写。"));
+      }
+      const link = r.link || {};
+      if (link.hosted && link.warning) {
+        alerts.push(alertBox("托管模式的头像地址有问题", `${link.warning}。`, false, "settings"));
+      }
+      const ft = r.filetree || {};
+      if (ft.last_error) alerts.push(alertBox("头像索引更新失败", `${zh(String(ft.last_error), "下载 gfriends 头像索引出错")}；暂时继续用本地缓存的索引，详情见插件日志。`));
+      $("ov-alerts").replaceChildren(...alerts);
+
+      const runs = r.runs || [];
+      const last = runs[0];
+      if (last) {
+        const parts = [
+          `${when(last.at)} · ${REASON_LABEL[last.reason] || "其他"} · ${last.dry_run ? "预览" : "写入"}`,
+          `看了 ${last.seen ?? 0} 部，${last.dry_run ? `会补 ${last.previewed ?? 0} 部` : `写入 ${last.written ?? 0} 部`}、头像 ${last.avatars ?? 0} 个`,
+        ];
+        if (last.skipped || last.failed) parts.push(`跳过 ${last.skipped ?? 0}、失败 ${last.failed ?? 0}`);
+        if (last.search) parts.push(searchSummary(last.search));
+        $("ov-last").textContent = parts.join("；") + (last.notes && last.notes.length ? `。${last.notes.join("；")}` : "");
+      } else {
+        $("ov-last").textContent = "还没有运行过。点「立即预览」看看会补哪些头像。";
+      }
+      $("ov-runs-box").hidden = runs.length < 2;
+      $("ov-runs").replaceChildren(runsTable(runs.slice(0, 5)));
+      $("runs-list").replaceChildren(runs.length ? runsTable(runs) : node("div", "还没有运行过。", "empty"));
+
+      list("events", r.events || [], {
+        empty: "还没有处理记录。",
+        text: (e) => `${e.title || ""} ${describe(e)}`,
+        filterBy: (e, f) => e.status === f,
+        render: (rows) => table(["状态", "条目", "时间", "说明"],
+          rows.map((e) => [statusNode(e.status), itemLink(e), when(e.at), node("span", describe(e), "tags")]), [2]),
+      });
+      renderUploadNote();
+    }
+    function searchSummary(x) {
+      let t = `搜索补头像：搜了 ${x.searched ?? 0} 位，候选 ${x.candidates ?? 0} 个`;
+      if (x.auto_written) t += `，自动写入 ${x.auto_written} 位`;
+      if (x.blocked && x.blocked.length) t += `，被拦已暂停：${x.blocked.join("、")}`;
+      return t;
+    }
+    function runsTable(runs) {
+      return table(["时间", "来源", "模式", "看过", "写入 / 预览", "头像", "跳过 / 失败", "备注"],
+        runs.map((x) => [
+          when(x.at), REASON_LABEL[x.reason] || "其他", x.dry_run ? "预览" : "写入", x.seen ?? 0,
+          `${x.written ?? 0} / ${x.previewed ?? 0}`, x.avatars ?? 0, `${x.skipped ?? 0} / ${x.failed ?? 0}`,
+          node("span", (x.notes || []).join("；"), "tags"),
+        ]), [1, 3, 6]);
+    }
+
+    // ---------------------------------------------------------------- 待确认
+    function renderPending(rows) {
+      list("pending", rows, {
+        empty: "没有待确认的候选。",
+        text: (p) => `${p.actor} ${p.title || ""} ${(p.candidates || []).map((c) => c.name).join(" ")}`,
+        render: (slice) => {
+          const box = node("div", null, "list");
+          for (const p of slice) {
+            const item = node("div", null, "item");
+            const head = node("div", null, "item-head");
+            const left = node("div");
+            left.append(node("span", p.actor, "item-name"),
+              node("div", `${p.title || ""}${p.title ? " · " : ""}${(p.items || []).length} 部片`, "tags"));
+            head.append(left, button("都不是", "mini plain",
+              () => act("/pending/reject", { actor: p.actor }, `已拒绝：${p.actor}`)));
+            const cands = node("div", null, "cands");
+            for (const c of p.candidates || []) {
+              if (c.via === "search") { cands.appendChild(searchCand(p, c)); continue; }
+              const cand = node("div", null, "cand");
+              const img = document.createElement("img");
+              img.loading = "lazy";
+              img.alt = c.name;
+              if (/^https?:\/\//.test(c.preview || "")) img.src = proxied(c.preview);
+              cand.append(img, node("span", c.name), node("span", c.company || "", "tags"));
+              if (c.via === "ai") cand.appendChild(node("span", "AI 推荐", "via"));
+              cand.appendChild(button("就是她", "mini",
+                () => act("/pending/confirm", { actor: p.actor, candidate: c.name }, `已确认：${p.actor} → ${c.name}`)));
+              cands.appendChild(cand);
+            }
+            item.append(head, cands);
+            box.appendChild(item);
+          }
+          return box;
+        },
+      });
+    }
+
+    function searchCand(p, c) {
+      const cand = node("div", null, "cand wide");
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.alt = p.actor;
+      if (/^https?:\/\//.test(c.preview || "")) img.src = proxied(c.preview);
+      cand.appendChild(img);
+      const tags = node("div", null, "row");
+      const src = c.kind === "gfriends" ? `gfriends（经 ${c.alias_from || "av-wiki"} 别名）` : (c.source_label || "搜索");
+      tags.appendChild(node("span", src, "via"));
+      tags.appendChild(node("span", c.how_label || "", `via ${c.how === "guess" ? "guess" : c.how === "exact" ? "exact" : ""}`));
+      cand.appendChild(tags);
+      const meta = node("div", null, "meta");
+      const who = node("div");
+      who.append(node("span", "名字："), node("b", c.actor_name || c.name));
+      meta.appendChild(who);
+      const num = node("div", `番号：${c.num || "–"}`);
+      if (/^https:\/\//.test(c.page || "")) {
+        const a = node("a", " 打开来源页面");
+        a.href = c.page;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        num.appendChild(a);
+      }
+      meta.appendChild(num);
+      if (c.cast && c.cast.length) meta.appendChild(node("div", `演员表：${c.cast.join("、")}`));
+      if (c.how === "guess") meta.appendChild(node("div", "按罗马字猜的地址，可能是同名的另一位，请看图确认。", "hint warn"));
+      cand.appendChild(meta);
+      cand.appendChild(button("就是她", "mini",
+        () => act("/pending/confirm", { actor: p.actor, candidate: c.name }, `已确认：${p.actor}（${src}）`)));
+      return cand;
+    }
+
+    // ---------------------------------------------------------------- 没配上的演员
+    function renderAi(st) {
+      st = st || {};
+      state.ai = st;
+      let text;
+      if (!st.available) text = `AI 推荐不可用：${st.reason || "原因未知"}`;
+      else text = `AI 推荐今天用了 ${st.used_today || 0} / ${st.daily_limit} 次 · ${tokens(st.tokens_today)}`;
+      if (st.last_error && st.last_error.message) text += ` · 上次出错：${zh(st.last_error.message, "AI 调用失败，详情见插件日志")}`;
+      $("ai-status").textContent = text;
+    }
+    function renderUploadNote() {
+      const link = (state.report || {}).link || {};
+      const note = $("upload-note");
+      // 已经有上传过的头像才放在列表上方；没有的话只在「处理」里的上传处提示
+      const text = uploadWarning();
+      note.hidden = !(text && link.uploads);
+      note.textContent = link.uploads ? text : "";
+    }
+    function uploadWarning() {
+      const link = (state.report || {}).link || {};
+      const can = (state.report || {}).can_link_uploads;
+      if (!link.warning) return "";
+      return `上传头像提醒：${link.warning}${can === false ? "，上传的头像只能保存、写不进 NFO" : "，网页端可能显示不出上传的头像"}。可在「设置 → 写入」里填外部访问地址。`;
+    }
+
+    let searchTimer = null;
+    function attachSearch(input) {
+      input.setAttribute("list", "gf-names");
+      input.addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        const q = input.value.trim();
+        if (!q) return;
+        searchTimer = setTimeout(async () => {
+          try {
+            const res = await api("/search?q=" + encodeURIComponent(q));
+            const dl = $("gf-names");
+            dl.replaceChildren();
+            for (const it of (res && res.items) || []) {
+              const opt = document.createElement("option");
+              opt.value = it.name;
+              opt.label = `${it.company || ""}${it.via && it.via !== "gfriends" ? " · 中文译名" : ""}`;
+              dl.appendChild(opt);
+            }
+          } catch (_) { /* 补全失败不打扰 */ }
+        }, 250);
+      });
+    }
+    function shrink(file) {
+      // 先在页面里缩到 600px 以内、转 JPEG，再 base64 传给插件
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, 600 / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL("image/jpeg", 0.9));
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("读不出这张图片")); };
+        img.src = url;
+      });
+    }
+    async function suggest(actor) {
+      if (state.busy) return;
+      state.busy = true;
+      lockButtons(true);
+      toast(`正在问 AI：${actor}…`);
+      try {
+        const res = await api("/ai/suggest", { actor });
+        const asked = (res.asked || []).map((a) => (a.hit ? `${a.name}✓` : a.name)).join("、") || "（没给出名字）";
+        toast(res.accepted && res.accepted.length
+          ? `AI 推荐 ${asked}；gfriends 里查到 ${res.accepted.join("、")}，已放进「待确认」。用了 ${tokens(res.usage)}`
+          : `AI 推荐 ${asked}；gfriends 里都查不到。用了 ${tokens(res.usage)}`);
+        await refresh();
+      } catch (err) {
+        toast(`AI 推荐失败：${zh(err, "出了点问题，请稍后再试")}`, true);
+      } finally {
+        state.busy = false;
+        lockButtons(false);
+      }
+    }
+    function fixPanel(actor, withAi) {
+      const box = node("div", null, "fix");
+      const a = node("div");
+      a.appendChild(node("label", "对上 gfriends 里的名字（可输入日文名或中文译名搜索）"));
+      const r1 = node("div", null, "row");
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "输入名字搜索";
+      attachSearch(input);
+      r1.append(input, button("对上", "mini", () => {
+        const target = input.value.trim();
+        if (target) act("/manual/alias", { actor, target }, `已设置：${actor} → ${target}`);
+        else toast("先输入名字", true);
+      }));
+      a.appendChild(r1);
+      const b = node("div");
+      b.appendChild(node("label", "或上传一张头像（JPG / PNG / WebP）"));
+      const r2 = node("div", null, "row");
+      // 浏览器自带的文件框文字跟系统语言走，换成中文按钮 + 文件名
+      const file = document.createElement("input");
+      file.type = "file";
+      file.accept = "image/jpeg,image/png,image/webp";
+      file.hidden = true;
+      const pick = node("label", "选择图片", "btn mini plain");
+      const picked = node("span", "还没选", "hint");
+      pick.appendChild(file);
+      file.addEventListener("change", () => { picked.textContent = file.files && file.files[0] ? file.files[0].name : "还没选"; });
+      r2.append(pick, picked, button("上传头像", "mini", async () => {
+        const f = file.files && file.files[0];
+        if (!f) { toast("先选一张图片", true); return; }
+        if (f.size > 20 * 1024 * 1024) { toast("图片太大", true); return; }
+        try {
+          const data = await shrink(f);
+          await act("/manual/upload", { actor, data }, `已上传：${actor}`);
+        } catch (err) { toast(`上传失败：${zh(err, "图片处理出错")}`, true); }
+      }));
+      b.appendChild(r2);
+      const warnText = uploadWarning();
+      if (warnText && !((state.report || {}).link || {}).uploads) b.appendChild(node("div", warnText, "hint warn"));
+      box.append(a, b);
+      if (withAi) {
+        const c = node("div", null, "row");
+        const ai = button("AI 推荐别名", "mini plain", () => suggest(actor));
+        ai.dataset.ai = "1";
+        ai.disabled = !(state.ai && state.ai.available);
+        c.append(ai, node("span", "结果只进「待确认」，按模型用量计费", "hint"));
+        box.appendChild(c);
+      }
+      return box;
+    }
+    function stateText(x) {
+      const tags = [];
+      if (x.manual) tags.push(x.manual.kind === "upload" ? "已上传头像" : `已对上 ${x.manual.target}`);
+      if (x.pending) tags.push("在待确认里");
+      if (x.ai_tried) tags.push(`AI 问过（${(x.ai_tried.accepted || []).join("、") || "没查到"}）`);
+      if (x.num) tags.push(`番号 ${x.num}`);
+      if (x.junk && typeof x.junk === "string") tags.push(x.junk);
+      return tags.join(" · ");
+    }
+    function actorList(withAi) {
+      return (slice) => {
+        const box = node("div", null, "list");
+        for (const x of slice) {
+          const item = node("div", null, "item");
+          const head = node("div", null, "item-head");
+          const left = node("div");
+          left.appendChild(node("span", x.actor, "item-name"));
+          const titles = (x.titles || []).slice(0, 2).join("；");
+          left.appendChild(node("div", `${x.count || 0} 部片${titles ? " · " + titles : ""}`, "tags"));
+          const st = stateText(x);
+          if (st) left.appendChild(node("div", st, "tags"));
+          let panel = null;
+          const toggle = button("处理", "mini", () => {
+            if (!panel) { panel = fixPanel(x.actor, withAi); item.appendChild(panel); toggle.textContent = "收起"; }
+            else { panel.hidden = !panel.hidden; toggle.textContent = panel.hidden ? "处理" : "收起"; }
+          });
+          toggle.dataset.keep = "1";
+          const actions = node("div", null, "item-actions");
+          const line = node("div", null, "search-line");
+          line.hidden = true;
+          if (withAi) {
+            const sb = button("搜索头像", "mini plain", () => searchActor(x.actor, sb, line));
+            sb.dataset.keep = "1";
+            const s = (state.report || {}).settings || {};
+            if (!x.num) { sb.disabled = true; sb.title = "她的片子里找不到番号"; }
+            else if (s.search_enabled === false) { sb.disabled = true; sb.title = "搜索补头像已在设置里关闭"; }
+            if (state.search[x.actor] && state.search[x.actor].running) sb.disabled = true;
+            actions.appendChild(sb);
+            showSearchLine(line, state.search[x.actor] || (x.search_tried ? { tried: x.search_tried } : null));
+          }
+          actions.appendChild(toggle);
+          head.append(left, actions);
+          item.append(head, line);
+          box.appendChild(item);
+        }
+        return box;
+      };
+    }
+    // 搜索结果留在行内（不靠会消失的提示）；重画列表时从 state.search 恢复
+    function searchText(r) {
+      if (!r) return null;
+      if (r.running) return [r.queued ? "排队中…" : "正在搜索…（每个站点请求之间要等几秒）", ""];
+      if (r.error) return [`搜索失败：${zh(r.error, "出了点问题，请稍后再试")}`, "bad"];
+      const res = r.result || r.tried;
+      if (!res) return null;
+      const when_ = r.result ? "" : `（${when(res.at)}）`;
+      const num = res.num ? `${res.num}：` : "";
+      const blocked = res.blocked && res.blocked.length ? `；${res.blocked.join("、")} 被拦，已暂停` : "";
+      if ((res.candidates ?? res.found) > 0) {
+        return [`${num}找到 ${res.candidates ?? res.found} 个候选，已放进「待确认」${blocked}${when_}`, "ok"];
+      }
+      if (res.status === "blocked") return [`${num}没搜完${blocked}，过一会儿再试${when_}`, "warn"];
+      return [`${num}没找到${blocked}${when_}`, ""];
+    }
+    function showSearchLine(line, r) {
+      const t = searchText(r);
+      line.hidden = !t;
+      line.className = "search-line" + (t && t[1] ? ` ${t[1]}` : "");
+      line.textContent = t ? t[0] : "";
+    }
+    async function searchActor(actor, btn, line) {
+      const rowBtns = btn.parentElement ? [...btn.parentElement.querySelectorAll("button")] : [btn];
+      rowBtns.forEach((b) => { b.disabled = true; });
+      state.search[actor] = { running: true, queued: true };
+      showSearchLine(line, state.search[actor]);
+      try {
+        await api("/avatar-search", { actor });
+        const deadline = Date.now() + 8 * 60 * 1000;
+        let st = null;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 2000));
+          try { st = await api("/avatar-search/status?actor=" + encodeURIComponent(actor)); } catch (_) { st = null; continue; }
+          if (st && (st.state === "done" || st.state === "failed")) break;
+          state.search[actor] = { running: true, queued: !st || st.state === "queued" };
+          showSearchLine(line, state.search[actor]);
+        }
+        if (st && st.state === "done") state.search[actor] = { result: st };
+        else if (st && st.state === "failed") state.search[actor] = { error: st.error || "搜索失败" };
+        else state.search[actor] = { error: "等了很久还没搜完，稍后到「待确认」看看" };
+      } catch (err) {
+        state.search[actor] = { error: zh(err, "出了点问题，请稍后再试") };
+      }
+      showSearchLine(line, state.search[actor]);
+      rowBtns.forEach((b) => { b.disabled = false; });
+      try {
+        // 只刷新数字与概览，不重画列表（行内结果留着）
+        state.report = (await api("/report")) || {};
+        renderReport(state.report);
+      } catch (_) { /* 数字下次刷新时再更新 */ }
+    }
+    function renderUnmatched(data) {
+      const actors = (data && data.actors) || [];
+      const junk = (data && data.junk) || [];
+      const text = (x) => `${x.actor} ${(x.titles || []).join(" ")}`;
+      list("actors", actors, { empty: "最近没有配不上的演员。", text, render: actorList(true) });
+      $("junk-box").hidden = !junk.length;
+      $("junk-summary").textContent = `刮削器写进来的非艺名（${junk.length}）`;
+      list("junk", junk, { empty: "没有。", text, render: actorList(false) });
+    }
+    function renderManual(rows) {
+      list("manual", rows, {
+        empty: "还没有手动设置。",
+        text: (x) => `${x.actor} ${x.target || ""}`,
+        render: (slice) => table(["头像", "演员", "设置", "时间", ""], slice.map((x) => {
+          const img = document.createElement("img");
+          img.className = "thumb";
+          img.alt = x.actor;
+          if (x.kind === "upload" && /^[0-9a-f]{40}\.(jpg|png|webp)$/.test(x.file || "")) img.src = `${BASE}/uploads/${x.file}`;
+          else if (/^https?:\/\//.test(x.preview || "")) img.src = proxied(x.preview);
+          const what = x.kind === "upload" ? "上传的头像"
+            : x.kind === "remote" ? `搜索来的头像（${x.source_label || "搜索"} · ${x.how_label || ""} · ${x.num || ""}${x.auto ? " · 自动写入" : ""}）`
+            : `对上 ${x.target}${x.missing ? "（gfriends 里已没有）" : ""}`;
+          return [img, node("b", x.actor), what, when(x.at),
+            button("删除", "mini plain", () => act("/manual/remove", { actor: x.actor }, `已删除手动设置：${x.actor}`))];
+        }), [3]),
+      });
+    }
+
+    // ---------------------------------------------------------------- 写入记录
+    function renderLedger(rows) {
+      const live = rows.filter((x) => x.owned && Object.keys(x.owned).length);
+      $("btn-undo-all").hidden = !live.length;
+      list("ledger", live, {
+        empty: "还没有写入过。",
+        text: (x) => `${x.title || ""} ${Object.keys(x.owned).join(" ")} ${x.nfo_path || ""}`,
+        render: (slice) => table(["条目", "写入的头像", "NFO", "时间", ""], slice.map((x) => [
+          itemLink(x), Object.keys(x.owned).join("、"),
+          node("span", `${x.created ? "新建" : "改写"} · ${x.nfo_path || ""}`, "tags"), when(x.updated_at),
+          button("撤销", "mini plain", () => {
+            if (confirm(`撤销「${x.title || x.media_item_id}」的 ${Object.keys(x.owned).length} 个头像？`)) {
+              act("/undo", { media_item_ids: [x.media_item_id] }, "已排队撤销");
+            }
+          }),
+        ]), [2, 3]),
+      });
+    }
+
+    // ---------------------------------------------------------------- 设置
+    const MIRROR_CUSTOM = "自定义地址";
+    const THUMB_HOSTED = "插件下载并托管";
+    const URL_FIELDS = new Set(["custom_base_url", "public_base_url"]);
+    const GROUPS = [
+      { id: "basic", title: "基本", hint: "插件开关、处理哪些媒体库、要不要真的改文件。",
+        fields: ["enabled", "dry_run", "process_arrivals"], libs: true },
+      { id: "source", title: "头像来源", hint: "去哪里找头像，以及怎么把演员名对上。",
+        fields: ["mirror", "custom_base_url", "ai_fix", "name_table", "infer_from_title", "skip_junk_names"] },
+      { id: "write", title: "写入", hint: "NFO 里写什么头像地址、每轮处理多少部。",
+        fields: ["thumb_mode", "public_base_url", "max_items_per_run"] },
+      { id: "search", title: "搜索补头像", hint: "gfriends 里配不上的演员，按片子的番号去 av-wiki / javdb / DMM 查演员表认人、找头像。结果只进「待确认」；仅限个人自用、低频访问。",
+        fields: ["search_enabled", "search_avwiki", "search_javdb", "search_dmm", "dmm_api_id", "dmm_affiliate_id",
+          "search_per_run", "search_interval_s", "search_cooldown_days", "search_auto_write"] },
+      { id: "ai", title: "AI", hint: "用 MovieClaw 内置 AI 助手给配不上的演员推荐别名。",
+        fields: ["ai_suggest_on_run", "ai_daily_limit"] },
+      { id: "advanced", title: "高级", hint: "一般不用改。", fields: ["request_interval_ms", "filetree_ttl_hours"] },
+    ];
+    const META = {
+      enabled: ["启用插件", "关掉后不响应新片入库和定时任务；手动预览、写入和撤销仍可用。"],
+      dry_run: ["只预览，不写入", "开着时只算出会补哪些头像，不改文件。关掉后还要在「概览」亲手点一次「立即写入一轮」，入库和定时任务才会自动写。"],
+      process_arrivals: ["新片入库时处理", "目标库来了新片就排一轮。"],
+      mirror: ["头像源", "jsDelivr 国内一般能直连；GitHub 原站需要代理。"],
+      custom_base_url: ["自定义源地址", "指向 gfriends 仓库根目录（下面有 Filetree.json 和 Content/）。"],
+      ai_fix: ["优先用 AI 修复版", "放大修复过的清晰图；关掉用原图。"],
+      name_table: ["使用中文译名表", "NFO 里是中文译名时，换成日文原名再找头像。译名表来自 MDCx，运行时下载约 0.9 MB。"],
+      infer_from_title: ["从片名推断候选", "演员名查不到时，用片名末尾的日文名找候选，只进「待确认」。"],
+      skip_junk_names: ["过滤非艺名", "像「京香 大学生モデル」这类介绍文字不拿去匹配，单独列在「没配上的演员」下面。"],
+      thumb_mode: ["头像地址写法", "「直接写镜像地址」最省事；「插件下载并托管」把图片存到插件目录，需要公网域名 + 80/443 端口的外部访问地址。"],
+      public_base_url: ["外部访问地址", "托管模式和手动上传的头像用它拼链接。留空则用主程序「设置 → 应用」里的外部访问地址。"],
+      max_items_per_run: ["每轮最多处理（部）", "没处理完的下一轮接着来。"],
+      ai_suggest_on_run: ["每轮运行后自动推荐", "每轮最多问 5 位；结果只进「待确认」，不会直接写入。按模型用量计费。"],
+      ai_daily_limit: ["每日上限（位演员）", "手动点的和自动的合计；填 0 表示不用 AI。"],
+      search_enabled: ["按番号搜索补头像", "定时任务和新片入库那一轮结束后自动搜几位；「没配上的演员」里也能逐个点「搜索头像」。"],
+      search_avwiki: ["来源：av-wiki", "查番号的演员表；只有一位且名字不同，就当别名，用正名再查 gfriends。"],
+      search_javdb: ["来源：javdb", "查番号的女演员和她的头像。"],
+      search_dmm: ["来源：DMM", "没配官方接口时按罗马字猜头像地址，可能认错人，标「猜测」；配了接口按番号查演员表。"],
+      dmm_api_id: ["DMM API ID", "DMM 官方接口的 api_id（免费注册）。保存后不回显；留空表示不改。"],
+      dmm_affiliate_id: ["DMM Affiliate ID", "与 api_id 一起填才生效。保存后不回显；留空表示不改。"],
+      search_per_run: ["每轮最多搜索（位）", "自动轮次里最多给几位演员搜索。"],
+      search_interval_s: ["请求间隔（秒）", "同一个站点相邻两次请求至少隔多久。"],
+      search_cooldown_days: ["没搜到后冷却（天）", "没搜到的演员这么多天内自动轮次不再搜；手动点「搜索头像」不受限。"],
+      search_auto_write: ["交叉验证通过自动写入", "默认关。只有完全同名、来源是 av-wiki / javdb / DMM 官方接口的结果才自动写；别名和猜测永远只进「待确认」。仍受「只预览」和写入解锁限制。"],
+      request_interval_ms: ["请求间隔（毫秒）", "两次下载头像、两次刷新元数据之间至少等多久。"],
+      filetree_ttl_hours: ["索引检查间隔（小时）", "多久检查一次 gfriends 头像索引有没有更新。"],
+    };
+    const S = { view: null, form: {}, secrets: {}, libs: null, libsSel: null, errors: {}, loaded: false };
+
+    function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+    function changedValues() {
+      const out = {};
+      const values = (S.view && S.view.values) || {};
+      for (const [k, v] of Object.entries(S.form)) if (!same(v, values[k])) out[k] = v;
+      // 敏感字段：只提交新填的值（留空 = 不改），页面从不拿到旧值
+      for (const [k, v] of Object.entries(S.secrets)) if (v) out[k] = v;
+      return out;
+    }
+    function isChanged(k) {
+      if (isSecret(k)) return Boolean(S.secrets[k]);
+      return !same(S.form[k], ((S.view && S.view.values) || {})[k]);
+    }
+    function isSecret(k) {
+      const prop = ((S.view && S.view.schema && S.view.schema.properties) || {})[k];
+      return Boolean(prop && prop.writeOnly);
+    }
+    function selectedLibs() {
+      return [...document.querySelectorAll("input[data-lib]")].filter((el) => el.checked && !el.disabled).map((el) => Number(el.value));
+    }
+    function libsDirty() {
+      if (!S.libs) return false;
+      if (S.libs.source === "default") return Boolean(S.libsTouched);
+      const before = (S.libs.items || []).filter((l) => l.selected).map((l) => l.id).sort((a, b) => a - b);
+      const now = (S.libsSel ? [...S.libsSel] : before).sort((a, b) => a - b);
+      return !same(before, now);
+    }
+    function urlWarning(raw) {
+      let u;
+      try { u = new URL(raw); } catch (_) { return null; }
+      const host = u.hostname.replace(/^\[|\]$/g, "");
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":")) return "外部访问地址是 IP：网页端图片代理会拒绝 IP 直连，头像显示不出来";
+      if (u.port && u.port !== "80" && u.port !== "443") return "外部访问地址带非标准端口：网页端图片代理只接受 80/443";
+      return null;
+    }
+    function validate() {
+      const errors = {};
+      const props = (S.view && S.view.schema && S.view.schema.properties) || {};
+      for (const [k, prop] of Object.entries(props)) {
+        const v = S.form[k];
+        const type = Array.isArray(prop.type) ? prop.type[0] : prop.type;
+        if (type === "integer" || type === "number") {
+          if (v === null || v === "" || Number.isNaN(v) || (type === "integer" && !Number.isInteger(v))) errors[k] = type === "integer" ? "请填整数" : "请填数字";
+          else if (prop.minimum != null && v < prop.minimum) errors[k] = `不能小于 ${prop.minimum}`;
+          else if (prop.maximum != null && v > prop.maximum) errors[k] = `不能大于 ${prop.maximum}`;
+        }
+        if (URL_FIELDS.has(k) && v) {
+          let ok = false;
+          try { const u = new URL(v); ok = (u.protocol === "http:" || u.protocol === "https:") && !!u.host; } catch (_) { ok = false; }
+          if (!ok) errors[k] = "要填 http:// 或 https:// 开头的完整地址";
+        }
+      }
+      if (S.form.mirror === MIRROR_CUSTOM && !String(S.form.custom_base_url || "").trim()) errors.custom_base_url = "选了「自定义地址」就要填这一项";
+      S.errors = errors;
+      return errors;
+    }
+    function control(key, prop) {
+      const type = Array.isArray(prop.type) ? prop.type[0] : prop.type;
+      const v = S.form[key];
+      let el;
+      if (prop.writeOnly) {
+        // 密码框：不回显已存的值，只显示「已设置 / 未设置」
+        const set = ((S.view && S.view.secrets_set) || []).includes(key);
+        const wrap = node("div", null, "row");
+        el = document.createElement("input");
+        el.type = "password";
+        el.autocomplete = "new-password";
+        el.placeholder = set ? "已设置，留空不改" : "未设置";
+        el.value = S.secrets[key] || "";
+        el.addEventListener("input", () => { S.secrets[key] = el.value.trim(); onFormChange(); });
+        wrap.append(node("span", set ? "已设置" : "未设置", set ? "status ok" : "status noop"), el);
+        return wrap;
+      }
+      if (type === "boolean") {
+        const wrap = node("label", null, "switch");
+        el = document.createElement("input");
+        el.type = "checkbox";
+        el.checked = Boolean(v);
+        el.addEventListener("change", () => { S.form[key] = el.checked; onFormChange(); });
+        wrap.append(el, node("span"));
+        wrap.setAttribute("aria-label", (META[key] || [prop.title || key])[0]);
+        return wrap;
+      }
+      if (prop.enum) {
+        el = document.createElement("select");
+        for (const opt of prop.enum) {
+          const o = document.createElement("option");
+          o.value = opt; o.textContent = opt;
+          el.appendChild(o);
+        }
+        el.value = v ?? prop.default ?? prop.enum[0];
+        el.addEventListener("change", () => { S.form[key] = el.value; onFormChange(true); });
+        return el;
+      }
+      if (type === "integer" || type === "number") {
+        el = document.createElement("input");
+        el.type = "number";
+        if (prop.minimum != null) el.min = String(prop.minimum);
+        if (prop.maximum != null) el.max = String(prop.maximum);
+        el.step = type === "integer" ? "1" : "any";
+        el.value = v == null ? "" : String(v);
+        el.addEventListener("input", () => { S.form[key] = el.value === "" ? null : Number(el.value); onFormChange(); });
+        return el;
+      }
+      el = document.createElement("input");
+      el.type = URL_FIELDS.has(key) ? "url" : "text";
+      if (key === "public_base_url") el.placeholder = "例如 https://movieclaw.example.com";
+      else if (key === "custom_base_url") el.placeholder = "例如 https://example.com/gfriends/";
+      if (type === "array") el.value = Array.isArray(v) ? v.join("，") : "";
+      else el.value = v == null ? "" : String(v);
+      el.addEventListener("input", () => {
+        S.form[key] = type === "array" ? el.value.split(/[,，\n]/).map((s) => s.trim()).filter(Boolean) : el.value.trim();
+        onFormChange();
+      });
+      return el;
+    }
+    function fieldNote(key) {
+      // 托管模式 / 上传头像相关的提醒只在这里显示
+      if (key !== "public_base_url" && key !== "thumb_mode") return null;
+      const link = (state.report || {}).link || {};
+      const hosted = S.form.thumb_mode === THUMB_HOSTED;
+      if (!hosted && !link.uploads) return null;
+      if (key === "thumb_mode" && !hosted) return null;
+      const own = String(S.form.public_base_url || "").trim();
+      let warn = null;
+      if (own) warn = urlWarning(own);
+      else if (!link.own_url) warn = link.warning;
+      else return node("div", "保存后按主程序的外部访问地址检查。", "note hint");
+      if (!warn) return key === "public_base_url" ? node("div", "地址可用。", "note hint") : null;
+      const why = hosted ? "托管模式" : "手动上传的头像";
+      return node("div", `${why}：${warn}。`, "note hint warn");
+    }
+    function fieldVisible(key) {
+      if (key === "custom_base_url") return S.form.mirror === MIRROR_CUSTOM;
+      return true;
+    }
+    function fieldRow(key, prop) {
+      const type = Array.isArray(prop.type) ? prop.type[0] : prop.type;
+      const row = node("div", null, ((type === "string" && !prop.enum) || type === "array") && !prop.writeOnly ? "field wide" : "field");
+      row.dataset.key = key;
+      const [label, help] = META[key] || [prop.title || "其他设置", prop.description || ""];
+      if (isChanged(key)) row.classList.add("changed");
+      row.appendChild(node("div", label, "label"));
+      const ctl = node("div", null, "ctl");
+      ctl.appendChild(control(key, prop));
+      row.appendChild(ctl);
+      if (help) row.appendChild(node("div", help, "hint"));
+      const note = fieldNote(key);
+      if (note) row.appendChild(note);
+      if (S.errors[key]) {
+        row.appendChild(node("div", S.errors[key], "ferr"));
+        const input = ctl.querySelector("input, select");
+        if (input) input.classList.add("invalid");
+      }
+      return row;
+    }
+    function libsBlock() {
+      const box = node("div", null, "field wide");
+      box.appendChild(node("div", "目标媒体库", "label"));
+      const help = node("div", "勾选要补头像的库。只有「其他视频 + 本地目录」的库能选；电影、剧集等 TMDB 刮削的库不处理。", "hint");
+      const libs = node("div", null, "libs");
+      const items = (S.libs && S.libs.items) || [];
+      if (!S.libs) libs.appendChild(node("div", "读取媒体库失败。", "error"));
+      else if (!items.length) libs.appendChild(node("div", "服务器上还没有媒体库。", "hint"));
+      const sel = S.libsSel || new Set(items.filter((l) => l.selected).map((l) => l.id));
+      for (const lib of items) {
+        const label = node("label", null, lib.eligible ? "lib" : "lib off");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = String(lib.id);
+        input.checked = sel.has(lib.id);
+        input.disabled = !lib.eligible && !lib.selected;
+        input.dataset.lib = "1";
+        input.addEventListener("change", () => {
+          S.libsTouched = true;
+          S.libsSel = new Set(selectedLibs());
+          updateSavebar();
+        });
+        label.append(input, node("span", lib.name || `媒体库 ${lib.id}`));
+        if (!lib.eligible) label.appendChild(node("span", "不支持", "tags"));
+        libs.appendChild(label);
+      }
+      box.append(help, libs);
+      const notes = [...((S.libs && S.libs.notes) || [])];
+      if (S.libs && S.libs.source === "default") notes.unshift("还没勾选过：暂按库名「小姐姐」处理，保存一次即可固定下来。");
+      if (notes.length) box.appendChild(node("div", notes.join("；"), "hint warn"));
+      return box;
+    }
+    function groupExtra(id) {
+      const r = state.report || {};
+      const s = r.settings || {};
+      if (id === "write") {
+        const row = node("div", null, "field");
+        const left = node("div");
+        left.appendChild(node("div", "自动写入", "label"));
+        left.appendChild(node("div", s.write_armed
+          ? "已开启：新片入库和定时任务会直接写 NFO。"
+          : "未开启：关掉「只预览」后，在「概览」点一次「立即写入一轮」才会开启。", "hint"));
+        row.appendChild(left);
+        if (s.write_armed) {
+          const ctl = node("div", null, "ctl");
+          ctl.appendChild(button("停止自动写入", "mini plain", () => act("/write/disarm", {}, "已停止自动写入：入库和定时任务回到只预览")));
+          row.appendChild(ctl);
+        }
+        return row;
+      }
+      if (id === "ai") {
+        const st = state.ai || {};
+        return node("div", st.available
+          ? `状态：可用。今天用了 ${st.used_today || 0} / ${st.daily_limit} 次 · ${tokens(st.tokens_today)}。`
+          : `状态：不可用（${st.reason || "需要在主程序里配好 AI 模型"}）。`, "hint");
+      }
+      if (id === "advanced") {
+        const box = node("div", null, "stack");
+        const ft = r.filetree || {}, nt = r.name_table || {};
+        box.appendChild(node("div",
+          `头像索引：${ft.total ? `${ft.total} 张` : "尚未下载"}，上次检查 ${when(ft.checked_at)}；中文译名表：${!s.name_table ? "不用" : nt.keys ? `${nt.keys} 条` : "首次运行时下载"}。`, "hint"));
+        const row = node("div", null, "row");
+        row.append(
+          button("检查头像索引更新", "mini plain", () => act("/filetree/refresh", {}, "头像索引已检查")),
+          button("刷新译名表", "mini plain", () => act("/names/refresh", {}, "译名表已检查")));
+        const sched = node("a", "定时任务周期", "btn mini plain");
+        sched.href = "/settings/app?tab=tasks&task=actor-avatar.sweep";
+        sched.target = "_top";
+        const hostPage = node("a", "在主程序设置页打开", "btn mini plain");
+        hostPage.href = "/settings/plugins/actor-avatar";
+        hostPage.target = "_top";
+        row.append(sched, hostPage);
+        box.appendChild(row);
+        return box;
+      }
+      return null;
+    }
+    function renderSettings() {
+      const host = $("settings-form");
+      host.replaceChildren();
+      const view = S.view;
+      const props = (view && view.schema && view.schema.properties) || {};
+      const placed = new Set();
+      for (const g of GROUPS) {
+        const card = node("div", null, "card group");
+        card.appendChild(node("h2", g.title));
+        card.appendChild(node("div", g.hint, "hint"));
+        if (g.libs) card.appendChild(libsBlock());
+        let fields = g.fields.filter((k) => props[k]);
+        if (g.id === "advanced") fields = fields.concat(Object.keys(props).filter((k) => !GROUPS.some((x) => x.fields.includes(k))));
+        for (const k of fields) {
+          placed.add(k);
+          if (fieldVisible(k)) card.appendChild(fieldRow(k, props[k]));
+        }
+        const extra = groupExtra(g.id);
+        if (extra) card.appendChild(extra);
+        host.appendChild(card);
+      }
+      updateSavebar();
+    }
+    function onFormChange(rerender) {
+      if (Object.keys(S.errors).length) validate();
+      if (rerender) {
+        const active = document.activeElement && document.activeElement.closest(".field");
+        const key = active && active.dataset.key;
+        renderSettings();
+        const again = key && document.querySelector(`.field[data-key="${key}"] select, .field[data-key="${key}"] input`);
+        if (again) again.focus();
+        return;
+      }
+      // 只更新「已改」标记与提醒，避免输入时重画整页丢失光标
+      document.querySelectorAll(".field[data-key]").forEach((row) => {
+        const k = row.dataset.key;
+        row.classList.toggle("changed", isChanged(k));
+        const old = row.querySelector(".note");
+        const note = fieldNote(k);
+        if (old) old.remove();
+        // 校验错误跟着输入更新：改对了就去掉红字
+        const oldErr = row.querySelector(".ferr");
+        if (oldErr) oldErr.remove();
+        const input = row.querySelector(".ctl input, .ctl select");
+        if (input) input.classList.toggle("invalid", Boolean(S.errors[k]));
+        if (note) row.appendChild(note);
+        if (S.errors[k]) row.appendChild(node("div", S.errors[k], "ferr"));
+      });
+      updateSavebar();
+    }
+    function updateSavebar() {
+      const n = Object.keys(changedValues()).length + (libsDirty() ? 1 : 0);
+      $("savebar").hidden = n === 0;
+      $("savebar-text").textContent = `有 ${n} 项改动未保存`;
+    }
+    async function loadSettings() {
+      $("settings-error").hidden = true;
+      const [view, libs, ai] = await Promise.allSettled([hostSettings(), api("/libraries"), api("/ai")]);
+      if (ai.status === "fulfilled") renderAi(ai.value);
+      S.libs = libs.status === "fulfilled" ? libs.value : null;
+      S.libsSel = null; S.libsTouched = false;
+      if (view.status === "fulfilled") {
+        S.view = view.value;
+        if (!S.view.editable) {
+          showSettingsError(`这个插件的设置暂时不能在网页里改：${S.view.reason || "主程序没给出原因"}。`);
+          S.view = { ...S.view, schema: null };
+        }
+      } else {
+        S.view = null;
+        showSettingsError(`读不到插件设置：${zh(view.reason, "未知错误")}。也可以到主程序「设置 → 插件 → 演员头像补全」里改。`);
+      }
+      S.form = { ...((S.view && S.view.values) || {}) };
+      S.secrets = {};
+      S.errors = {};
+      S.loaded = true;
+      renderSettings();
+    }
+    function showSettingsError(text) {
+      const el = $("settings-error");
+      el.hidden = !text;
+      el.textContent = text || "";
+    }
+    async function waitPluginBack() {
+      // 主程序保存后会重启插件；等插件接口重新可用
+      for (let i = 0; i < 20; i += 1) {
+        try { await api("/report"); return true; } catch (_) { await new Promise((r) => setTimeout(r, 750)); }
+      }
+      return false;
+    }
+    async function saveSettings() {
+      if (state.busy) return;
+      const errs = validate();
+      if (Object.keys(errs).length) {
+        renderSettings();
+        const names = Object.keys(errs).map((k) => (META[k] || [k])[0]).join("、");
+        toast(`有设置填得不对，请先改正：${names}`, true);
+        return;
+      }
+      const changed = changedValues();
+      const libsChanged = libsDirty();
+      if (!Object.keys(changed).length && !libsChanged) return;
+      state.busy = true;
+      lockButtons(true);
+      showSettingsError("");
+      let libsSaved = false;
+      try {
+        if (libsChanged) {
+          S.libs = await api("/libraries", { library_ids: selectedLibs() }, "PUT");
+          S.libsSel = null; S.libsTouched = false; libsSaved = true;
+        }
+        let back = true;
+        if (Object.keys(changed).length) {
+          toast("正在保存，插件会重启几秒…");
+          S.view = await hostSettings(changed);
+          S.secrets = {};
+          back = await waitPluginBack();
+        }
+        const extra = changed.dry_run === false ? " 要自动写入，还需在「概览」点一次「立即写入一轮」。" : "";
+        if (back) toast(`设置已保存。${extra}`);
+        else toast("设置已保存，但插件还没重新启动好，请稍后刷新页面看看。", true);
+        S.loaded = false;  // 按主程序保存后的值重画
+        await refresh();
+      } catch (err) {
+        const part = libsSaved ? "目标媒体库已保存，其他设置" : "";
+        showSettingsError(`${part}保存失败：${zh(err, "出了点问题，请稍后再试")}`);
+        toast("保存失败", true);
+        if (libsSaved) renderSettings();
+      } finally {
+        state.busy = false;
+        lockButtons(false);
+      }
+    }
+
+    // ---------------------------------------------------------------- 加载与切换
+    async function loadTab(tab) {
+      if (tab === "pending") renderPending(((await api("/pending")) || {}).items || []);
+      else if (tab === "unmatched") {
+        const [u, m, ai] = await Promise.all([api("/unmatched"), api("/manual"), api("/ai").catch(() => null)]);
+        renderAi(ai || { available: false, reason: "读不到 AI 状态" });
+        renderUnmatched(u);
+        renderManual((m || {}).items || []);
+      } else if (tab === "history") renderLedger(((await api("/ledger")) || {}).items || []);
+      else if (tab === "settings") {
+        const dirty = S.loaded && (Object.keys(changedValues()).length || libsDirty());
+        if (!dirty) await loadSettings(); else renderSettings();
+      }
+      // 重画出来的新按钮要跟当前忙碌状态一致（操作进行中不能再点）
+      lockButtons(state.busy);
+    }
+    async function refresh() {
+      const err = $("load-error");
+      try {
+        state.report = (await api("/report")) || {};
+        renderReport(state.report);
+        await loadTab(state.tab);
+        err.hidden = true;
+      } catch (e) {
+        err.hidden = false;
+        err.textContent = `读取失败：${zh(e, "出了点问题，请稍后刷新")}`;
+      }
+    }
+    function show(tab, push) {
+      if (!TABS.includes(tab)) tab = "overview";
+      state.tab = tab;
+      for (const t of TABS) $(`tab-${t}`).hidden = t !== tab;
+      document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+      if (push && location.hash !== `#${tab}`) history.replaceState(null, "", `#${tab}`);
+      if (state.report) loadTab(tab).catch((e) => toast(`读取失败：${zh(e, "出了点问题，请稍后刷新")}`, true));
+    }
+    function bindSeg(group, segs) {
+      $(`seg-${group}`).querySelectorAll("button").forEach((b) => {
+        b.dataset.keep = "1";
+        b.addEventListener("click", () => {
+          state.seg[group] = b.dataset.seg;
+          $(`seg-${group}`).querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+          for (const s of segs) $(`seg-${s}`).hidden = s !== b.dataset.seg;
+          if (group === "history") $("btn-undo-all").style.visibility = b.dataset.seg === "ledger" ? "visible" : "hidden";
+        });
+      });
+    }
+
+    document.querySelectorAll("nav.tabs button").forEach((b) => {
+      b.dataset.keep = "1";
+      b.addEventListener("click", () => show(b.dataset.tab, true));
+    });
+    document.querySelectorAll("[data-goto]").forEach((el) => el.addEventListener("click", () => show(el.dataset.goto, true)));
+    window.addEventListener("hashchange", () => show(location.hash.slice(1), false));
+    bindSeg("unmatched", ["actors", "manual"]);
+    bindSeg("history", ["ledger", "events", "runs"]);
+    bindSearch("pending", "q-pending");
+    bindSearch("actors", "q-actors");
+    bindSearch("junk", "q-junk");
+    bindSearch("manual", "q-manual");
+    bindSearch("ledger", "q-ledger");
+    bindSearch("events", "q-events", "f-events");
+    $("btn-preview").addEventListener("click", () => act("/run", { dry_run: true }, "已开始预览"));
+    $("btn-run").addEventListener("click", () => {
+      if (confirm("真正写入 NFO 并刷新元数据？写入的头像可以在「写入记录」里撤销。")) act("/run", { dry_run: false }, "已开始写入");
+    });
+    $("btn-disarm").addEventListener("click", () => act("/write/disarm", {}, "已停止自动写入：入库和定时任务回到只预览"));
+    $("btn-undo-all").addEventListener("click", () => {
+      if (confirm("撤销本插件写过的全部头像？新建的 NFO 会在刷新后删除。")) act("/undo", { all: true }, "已开始全部撤销");
+    });
+    $("btn-save").addEventListener("click", saveSettings);
+    $("btn-discard").addEventListener("click", () => {
+      S.form = { ...((S.view && S.view.values) || {}) };
+      S.errors = {}; S.secrets = {}; S.libsSel = null; S.libsTouched = false;
+      renderSettings();
+    });
+    window.addEventListener("beforeunload", (e) => {
+      if (S.loaded && (Object.keys(changedValues()).length || libsDirty())) { e.preventDefault(); e.returnValue = ""; }
+    });
+    show(location.hash.slice(1) || "overview", false);
+    refresh();
+  </script>
+</body>
+</html>

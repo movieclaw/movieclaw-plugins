@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 头像框 -->
+  <rect x="2.8" y="2.8" width="18.4" height="18.4" rx="4.6"/>
+  <!-- 人像 -->
+  <circle cx="12" cy="9.6" r="3.2"/>
+  <path d="M6.6 19.2c.6-3 2.8-4.8 5.4-4.8s4.8 1.8 5.4 4.8"/>
+  <!-- 补全：右上角加号 -->
+  <path d="M18.2 4.9v3.4M16.5 6.6h3.4"/>
+</svg>

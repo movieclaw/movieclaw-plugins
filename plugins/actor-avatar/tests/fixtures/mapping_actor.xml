@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<actor>
+  <!-- 测试用的精简译名表：结构同 MDCx resources/mapping_table/mapping_actor.xml -->
+  <a zh_cn="女优" zh_tw="女優" jp="女優" keyword=",AV女優,女优,女優," />
+  <a zh_cn="错误" zh_tw="錯誤" jp="錯誤" keyword=",酸素,錯誤,错误,【誤認注意】," />
+  <a zh_cn="大槻响" zh_tw="大槻響" jp="大槻ひびき" keyword=",大槻ひびき,大槻响,大槻響,安藤絵里,まひる【誤認注意】," />
+  <a zh_cn="凉森玲梦" zh_tw="涼森玲夢" jp="涼森れむ" keyword=",傻梦,凉森玲梦,涼森れむ,涼森玲夢," />
+  <a zh_cn="八挂海" zh_tw="八掛海" jp="八掛うみ" keyword=",八挂海,八掛うみ,八掛海," />
+  <a zh_cn="野々浦暖" zh_tw="野々浦暖" jp="野々浦暖" keyword=",野々浦暖,野野浦暖," />
+  <a zh_cn="美月" zh_tw="美月" jp="美月レイア" keyword=",美月,美月レイア,共用名," />
+  <a zh_cn="美月" zh_tw="美月" jp="美月恋" keyword=",美月,美月恋,共用名," />
+  <a zh_cn="水卜樱" zh_tw="水卜櫻" jp="水卜さくら" keyword=",水卜樱,水卜さくら,同名别名,【同名異人】," />
+  <a zh_cn="不在头像库" zh_tw="不在頭像庫" jp="どこにもいない" keyword=",不在头像库," />
+</actor>

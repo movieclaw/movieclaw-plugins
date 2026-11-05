@@ -1,0 +1,9 @@
+{
+  "author": "Migflyway",
+  "author_url": "https://github.com/Migflyway",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "从 gfriends 头像库给本地视频库的演员补头像：只写 NFO 的 <thumb>，默认只预览，带台账与一键撤销。",
+  "category": "library",
+  "icon": "icon.svg"
+}
