@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 时钟：播放结束后延迟清理 -->
+  <circle cx="10" cy="10" r="7.2"/>
+  <path d="M10 6.2V10l2.6 1.6"/>
+  <!-- 进度条被清空：左端圆点 + 虚线 -->
+  <path d="M3 20.6h18" stroke-dasharray="1.6 2.4"/>
+  <circle cx="3.4" cy="20.6" r="1.4" fill="black" stroke="none"/>
+  <!-- 清除：右上角叉号 -->
+  <path d="M17.6 3.4l3.4 3.4M21 3.4l-3.4 3.4"/>
+</svg>

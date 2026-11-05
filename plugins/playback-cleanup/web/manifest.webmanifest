@@ -1,0 +1,6 @@
+{
+  "name": "续播进度清理",
+  "short_name": "续播清理",
+  "start_url": ".",
+  "icons": [{ "src": "icon.svg", "type": "image/svg+xml", "purpose": "monochrome" }]
+}
