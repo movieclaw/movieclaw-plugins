@@ -1,5 +1,6 @@
-"""测试替身：内存插件数据、假宿主操作（按 v0.46.0 的 catalog / sync.state 语义：游标翻页、
-compare-and-set、身份校验、省略字段不改）。全程不联网、不需要真宿主。"""
+"""测试替身：内存插件数据、假宿主操作（按 v0.46.0 + local-null 补丁的 catalog / sync.state 语义：
+游标翻页、``kinds`` 过滤（默认 movie + tv）、compare-and-set、身份校验（无外部编号的本地条目
+只凭 id + kind）、省略字段不改）。全程不联网、不需要真宿主。"""
 
 from __future__ import annotations
 
@@ -55,13 +56,28 @@ class FakeHost:
         self.tick = 0
         #: sync.state 写入前的钩子：模拟客户端在此刻又上报了一次进度
         self.before_state: list = []
+        #: 模拟 0.46.0：catalog 的操作目录里没有 kinds，带上就 INVALID_ARGUMENTS
+        self.old_host = False
 
     # ---- 造数据
     def add_media(self, mid: int, library_id: int, kind: str = "movie", title: str = "", **ids):
-        ids.setdefault("tmdb_id", 1000 + mid)
+        """默认带 TMDB 编号；``kind="video"`` 默认没有编号（「其他」库的本地条目）。"""
+        ids.setdefault("tmdb_id", None if kind == "video" else 1000 + mid)
         self.media[mid] = (
             library_id,
             {"id": mid, "kind": kind, "title": title or f"片{mid}", "imdb_id": None, **ids},
+        )
+
+    @staticmethod
+    def same_identity(media: dict | None, c: dict) -> bool:
+        """与宿主 ``same_identity`` 同构。"""
+        if not media or media["kind"] != c["kind"]:
+            return False
+        if not media.get("tmdb_id") and not media.get("imdb_id"):
+            return not c.get("tmdb_id") and not c.get("imdb_id")
+        return bool(
+            (c.get("tmdb_id") and c["tmdb_id"] == media.get("tmdb_id"))
+            or (c.get("imdb_id") and c["imdb_id"] == media.get("imdb_id"))
         )
 
     def stamp(self) -> str:
@@ -109,10 +125,12 @@ class FakeHost:
         offset, limit = int(p.get("offset") or 0), p.get("limit")
         return rows[offset : offset + limit] if limit else rows[offset:]
 
-    def _units(self, member: int):
+    def _units(self, member: int, kinds: list[str]):
         out = []
         for mid, (_lib, media) in sorted(self.media.items()):
-            if media["kind"] == "movie":
+            if media["kind"] not in kinds:
+                continue
+            if media["kind"] != "tv":  # 电影 / 视频：单一 0/0 单元
                 out.append((mid, 0, 0))
             for (m, i, s, e) in self.states:
                 if m == member and i == mid and media["kind"] == "tv":
@@ -120,9 +138,15 @@ class FakeHost:
         return sorted(set(out))
 
     def op_playback_sync_catalog(self, p):
+        if self.old_host and "kinds" in p:
+            raise OpsError(400, "INVALID_ARGUMENTS", "这些参数不属于 playback_sync_catalog：kinds")
         member = int(p.get("member_id") or 0)
         limit = int(p.get("limit") or 50)
-        units = self._units(member)
+        kinds = p.get("kinds") or ["movie", "tv"]
+        if isinstance(kinds, str):
+            kinds = [kinds]
+        assert set(kinds) <= {"movie", "tv", "video"}, kinds
+        units = self._units(member, list(kinds))
         if p.get("cursor"):
             cur = tuple(map(int, p["cursor"].split(":")))
             units = [u for u in units if u > cur]
@@ -156,13 +180,17 @@ class FakeHost:
             assert expected is None or "+" in expected or expected.endswith("Z"), "须带时区"
             entry = self.media.get(c["media_item_id"])
             media = entry[1] if entry else None
-            if not media or media["kind"] != c["kind"] or not (
-                (c.get("tmdb_id") and c["tmdb_id"] == media.get("tmdb_id"))
-                or (c.get("imdb_id") and c["imdb_id"] == media.get("imdb_id"))
-            ):
+            if not self.same_identity(media, c):
                 outcomes.append({"status": "mismatch"})
                 continue
-            key = (member, c["media_item_id"], c.get("season") or 0, c.get("episode") or 0)
+            assert c["kind"] == "tv" or not (c.get("season") or c.get("episode")), "非剧集不带季集"
+            tv = c["kind"] == "tv"
+            key = (
+                member,
+                c["media_item_id"],
+                (c.get("season") or 0) if tv else 0,
+                (c.get("episode") or 0) if tv else 0,
+            )
             st = self.states.get(key)
             current = (
                 datetime.fromisoformat(st["updated_at"]).replace(tzinfo=UTC) if st else None
