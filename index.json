@@ -1,10 +1,93 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-03T10:03:03Z",
+  "generated_at": "2026-11-05T06:10:29Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
   "plugins": [
+    {
+      "id": "actor-avatar",
+      "name": "演员头像补全",
+      "summary": "从 gfriends 头像库给本地视频库的演员补头像：只写 NFO 的 <thumb>，默认只预览，带台账与一键撤销。",
+      "description": "用 gfriends 头像库给本地视频库的演员补头像（在插件页面勾选库，可选 MDCx 中文译名表）：只往 NFO 写 <thumb>，再触发一次重新读取 NFO；默认只预览，可撤销。",
+      "category": "library",
+      "author": {
+        "name": "Migflyway",
+        "url": "https://github.com/Migflyway"
+      },
+      "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/actor-avatar",
+      "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/actor-avatar",
+      "license": "MIT",
+      "origin": "official",
+      "icon": {
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/actor-avatar-icon-dd315c31e5e13e81.svg",
+        "sha256": "dd315c31e5e13e81e617f99385e2a33e8a58302c643fbde0d41fa4018b895663",
+        "size": 437
+      },
+      "screenshots": [],
+      "deprecated": null,
+      "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=actor-avatar",
+      "downloads": 0,
+      "latest": "0.5.1",
+      "latest_stable": "0.5.1",
+      "versions": [
+        {
+          "version": "0.5.1",
+          "prerelease": false,
+          "released_at": "2026-11-05T06:10:29Z",
+          "yanked": null,
+          "notes": "- **去掉默认目标库**：以前没在插件页面勾选过、也没有 0.1.x 旧设置 `libraries` 时，会按库名「小姐姐」找库；现在不再有任何默认库。\n  没选库时定时任务、新片入库、手动运行、按番号搜索和 AI 推荐都不做任何事（不读条目、不写文件、不记运行记录），\n  只记一行日志；运行结果状态为 `no_selection`，报告里 `settings.library_source` 为 `none`，插件页面「概览」顶部提示去「设置」勾选目标媒体库。\n- **已有的勾选不受影响**：在插件页面保存过的勾选照旧生效，0.1.x `libraries` 设置的一次性迁移也和以前一样。\n  从没保存过勾选的安装（以前靠默认库名工作的）升级后需要到插件页面勾选一次目标媒体库并保存。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/actor-avatar-v0.5.1",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/actor-avatar-v0.5.1/plugins/actor-avatar",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/actor-avatar-v0.5.1/plugins/actor-avatar/README.md",
+            "sha256": "c9d4882a04605ef64e9270aeffa9f9b8e37f0831ae2be2a0fd5380706d9266c4",
+            "size": 15921
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "library.items.arrived": "^1.0",
+            "scheduled-tasks": "^1.0",
+            "job-handlers": "^1.1"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "app.show",
+              "library.list",
+              "library.items.list",
+              "library.items.get",
+              "library.items.refresh-metadata",
+              "jobs.show",
+              "agent:none"
+            ],
+            "paths": [
+              {
+                "path": "library",
+                "mode": "rw"
+              }
+            ],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "actor-avatar-0.5.1.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/actor-avatar-v0.5.1/actor-avatar-0.5.1.mcplugin",
+              "sha256": "d361ea3505a475f4abe891e7fa877ceba6aa38960016e46bbe8489fe5d18a44a",
+              "size": 198770
+            }
+          ]
+        }
+      ]
+    },
     {
       "id": "cast-cn",
       "name": "演职人员中文刮削",
@@ -27,7 +110,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cast-cn",
-      "downloads": 12,
+      "downloads": 13,
       "latest": "0.3.5",
       "latest_stable": "0.3.5",
       "versions": [
@@ -222,7 +305,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-115",
-      "downloads": 60,
+      "downloads": 62,
       "latest": "0.1.0-beta.3",
       "latest_stable": null,
       "versions": [
@@ -1039,7 +1122,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=notifyhub",
-      "downloads": 15,
+      "downloads": 17,
       "latest": "2.3.0",
       "latest_stable": "2.3.0",
       "versions": [
@@ -1194,7 +1277,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=p115-import",
-      "downloads": 4,
+      "downloads": 7,
       "latest": "0.4.14",
       "latest_stable": "0.4.14",
       "versions": [
@@ -1348,7 +1431,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=p115-library",
-      "downloads": 4,
+      "downloads": 8,
       "latest": "2.8.3",
       "latest_stable": "2.8.3",
       "versions": [
@@ -1686,7 +1769,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 23,
+      "downloads": 25,
       "latest": "0.2.3",
       "latest_stable": "0.2.3",
       "versions": [
@@ -1808,7 +1891,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-site-pack",
-      "downloads": 43,
+      "downloads": 45,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -2127,7 +2210,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-scheduler",
-      "downloads": 12,
+      "downloads": 13,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -2302,7 +2385,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/o1xhack/movieclaw-trakt/issues/new",
-      "downloads": 16,
+      "downloads": 17,
       "latest": "0.4.0",
       "latest_stable": "0.4.0",
       "versions": [
@@ -2600,7 +2683,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=watch-friends",
-      "downloads": 23,
+      "downloads": 24,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
