@@ -1,0 +1,5 @@
+HTTP/2 302 
+content-type: application/xml
+location: https://pics.dmm.com/mono/noimage/now_printing.jpg
+date: Wed, 04 Nov 2026 11:16:25 GMT
+server: AmazonS3

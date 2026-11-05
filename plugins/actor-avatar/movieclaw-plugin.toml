@@ -1,0 +1,26 @@
+[plugin]
+id = "actor-avatar"
+title = "演员头像补全"
+version = "0.5.0"
+entry = "actor_avatar"
+runtime = "process"
+sdk = "^1.0"
+description = "用 gfriends 头像库给本地视频库的演员补头像（在插件页面勾选库，可选 MDCx 中文译名表）：只往 NFO 写 <thumb>，再触发一次重新读取 NFO；默认只预览，可撤销。"
+
+[requires]
+"library.items.arrived" = "^1.0"
+"scheduled-tasks" = "^1.0"
+"job-handlers" = "^1.1"
+
+[permissions]
+operations = [
+  "app.show",
+  "library.list",
+  "library.items.list",
+  "library.items.get",
+  "library.items.refresh-metadata",
+  "jobs.show",
+  "agent:none",
+]
+paths = [{ path = "library", mode = "rw" }]
+network = true
