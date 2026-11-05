@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-05T06:10:29Z",
+  "generated_at": "2026-11-05T06:11:29Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -615,6 +615,249 @@
               "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/cloud-115-v0.1.0-beta.1/cloud-115-0.1.0-beta.1.mcplugin",
               "sha256": "88958b608374e8481f389bb11d113419db7e42588d81958d8cfead10e9eda5bb",
               "size": 45196
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-123",
+      "name": "123 云盘",
+      "summary": "接入 123 云盘：扫码或 Token 登录、目录纳管、秒传与分片续传、原文件直链。",
+      "description": "基于 MovieClaw 核心提供的云存储能力开发的 123 云盘插件，方便将本地媒体库搬到云盘，节省本地空间",
+      "category": "storage",
+      "author": {
+        "name": "zactony",
+        "url": null
+      },
+      "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/cloud-123",
+      "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/cloud-123",
+      "license": "MIT",
+      "origin": "official",
+      "icon": null,
+      "screenshots": [],
+      "deprecated": null,
+      "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-123",
+      "downloads": 0,
+      "latest": "0.1.0-beta.10",
+      "latest_stable": null,
+      "versions": [
+        {
+          "version": "0.1.0-beta.10",
+          "prerelease": true,
+          "released_at": "2026-11-05T06:11:29Z",
+          "yanked": null,
+          "notes": "- 分片 PUT 改为 64 KiB 分块发送，保留准确 Content-Length 和单次请求，避免整片作为一次传输写入而在慢连接上超时。\n- PUT 响应读取超时从 20 秒调整为 60 秒，连接、写入及连接池超时不变；不增加重试或改变分片对账与恢复语义。\n- 增加白名单 PUT 错误诊断和流式请求、取消、慢写、停滞及延迟响应回归；不记录 URL、凭据或原始异常。\n- 精简使用说明和历史更新说明，保留功能、行为边界及通用验证方式。依赖锁不变。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/cloud-123-v0.1.0-beta.10",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/cloud-123-v0.1.0-beta.10/plugins/cloud-123",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/cloud-123-v0.1.0-beta.10/plugins/cloud-123/README.md",
+            "sha256": "af5c1618796e42784ea0d2810993c092bbfb283c0dec65624d84a0c65d69bb27",
+            "size": 7181
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "drive-backends": "^1.5",
+            "plugin-data": "^1.0"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [],
+            "paths": [],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": false,
+          "dependencies": {
+            "lock": {
+              "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/cloud-123-v0.1.0-beta.10/plugins/cloud-123/requirements.lock",
+              "sha256": "7dfcb49bb6971eb2616254d06caf4fe6b17ac706684c5d746302a492d84c0608",
+              "size": 261455
+            },
+            "packages": [
+              {
+                "name": "bitarray",
+                "version": "3.12.3",
+                "native": true
+              },
+              {
+                "name": "brotli",
+                "version": "1.2.1",
+                "native": true
+              },
+              {
+                "name": "errno2",
+                "version": "0.0.5",
+                "native": false
+              },
+              {
+                "name": "http-response",
+                "version": "0.0.9.1",
+                "native": false
+              },
+              {
+                "name": "httpx-request",
+                "version": "0.1.9.1",
+                "native": false
+              },
+              {
+                "name": "integer-tool",
+                "version": "0.0.6.1",
+                "native": false
+              },
+              {
+                "name": "iterdir",
+                "version": "0.0.10.1",
+                "native": false
+              },
+              {
+                "name": "jh2",
+                "version": "5.0.15",
+                "native": true
+              },
+              {
+                "name": "multidict",
+                "version": "7.2.0",
+                "native": true
+              },
+              {
+                "name": "orjson",
+                "version": "3.13.0",
+                "native": true
+              },
+              {
+                "name": "p123client",
+                "version": "0.0.9.4",
+                "native": false
+              },
+              {
+                "name": "propcache",
+                "version": "0.5.4",
+                "native": true
+              },
+              {
+                "name": "python-argtools",
+                "version": "0.0.4",
+                "native": false
+              },
+              {
+                "name": "python-asynctools",
+                "version": "0.2.2",
+                "native": false
+              },
+              {
+                "name": "python-cookietools",
+                "version": "0.1.5",
+                "native": false
+              },
+              {
+                "name": "python-decotools",
+                "version": "0.0.4",
+                "native": false
+              },
+              {
+                "name": "python-dicttools",
+                "version": "0.0.5",
+                "native": false
+              },
+              {
+                "name": "python-encode-uri",
+                "version": "0.0.3",
+                "native": false
+              },
+              {
+                "name": "python-ensure",
+                "version": "0.0.2",
+                "native": false
+              },
+              {
+                "name": "python-filewrap",
+                "version": "0.3.1.1",
+                "native": false
+              },
+              {
+                "name": "python-hashtools",
+                "version": "0.0.6",
+                "native": false
+              },
+              {
+                "name": "python-http-request",
+                "version": "0.1.7.2",
+                "native": false
+              },
+              {
+                "name": "python-httpfile",
+                "version": "0.0.6.1",
+                "native": false
+              },
+              {
+                "name": "python-iterutils",
+                "version": "0.3.1.1",
+                "native": false
+              },
+              {
+                "name": "python-property",
+                "version": "0.0.3",
+                "native": false
+              },
+              {
+                "name": "python-texttools",
+                "version": "0.0.6",
+                "native": false
+              },
+              {
+                "name": "python-undefined",
+                "version": "0.0.4",
+                "native": false
+              },
+              {
+                "name": "qh3",
+                "version": "2.0.4",
+                "native": true
+              },
+              {
+                "name": "socket-keepalive",
+                "version": "0.0.1",
+                "native": false
+              },
+              {
+                "name": "urllib3-future",
+                "version": "2.25.903",
+                "native": false
+              },
+              {
+                "name": "urllib3-future-request",
+                "version": "0.0.2",
+                "native": false
+              },
+              {
+                "name": "wcwidth",
+                "version": "0.9.3",
+                "native": true
+              },
+              {
+                "name": "yarl",
+                "version": "1.25.1",
+                "native": true
+              },
+              {
+                "name": "zstandard",
+                "version": "0.25.0",
+                "native": true
+              }
+            ]
+          },
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "cloud-123-0.1.0-beta.10.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/cloud-123-v0.1.0-beta.10/cloud-123-0.1.0-beta.10.mcplugin",
+              "sha256": "d76e1760156d806372ff74a9a7649040b3edf5d7730c9de7a6dd06e2f64cd553",
+              "size": 184559
             }
           ]
         }
