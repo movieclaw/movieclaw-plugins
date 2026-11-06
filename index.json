@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-05T06:11:29Z",
+  "generated_at": "2026-11-06T02:12:19Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -27,7 +27,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=actor-avatar",
-      "downloads": 0,
+      "downloads": 4,
       "latest": "0.5.1",
       "latest_stable": "0.5.1",
       "versions": [
@@ -110,7 +110,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cast-cn",
-      "downloads": 13,
+      "downloads": 15,
       "latest": "0.3.5",
       "latest_stable": "0.3.5",
       "versions": [
@@ -305,7 +305,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-115",
-      "downloads": 62,
+      "downloads": 63,
       "latest": "0.1.0-beta.3",
       "latest_stable": null,
       "versions": [
@@ -638,7 +638,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-123",
-      "downloads": 0,
+      "downloads": 2,
       "latest": "0.1.0-beta.10",
       "latest_stable": null,
       "versions": [
@@ -1995,6 +1995,88 @@
       ]
     },
     {
+      "id": "playback-cleanup",
+      "name": "续播进度清理",
+      "summary": "播放结束后自动清掉选定库、选定成员的续播进度：只清续播位置，不动已看与收藏；默认只预览，可撤销。",
+      "description": "选中的成员在选中的媒体库里播放结束后，延迟几十秒自动清掉续播进度（只清 position_ms，不动已看 / 收藏 / 播放次数）；可选每小时兜底扫描，默认只预览，可撤销。",
+      "category": "library",
+      "author": {
+        "name": "Migflyway",
+        "url": "https://github.com/Migflyway"
+      },
+      "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/playback-cleanup",
+      "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/playback-cleanup",
+      "license": "MIT",
+      "origin": "official",
+      "icon": {
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/playback-cleanup-icon-550615c2f640c5c1.svg",
+        "sha256": "550615c2f640c5c19356fd003bd9f36049325f78b29036aceb883e2d30df52fd",
+        "size": 534
+      },
+      "screenshots": [],
+      "deprecated": null,
+      "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=playback-cleanup",
+      "downloads": 0,
+      "latest": "0.1.1",
+      "latest_stable": "0.1.1",
+      "versions": [
+        {
+          "version": "0.1.1",
+          "prerelease": false,
+          "released_at": "2026-11-06T02:12:19Z",
+          "yanked": null,
+          "notes": "- 支持无 TMDB / IMDb 编号的本地条目与「其他」视频库：没有外部编号的条目只凭条目 id + 类型写回\n  （不再跳过成「无 TMDB/IMDb」）；读 catalog 时带 `kinds=movie,tv,video`，「其他」库的 `video` 条目也能清，\n  按电影处理（单一 0/0 单元）；播放结束事件也接受 `video`。有编号的条目照旧带上吻合的编号。\n- 需要宿主含 local-null sync 补丁（后续正式版）。在旧 0.46.0 上：catalog 不认 `kinds`，插件自动退回只看\n  电影 / 剧集；对无编号条目的写回仍会回「身份不符」（mismatch），照实显示，不算清掉。\n- 媒体库选择里「其他」视频库不再标成不建议。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/playback-cleanup-v0.1.1",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/playback-cleanup-v0.1.1/plugins/playback-cleanup",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/playback-cleanup-v0.1.1/plugins/playback-cleanup/README.md",
+            "sha256": "7dd97652a5fdf4eac68220abd9cb771edf597bcc1ebb6160df7acc1f4d9b4d37",
+            "size": 4896
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "scheduled-tasks": "^1.0",
+            "plugin-data": "^1.0",
+            "plugin-routes": "^1.0",
+            "kernel/durable-events": "^1.0",
+            "playback.stopped": "^1.1",
+            "playback.completed": "^1.1"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "members.list",
+              "library.list",
+              "library.items.list",
+              "playback.sync.catalog",
+              "playback.sync.state"
+            ],
+            "paths": [],
+            "network": false,
+            "callbacks": [],
+            "events": [
+              "playback.stopped",
+              "playback.completed"
+            ]
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "playback-cleanup-0.1.1.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/playback-cleanup-v0.1.1/playback-cleanup-0.1.1.mcplugin",
+              "sha256": "6e3ba2024f9bccece2f8b11640ba351eddb9d10a5b6089a9c3cd02e2c770f35a",
+              "size": 43177
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "pt-keepalive",
       "name": "PT 站点保活",
       "summary": "PT 站点保活：借宿主登录态定时访问已配置站点、尝试签到、刷新最后活跃时间，凭据失效主动告警。",
@@ -2012,7 +2094,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 25,
+      "downloads": 27,
       "latest": "0.2.3",
       "latest_stable": "0.2.3",
       "versions": [
@@ -2380,7 +2462,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-hub",
-      "downloads": 6,
+      "downloads": 7,
       "latest": "1.0.0",
       "latest_stable": "1.0.0",
       "versions": [
