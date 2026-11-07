@@ -688,7 +688,7 @@ class TestRunnerRound(unittest.TestCase):
         self.assertIn("evil.example", report.detail)  # 为什么
         self.assertNotIn("chdbits", report.detail)  # 成功的站不列
         self.assertEqual(len(report.failures), 1)
-        self.assertTrue(report.failures[0].startswith("HDSky："))
+        self.assertTrue(report.failures[0].startswith("HDSky 保活失败："))
 
     def test_daily_report_marks_sites_with_consecutive_failures(self):
         import asyncio
@@ -732,6 +732,127 @@ class TestRunnerRound(unittest.TestCase):
         self.assertNotIn("Sunny", report.detail)
         self.assertEqual(report.failures, [])
 
+    # -------------------------------------------------- 失败通知按错误类型说明原因（issue #58）
+
+    def test_failure_cause_buckets(self):
+        # 三类错误各配一句话提示；网络类另给短原因，异常原文不再整段搬进通知
+        reason, hint = st.failure_cause("连接 M-Team 失败：连接超时（ConnectTimeout）：timed out")
+        self.assertEqual(reason, "连接超时")
+        self.assertEqual(hint, "可能是临时网络波动，并非账号失效")
+        reason, hint = st.failure_cause("代请求失败：站点响应超时（30s）")
+        self.assertEqual(reason, "站点响应超时")
+        self.assertEqual(hint, "可能是临时网络波动，并非账号失效")
+        reason, hint = st.failure_cause("代请求失败：无法连接站点：DNS 查询失败")
+        self.assertEqual(reason, "无法连接站点")
+        self.assertEqual(hint, "可能是临时网络波动，并非账号失效")
+        reason, hint = st.failure_cause("页面出现登录表单，凭据已失效", auth_expired=True)
+        self.assertEqual(reason, "页面出现登录表单，凭据已失效")
+        self.assertEqual(hint, "需要重新登录")
+        reason, hint = st.failure_cause("站点返回 HTTP 502，服务端故障")
+        self.assertEqual(hint, "站点暂时异常")
+        # detail 已说明白的不再追加笼统提示
+        self.assertEqual(st.failure_cause("站点判定签名错误（x）：插件需要更新")[1], "")
+        self.assertEqual(st.failure_cause("站点限流（請求過於頻繁），本轮跳过、下一轮再试")[1], "")
+        self.assertEqual(st.failure_cause("执行异常，见插件日志")[1], "")
+
+    def test_failure_line_format(self):
+        self.assertEqual(
+            st.failure_line(
+                "M-Team", "连接 M-Team 失败：连接超时（ConnectTimeout）：timed out", retries=3
+            ),
+            "M-Team 保活失败：连接超时，已自动重试 3 次。可能是临时网络波动，并非账号失效",
+        )
+        self.assertEqual(
+            st.failure_line("HDSky", "站点跳转到了登录页，凭据已失效", auth_expired=True),
+            "HDSky 保活失败：站点跳转到了登录页，凭据已失效。需要重新登录",
+        )
+        self.assertEqual(
+            st.failure_line("HDSky", "站点返回 HTTP 502，服务端故障", retries=3, streak=2),
+            "HDSky 保活失败：站点返回 HTTP 502，服务端故障，已自动重试 3 次，已连续 2 轮。站点暂时异常",
+        )
+        # 首轮失败不带连续轮数，没重试不带重试次数
+        self.assertEqual(
+            st.failure_line("HDSky", "签到被站点拒绝：回答错误"),
+            "HDSky 保活失败：签到被站点拒绝：回答错误。站点暂时异常",
+        )
+
+    def test_state_keeps_auth_and_retries_for_failure_alerts(self):
+        # 连续失败告警从状态里读：auth_expired / retries 要存下来，恢复时清掉
+        states = st.record({}, "hdsky", "failed", "连接超时", auth_expired=False, retries=3)
+        self.assertEqual(states["hdsky"]["retries"], 3)
+        self.assertFalse(states["hdsky"]["auth_expired"])
+        states = st.record(states, "hdsky", "failed", "凭据已失效", auth_expired=True)
+        self.assertTrue(states["hdsky"]["auth_expired"])
+        self.assertNotIn("retries", states["hdsky"])  # 本轮没重试，不留上一轮的数
+        states = st.record(states, "hdsky", "signin_ok", "恢复", auth_expired=False)
+        self.assertNotIn("retries", states["hdsky"])
+        self.assertNotIn("auth_expired", states["hdsky"])
+
+    def test_daily_report_headline_leads_with_failures(self):
+        # issue #58：「PT 保活日报：0 站在线」听起来像站点集体下线；有失败先说失败
+        import asyncio
+
+        runner, _, events, _ = self._runner(
+            {("site.proxy.request", "hdsky", "index.php"): {"status_code": 500, "text": ""}},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+        )
+        summary = asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertEqual(report.headline, "失败 1 站，在线 0 站")
+        self.assertTrue(report.detail.startswith("失败 1 站，在线 0 站（签到成功 0）。"))
+        self.assertEqual(summary["sites"]["hdsky"]["detail"], "站点返回 HTTP 500，服务端故障")
+
+    def test_daily_report_headline_when_all_online(self):
+        import asyncio
+
+        runner, _, events, _ = self._runner(
+            {
+                ("site.proxy.request", "hdsky", "index.php"): _html(_LOGGED_IN),
+                ("site.proxy.request", "hdsky", "attendance.php"): _html("签到成功"),
+            },
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+        )
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "daily" in str(name))
+        self.assertEqual(report.headline, "1 站在线")
+        self.assertEqual(report.detail, "在线 1 站（签到成功 1）。")
+
+    def test_report_headline_branches(self):
+        # 标题按「出了什么事」打头，问题优先（issue #58）
+        from pt_keepalive.runner import _report_headline
+
+        base = {"signin": 0, "human": 0, "skipped": 0}
+        self.assertEqual(_report_headline({**base, "failed": 2, "ok": 1}), "失败 2 站，在线 1 站")
+        self.assertEqual(_report_headline({**base, "failed": 0, "human": 2, "ok": 3}), "需人工 2 站，在线 3 站")
+        self.assertEqual(_report_headline({**base, "failed": 0, "ok": 3}), "3 站在线")
+        self.assertEqual(_report_headline({**base, "failed": 0, "ok": 0, "skipped": 2}), "跳过 2 站")
+        self.assertEqual(_report_headline({**base, "failed": 0, "ok": 0}), "在线 0 站")
+
+    def test_failure_report_body_has_only_failure_lines(self):
+        # 连续失败告警的标题已说明出了什么事，正文只放失败行，不重复汇总数字
+        import asyncio
+
+        runner, data, events, _ = self._runner(
+            {("site.proxy.request", "hdsky", "index.php"): {"status_code": 500, "text": ""}},
+            sites=[{"site_id": "hdsky", "display_name": "HDSky", "usable": True, "auth_type": "cookie"}],
+        )
+        data.store[st.STATE_KEY] = {
+            "hdsky": {
+                "outcome": "failed",
+                "detail": "连接 M-Team 失败：连接超时（ConnectTimeout）：x",
+                "consecutive_failures": st.FAILURE_THRESHOLD - 1,
+                "retries": 3,
+            }
+        }
+        asyncio.run(runner.run_round())
+        report = next(p for name, p in events.published if "report.failures" in str(name))
+        self.assertEqual(
+            report.detail,
+            "HDSky 保活失败：站点返回 HTTP 500，服务端故障，已自动重试 3 次，已连续 3 轮。"
+            "站点暂时异常",
+        )
+        self.assertNotIn("在线", report.detail)
+
     # ------------------------------------------------------------------ 临时网络错误自动重试
 
     def test_transient_host_error_is_retried_until_it_works(self):
@@ -770,13 +891,15 @@ class TestRunnerRound(unittest.TestCase):
         self.assertEqual(result["failed"], 1)
         self.assertEqual(sleeps, [60.0, 180.0, 300.0])
         detail = result["sites"]["hdsky"]["detail"]
-        self.assertIn("超时", detail)  # 宿主给的错误类型原样带上
-        self.assertIn(f"重试 {len(RETRY_DELAYS)} 次仍失败", detail)
+        self.assertIn("超时", detail)  # 宿主给的错误类型原样带上（重试轮数不再拼进 detail）
         report = next(p for name, p in events.published if "daily" in str(name))
         self.assertIn("HDSky", report.detail)
         self.assertIn("超时", report.detail)
+        self.assertIn(f"已自动重试 {len(RETRY_DELAYS)} 次", report.detail)  # issue #58
+        self.assertIn("可能是临时网络波动，并非账号失效", report.detail)
         states = st.normalize(data.store[st.STATE_KEY])
         self.assertEqual(states["hdsky"]["outcome"], "failed")
+        self.assertEqual(states["hdsky"]["retries"], len(RETRY_DELAYS))
 
     def test_auth_failure_is_not_retried(self):
         # 凭据失效重试只会白挨一次风控：一次就够，也不等
@@ -951,7 +1074,8 @@ class TestRunnerRound(unittest.TestCase):
         )
         results = asyncio.run(runner._run_with_retries(asyncio.run(runner.enabled_sites())))
         self.assertFalse(results["hdsky"].retryable)
-        self.assertIn("重试 3 次仍失败", results["hdsky"].detail)
+        self.assertEqual(results["hdsky"].retries, len(RETRY_DELAYS))  # 轮数记在结构化字段上
+        self.assertIn("超时", results["hdsky"].detail)  # detail 保持原始错误，不再拼重试说明
 
     def test_consecutive_failure_severity_survives_an_expired_round(self):
         # 失效那轮把计数置成阈值；之后接着数真实轮数，不能把植入值当成真的

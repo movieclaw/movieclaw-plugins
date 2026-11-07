@@ -46,6 +46,9 @@ class SiteResult:
     #: 凭据失效、站点改版、限流都不是临时的，重试只会白挨一次风控。
     retryable: bool = False
     need_human: bool = field(default=False)  # 冗余位，方便调用方过滤
+    #: 临时错误的重试轮数用尽仍未通过时由 runner 回填（报告里写「已自动重试 N 次」）；
+    #: detail 保持原始错误，异常原文留给 status 路由与日志
+    retries: int = 0
 
 
 # ---------------------------------------------------------------------------

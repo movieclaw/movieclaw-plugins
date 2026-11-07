@@ -1,7 +1,7 @@
 [plugin]
 id = "pt-keepalive"
 title = "PT 站点保活"
-version = "0.2.3"
+version = "0.2.4"
 entry = "pt_keepalive"
 runtime = "process"
 sdk = "^1.0"
@@ -42,7 +42,7 @@ open = "plugin"
 
 [[notifications]]
 event = "pt-keepalive.report.daily"
-title = "PT 保活日报：{ok_count} 站在线"
+title = "PT 保活日报：{headline}"
 body = "{detail}"
 description = "每天一轮保活跑完的汇总：在线多少站、哪些在连续失败。是否接收在这里开，插件设置里没有第二个日报开关。"
 audience = "admins"
@@ -54,6 +54,7 @@ open = "plugin"
 event = "pt-keepalive.report.failures"
 title = "PT 站点保活：有站点连续失败"
 body = "{detail}"
+description = "同一站点连续失败到阈值时提醒一次：哪一站、什么错、可能原因（要不要重新登录）。"
 audience = "admins"
 level = "active"
 default = true

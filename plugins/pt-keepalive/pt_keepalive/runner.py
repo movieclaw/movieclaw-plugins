@@ -354,11 +354,9 @@ class KeepaliveRunner:
                     results[site.site_id] = SiteResult(Outcome.FAILED, "执行异常，见插件日志")
         return {
             sid: (
-                replace(
-                    result,
-                    detail=f"{result.detail}（本轮已重试 {len(RETRY_DELAYS)} 次仍失败）",
-                    retryable=False,
-                )
+                # 重试轮数记在结构化字段上（报告里写「已自动重试 N 次」），detail 保持原始错误；
+                # retryable 照旧落回 False：外层若再套循环，不许拿它再重打一遍
+                replace(result, retries=len(RETRY_DELAYS), retryable=False)
                 if result.retryable
                 else result
             )
@@ -407,6 +405,7 @@ class KeepaliveRunner:
                 auth_expired=result.auth_expired,
                 site_name=site.display_name,
                 alerted=alerted,
+                retries=result.retries,
             )
             summary["sites"][site.site_id] = {
                 "name": site.display_name,
@@ -426,9 +425,9 @@ class KeepaliveRunner:
                 summary["failed"] += 1
         await self.data.set(STATE_KEY, states)
 
-        # 日报里列全「本轮每个失败的站 + 原因」：汇总数字说不出是哪个站、为什么
-        # （issue #43）。连续失败轮数够阈值时在后面标出来，取代原来单列的「连续失败」段
-        # ——那些站本来就在这一轮失败了，列两遍只是噪音。
+        # 日报里列全「本轮每个失败的站 + 原因 + 可能原因」（issue #43、#58）。连续失败
+        # 轮数够阈值时在行里带出来，取代原来单列的「连续失败」段——那些站本来就在
+        # 这一轮失败了，列两遍只是噪音。
         this_round = _failure_lines(sites, results, states)
         # 日报每轮都发；收不收由「账号 → 通知」里每个人自己的开关决定（默认关），
         # 插件里不留第二个开关——两个开关互不知道，都得开才有日报，关哪个都静默无声。
@@ -436,16 +435,17 @@ class KeepaliveRunner:
             summary,
             DAILY_REPORT,
             failures=this_round,
-            sections=(("失败", this_round),),
+            with_summary=True,
         )
         pending = st.failure_summary(states, pending_only=True)
         if pending:
-            # 连续失败升级不依赖日报：同一段失败只报一次
+            # 连续失败升级不依赖日报：同一段失败只报一次。标题已说明「有站点连续失败」，
+            # 正文只放失败行，不重复汇总数字（issue #58：失败通知要短）
             await self._publish_report(
                 summary,
                 FAILURE_REPORT,
                 failures=pending,
-                sections=(("连续失败", pending),),
+                with_summary=False,
             )
             states = st.mark_failure_alerted(states)
             await self.data.set(STATE_KEY, states)
@@ -466,12 +466,13 @@ class KeepaliveRunner:
         event: Any,
         *,
         failures: list[str],
-        sections: tuple[tuple[str, list[str]], ...] = (),
+        with_summary: bool,
     ) -> None:
         """发一条汇总事件；通知失败不影响本轮结果落库。
 
         ``failures`` 是结构化明细（``DailyReport.failures``，给 Webhook / 别的插件）；
-        ``sections`` 是 ``（小标题，明细行）`` 顺序，正文按它拼——通知模板只做字段替换。
+        ``with_summary`` 决定正文带不带汇总数字行——日报要，连续失败告警不要（标题已经
+        说了出了什么事）。通知模板只做字段替换，正文在这里拼好。
         """
         try:
             await self.events.publish(
@@ -483,7 +484,12 @@ class KeepaliveRunner:
                     human_count=summary["human"],
                     skipped_count=summary["skipped"],
                     failures=failures,
-                    detail=_report_detail(summary, sections),
+                    headline=_report_headline(summary),
+                    detail=(
+                        _report_detail(summary, failures)
+                        if with_summary
+                        else _capped(_join_failure_lines(failures))
+                    ),
                 ),
             )
         except Exception:  # 通知失败不影响本轮结果落库
@@ -504,6 +510,7 @@ class KeepaliveRunner:
                     "name": entry.get("site_name") or sid,
                     "outcome": entry.get("outcome"),
                     "detail": entry.get("detail"),
+                    "retries": int(entry.get("retries") or 0),
                     "consecutive_failures": entry.get("consecutive_failures", 0),
                     "last_ok_at": entry.get("last_ok_at"),
                     "updated_at": entry.get("updated_at"),
@@ -516,7 +523,7 @@ class KeepaliveRunner:
 def _failure_lines(
     sites: list[SiteInfo], results: dict[str, SiteResult], states: dict[str, dict[str, Any]]
 ) -> list[str]:
-    """本轮失败站点一行「站点：原因」，连续多轮的带上轮数。
+    """本轮失败站点一行「站点 保活失败：短原因，已自动重试 N 次，已连续 M 轮。可能原因」。
 
     只列 ``failed``，外加「此前已连续失败、本轮却没真访问」的跳过 / 需人工站点：
     前者是故障，后者是故障被暂缓报告，混进总数会让人以为站点好了。
@@ -538,36 +545,68 @@ def _failure_lines(
             continue
         key = "failures_before_expired" if result.auth_expired else "consecutive_failures"
         failures = int(entry.get(key) or 0)
-        suffix = f"（连续 {failures} 轮）" if failures > 1 else ""
-        lines.append(f"{site.display_name}：{result.detail}{suffix}")
+        lines.append(
+            st.failure_line(
+                site.display_name,
+                result.detail,
+                auth_expired=result.auth_expired,
+                retries=result.retries,
+                streak=failures,
+            )
+        )
     return lines
 
 
-def _report_detail(
-    summary: dict[str, Any], sections: tuple[tuple[str, list[str]], ...] = ()
-) -> str:
-    """日报正文：通知模板只做字段替换，汇总与明细都在这里拼好。
+def _report_headline(summary: dict[str, Any]) -> str:
+    """通知标题的半句（清单模板 ``{headline}``）：有失败先说失败（issue #58）。
 
-    明细最多列 :data:`MAX_REPORT_ITEMS` 条、正文最多 :data:`MAX_DETAIL_CHARS` 字：
-    宿主的推送载荷有 2200 字节明文上限，超了会被**静默截断**（末尾几站的原因正好丢光），
-    与其发一条残缺的，不如自己先说清「另有 N 站」。完整明细去「设置 → 插件」看。
+    「PT 保活日报：0 站在线」听起来像站点集体下线；失败时标题应是
+    「失败 N 站，在线 M 站」，没有失败才是「M 站在线」。
     """
-    parts = [f"在线 {summary['ok']} 站（签到成功 {summary['signin']}）"]
     if summary["failed"]:
-        parts.append(f"失败 {summary['failed']}")
+        return f"失败 {summary['failed']} 站，在线 {summary['ok']} 站"
+    if summary["human"]:
+        return f"需人工 {summary['human']} 站，在线 {summary['ok']} 站"
+    if summary["ok"]:
+        return f"{summary['ok']} 站在线"
+    return f"跳过 {summary['skipped']} 站" if summary["skipped"] else "在线 0 站"
+
+
+def _join_failure_lines(lines: list[str]) -> str:
+    """失败行拼成一段：最多列 :data:`MAX_REPORT_ITEMS` 站，超了说清「另有 N 站」。"""
+    shown = lines[:MAX_REPORT_ITEMS]
+    text = "；".join(shown)
+    if len(lines) > len(shown):
+        text += f"；另有 {len(lines) - len(shown)} 站，详见「设置 → 插件」"
+    return text
+
+
+def _capped(text: str) -> str:
+    """正文兜底截到 :data:`MAX_DETAIL_CHARS` 字。
+
+    宿主的推送载荷有 2200 字节明文上限，超了会被**静默截断**（末尾几站的原因正好丢光），
+    与其发一条残缺的，不如自己先收住。完整明细去「设置 → 插件」看。
+    """
+    if len(text) > MAX_DETAIL_CHARS:
+        return text[: MAX_DETAIL_CHARS - 1] + "…"
+    return text
+
+
+def _report_detail(
+    summary: dict[str, Any], failure_lines: list[str]
+) -> str:
+    """日报正文：汇总数字 + 逐站失败行（通知模板只做字段替换，正文在这里拼好）。
+
+    有失败时汇总数字让「失败 N 站」打头——「在线 0 站」单独打头会被读成站点下线了
+    （issue #58）。
+    """
+    parts = []
+    if summary["failed"]:
+        parts.append(f"失败 {summary['failed']} 站")
     if summary["human"]:
         parts.append(f"需人工 {summary['human']}")
+    parts.append(f"在线 {summary['ok']} 站（签到成功 {summary['signin']}）")
     if summary["skipped"]:
         parts.append(f"跳过 {summary['skipped']}")
-    line = "，".join(parts) + "。"
-    for title, items in sections:
-        if not items:
-            continue
-        shown = items[:MAX_REPORT_ITEMS]
-        line += f"{title}：" + "；".join(shown)
-        if len(items) > len(shown):
-            line += f"；另有 {len(items) - len(shown)} 站，详见「设置 → 插件」"
-        line += "。"
-    if len(line) > MAX_DETAIL_CHARS:
-        line = line[: MAX_DETAIL_CHARS - 1] + "…"
-    return line
+    text = "，".join(parts) + "。" + _join_failure_lines(failure_lines)
+    return _capped(text)
