@@ -40,6 +40,9 @@ class DailyReport(BaseModel):
     human_count: int
     skipped_count: int = 0
     failures: list[str] = Field(default_factory=list)
+    #: 通知标题的半句（清单模板 ``{headline}``）：有失败是「失败 N 站，在线 M 站」，
+    #: 没有失败才是「M 站在线」——别让「0 站在线」单独打头（issue #58）
+    headline: str = ""
     detail: str = ""
 
 

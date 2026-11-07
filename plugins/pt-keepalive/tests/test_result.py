@@ -157,7 +157,10 @@ class TestState(unittest.TestCase):
         )
         states = st.record(states, "hdsky", "failed", "超时", auth_expired=False)
         states = st.record(states, "hdsky", "failed", "超时", auth_expired=False)
-        self.assertEqual(st.failure_summary(states), ["HDSky：超时"])
+        self.assertEqual(
+            st.failure_summary(states),
+            ["HDSky 保活失败：连接超时，已连续 3 轮。可能是临时网络波动，并非账号失效"],
+        )
 
     def test_normalize_bad_data(self):
         self.assertEqual(st.normalize(None), {})
