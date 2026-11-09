@@ -1,4 +1,4 @@
-"""端到端：真 MovieClaw（含 local-null sync 补丁）+ 真 HostOps 授权 + 插件 Runtime。
+"""端到端：真 MovieClaw（含 #1203：catalog kinds= 与本地条目 identity 令牌）+ 真 HostOps 授权 + 插件 Runtime。
 
 没有宿主源码时跳过。运行方式::
 
@@ -25,30 +25,34 @@ pytest.importorskip("movieclaw_api", reason="没有 MovieClaw 宿主源码（设
 pytest.importorskip("fastapi.testclient")
 
 # CI runs validate against the published host tag, which may not yet include
-# local-null same_identity / catalog kinds=. Skip then; FakeHost unit tests cover the plugin.
+# MovieClaw#1203（catalog kinds= + 本地条目 identity 令牌）. Skip then; FakeHost unit tests cover the plugin.
 def _host_has_local_null_sync() -> bool:
     try:
         import inspect
         from movieclaw_api.services import playback_sync as ps
         from movieclaw_api.api.routes import playback_sync as route
+        from movieclaw_api.schemas.playback_sync import SyncChangeIn, SyncMedia
     except Exception:
         return False
     if "kinds" not in inspect.signature(ps.catalog).parameters:
         return False
     if "kinds" not in inspect.signature(route.catalog).parameters:
         return False
-    # Local-null path: media with no external ids + request with none → True
-    media = type("M", (), {"kind": "movie", "tmdb_id": None, "imdb_id": None})()
-    record = type("R", (), {"kind": "movie", "tmdb_id": None, "imdb_id": None})()
+    if "identity" not in SyncChangeIn.model_fields or "identity" not in SyncMedia.model_fields:
+        return False
+    # #1203 local-null 规则：无外部编号的条目须带 identity == external_id，缺令牌即拒
+    media = type("M", (), {"kind": "movie", "tmdb_id": None, "imdb_id": None, "external_id": "x"})()
+    good = type("R", (), {"kind": "movie", "tmdb_id": None, "imdb_id": None, "identity": "x"})()
+    bare = type("R", (), {"kind": "movie", "tmdb_id": None, "imdb_id": None, "identity": None})()
     try:
-        return bool(ps.same_identity(media, record))
+        return bool(ps.same_identity(media, good)) and not ps.same_identity(media, bare)
     except Exception:
         return False
 
 
 if not _host_has_local_null_sync():
     pytest.skip(
-        "host lacks local-null sync / catalog kinds= (needs MovieClaw#1203); unit tests still run",
+        "host lacks catalog kinds= / local identity token (needs MovieClaw#1203); unit tests still run",
         allow_module_level=True,
     )
 
@@ -206,8 +210,11 @@ def test_runtime_sweep_clears_local_items_without_external_ids(host):
     assert positions[host.local_movie_id] == 0
     assert positions[host.tmdb_movie_id] == 90_000
 
-    # 撤销也只凭 id + kind 写回
+    # 历史记下当时的令牌；撤销只回放它
     entry = next(r for r in store.data["history"] if r["media_item_id"] == host.video_id)
+    assert entry["identity"] == "local-e2e-video"
+    tmdb_entry = [r for r in store.data["history"] if r["media_item_id"] == host.tmdb_movie_id]
+    assert tmdb_entry == []
 
     async def undo():
         return await runtime.undo(entry["id"])
@@ -238,3 +245,112 @@ def test_runtime_clear_single_unit_and_tmdb_item(host):
     assert positions[host.video_id] == 0
     assert positions[host.tmdb_movie_id] == 0
     assert positions[host.local_movie_id] == 90_000
+
+
+async def _replace_with_b(media_id: int, external_id: str, position_ms: int | None) -> None:
+    """删除条目 A（连同状态与文件），以同一数字主键建条目 B（模拟 SQLite 复用最大已删 id）。"""
+    from movieclaw_db.engine import get_database
+    from movieclaw_db.models import FileSource, FileState, LibraryFile, MediaItem, PlaybackState
+
+    async with get_database().session() as s:
+        old = await s.get(MediaItem, media_id)
+        files = (
+            await s.execute(select(LibraryFile).where(LibraryFile.media_item_id == media_id))
+        ).scalars().all()
+        library_id, path = files[0].library_id, files[0].file_path
+        states = (
+            await s.execute(select(PlaybackState).where(PlaybackState.media_item_id == media_id))
+        ).scalars().all()
+        for row in [*files, *states]:
+            await s.delete(row)
+        await s.delete(old)
+        await s.flush()
+        media = MediaItem(id=media_id, source="local", kind="movie", external_id=external_id,
+                          tmdb_id=None, imdb_id=None, title="本地 B", original_title="B")
+        s.add(media)
+        await s.flush()
+        s.add(LibraryFile(library_id=library_id, media_item_id=media_id, file_path=path + ".b.mkv",
+                          size_bytes=1, source=FileSource.SCANNED, state=FileState.IN_PLACE,
+                          duration_seconds=600))
+        if position_ms is not None:
+            s.add(PlaybackState(member_id=2, media_item_id=media_id, position_ms=position_ms))
+        await s.commit()
+
+
+def test_runtime_sends_catalog_identity_and_stale_token_after_id_reuse_is_rejected(host):
+    store = FakeStore()
+    mid = host.local_movie_id
+
+    async def preview():
+        runtime = Runtime(ops=await _plugin_ops(host.app), store=store)
+        return runtime, await runtime.lookup((2, mid, 0, 0))
+
+    runtime, stale = host.client.portal.call(preview)
+    assert stale["media"]["identity"] == "local-e2e-movie"
+    host.client.portal.call(_replace_with_b, mid, "local-e2e-b", 70_000)
+
+    async def clear(row):
+        return await runtime.clear(2, [row], source="manual")
+
+    # 带 A 的令牌：mismatch，B 不动
+    assert [r["status"] for r in host.client.portal.call(clear, stale)] == ["mismatch"]
+    assert host.client.portal.call(_positions, 2)[mid] == 70_000
+    assert "history" not in store.data
+
+    # 重新读到 B 的令牌：applied
+    async def fresh():
+        return await runtime.lookup((2, mid, 0, 0))
+
+    row = host.client.portal.call(fresh)
+    assert row["media"]["identity"] == "local-e2e-b"
+    assert [r["status"] for r in host.client.portal.call(clear, row)] == ["cleared"]
+    assert host.client.portal.call(_positions, 2)[mid] == 0
+    assert store.data["history"][0]["identity"] == "local-e2e-b"
+
+
+def test_undo_after_id_reuse_replays_old_token_and_is_mismatch(host):
+    store = FakeStore()
+    mid = host.local_movie_id
+
+    async def clear_a():
+        runtime = Runtime(ops=await _plugin_ops(host.app), store=store)
+        row = await runtime.lookup((2, mid, 0, 0))
+        return runtime, await runtime.clear(2, [row], source="manual")
+
+    runtime, results = host.client.portal.call(clear_a)
+    assert [r["status"] for r in results] == ["cleared"]
+    entry = store.data["history"][0]
+    assert entry["identity"] == "local-e2e-movie"
+    host.client.portal.call(_replace_with_b, mid, "local-e2e-b2", 0)
+
+    async def undo():
+        return await runtime.undo(entry["id"])
+
+    done = host.client.portal.call(undo)
+    assert done["undo_status"] == "mismatch"
+    assert host.client.portal.call(_positions, 2)[mid] == 0  # B 没被写成 A 的 90_000
+
+
+def test_legacy_local_history_without_token_is_blocked_on_real_host(host):
+    store = FakeStore()
+    mid = host.video_id
+
+    async def run():
+        runtime = Runtime(ops=await _plugin_ops(host.app), store=store)
+        row = await runtime.lookup((2, mid, 0, 0))
+        (res,) = await runtime.clear(2, [row], source="manual")
+        assert res["status"] == "cleared"
+        # 模拟 0.1.1 写的记录：没有 identity
+        rows = store.data["history"]
+        rows[0].pop("identity")
+        await store.set("history", rows)
+        try:
+            await runtime.undo(rows[0]["id"])
+        except Exception as exc:  # noqa: BLE001
+            return str(exc), await runtime.history_rows()
+        return None, await runtime.history_rows()
+
+    error, rows = host.client.portal.call(run)
+    assert error and "令牌" in error
+    assert rows[0]["undoable"] is False
+    assert host.client.portal.call(_positions, 2)[mid] == 0

@@ -114,10 +114,36 @@ def catalog_unit(member_id: int, row: dict) -> Unit | None:
     )
 
 
+def has_external_ids(media: dict) -> bool:
+    return bool(media.get("tmdb_id") or media.get("imdb_id"))
+
+
+def identity_token(media: dict) -> str | None:
+    """catalog 下发的不可复用身份令牌（宿主 #1203 起 ``media.identity`` = ``external_id``）。
+
+    旧宿主（0.46–0.48）的 catalog 没有这个字段，返回 None。
+    """
+    token = media.get("identity")
+    return token if isinstance(token, str) and token else None
+
+
+def write_token(media: dict) -> str | None:
+    """写回时要带的令牌：只有两个外部编号都没有、且 catalog 给了非空令牌时才带。
+
+    有 TMDB / IMDb 的条目宿主只核编号，不带令牌（请求形状与旧版一致）；旧宿主没给令牌时也不带
+    ——旧宿主的 ``SyncChangeIn`` 是 ``extra=forbid``，多送 ``identity`` 会让整批 422。
+    """
+    if has_external_ids(media):
+        return None
+    return identity_token(media)
+
+
 def build_change(row: dict, position_ms: int, expected: str | None) -> dict[str, Any]:
     """一个单元的写回：只带身份字段、``expected_updated_at`` 和 ``position_ms``。
 
     故意不带 ``played`` / ``is_favorite`` / ``last_played_at``：宿主对省略的字段一律不改。
+    身份字段：有外部编号的带吻合的编号；没有的带 catalog 当时下发的 ``identity`` 令牌
+    （没有令牌就不带，旧宿主照实回 ``mismatch``）。
     """
     media = row["media"]
     change: dict[str, Any] = {
@@ -130,6 +156,9 @@ def build_change(row: dict, position_ms: int, expected: str | None) -> dict[str,
         change["tmdb_id"] = int(media["tmdb_id"])
     if media.get("imdb_id"):
         change["imdb_id"] = str(media["imdb_id"])
+    token = write_token(media)
+    if token is not None:
+        change["identity"] = token
     if media["kind"] == "tv":
         change["season"] = int(row.get("season") or 0)
         change["episode"] = int(row.get("episode") or 0)
@@ -139,12 +168,30 @@ def build_change(row: dict, position_ms: int, expected: str | None) -> dict[str,
 def has_identity(row: dict) -> bool:
     """能写回的单元：有条目 id、类型是 movie / tv / video。
 
-    不要求 TMDB / IMDb：宿主对两个外部编号都没有的本地条目只凭 media_item_id + kind 定位
-    （请求也不带编号）；有编号的条目由 ``build_change`` 带上吻合的编号。旧宿主对无编号条目
-    会回 ``mismatch``，照实显示。
+    不要求 TMDB / IMDb：两个外部编号都没有的本地条目由 ``build_change`` 带上 catalog 下发的
+    ``identity`` 令牌（请求不带编号）；有编号的条目带上吻合的编号。旧宿主没有令牌，对无编号
+    条目会回 ``mismatch``，照实显示。
     """
     media = row.get("media") or {}
     return media.get("id") is not None and media.get("kind") in SYNC_KINDS
+
+
+def same_target(before: dict, after: dict) -> bool:
+    """CAS 冲突重读后，还是不是当初那个条目：类型、外部编号、（无编号时）身份令牌都得一致。
+
+    删除 A、再建 B 复用数字 id 时令牌会变；这时不能改用 B 的新令牌再写。
+    """
+    a, b = before.get("media") or {}, after.get("media") or {}
+    if a.get("kind") != b.get("kind"):
+        return False
+    if (a.get("tmdb_id") or None, a.get("imdb_id") or None) != (
+        b.get("tmdb_id") or None,
+        b.get("imdb_id") or None,
+    ):
+        return False
+    if has_external_ids(a):
+        return True
+    return identity_token(a) == identity_token(b)
 
 
 def label(row: dict) -> str:
@@ -385,6 +432,13 @@ class Runtime:
                 again = await self.lookup(unit) if unit else None
                 if again is None:
                     results.append(self._result(member_id, row, "not_found"))
+                elif not same_target(row, again):
+                    # 条目被删了重建（数字 id 复用）或改了识别：不拿新令牌 / 新编号再写
+                    results.append(
+                        self._result(
+                            member_id, row, "mismatch", error="重读后条目身份变了，没有写回"
+                        )
+                    )
                 elif int(again.get("position_ms") or 0) <= 0:
                     results.append(self._result(member_id, again, "already_zero"))
                 else:
@@ -438,6 +492,8 @@ class Runtime:
             "kind": media["kind"],
             "tmdb_id": media.get("tmdb_id"),
             "imdb_id": media.get("imdb_id"),
+            # 这次写回实际用的令牌（有外部编号 / 旧宿主时为 None）；撤销只回放它，不再查 catalog
+            "identity": write_token(media),
             "season": int(row.get("season") or 0),
             "episode": int(row.get("episode") or 0),
             "title": label(row),
@@ -709,14 +765,32 @@ class Runtime:
         return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
     async def history_rows(self) -> list[dict]:
-        return [{**r, "undoable": self.undoable(r)} for r in await self.history()]
+        return [
+            {**r, "undoable": self.undoable(r), "undo_blocked": self.undo_blocked(r)}
+            for r in await self.history()
+        ]
 
     @staticmethod
-    def undoable(row: dict) -> bool:
+    def undo_blocked(row: dict) -> str | None:
+        """不能安全撤销的原因（给人看）；能撤销 / 已撤销时为 None。
+
+        两个外部编号都没有、记录里又没有令牌的旧记录（0.1.1 及以前写的）：宿主 #1203 起必须带
+        令牌，而当时的令牌没存下来。不能再查 catalog 补——数字 id 可能已被别的条目复用，
+        拿到的是新条目的令牌，会把 A 的进度写到 B 上。
+        """
+        if row.get("undo_status"):
+            return None
+        if not has_external_ids(row) and not identity_token(row):
+            return "旧记录没有保存条目身份令牌，无法安全撤销"
+        return None
+
+    @classmethod
+    def undoable(cls, row: dict) -> bool:
         return (
             not row.get("undo_status")
             and bool(row.get("state_version"))
             and int(row.get("prior_position_ms") or 0) > 0
+            and cls.undo_blocked(row) is None
         )
 
     async def undo(self, entry_id: str) -> dict:
@@ -726,14 +800,19 @@ class Runtime:
             row = next((r for r in rows if r.get("id") == entry_id), None)
             if row is None:
                 raise SkipItem("找不到这条清理记录")
+            blocked = self.undo_blocked(row)
+            if blocked:
+                raise SkipItem(blocked)
             if not self.undoable(row):
                 raise SkipItem("这条记录已经撤销过，或不能撤销")
+            # 只回放记录里的身份：编号 + 当时用的令牌；不查 catalog 取「现在的」令牌
             fake = {
                 "media": {
                     "id": row["media_item_id"],
                     "kind": row["kind"],
                     "tmdb_id": row.get("tmdb_id"),
                     "imdb_id": row.get("imdb_id"),
+                    "identity": row.get("identity"),
                 },
                 "season": row["season"],
                 "episode": row["episode"],
@@ -756,7 +835,7 @@ class Runtime:
                         r["undo_version"] = aware_iso(outcome.get("state_version"))
                         row = r
                 await self.store.set(HISTORY_KEY, rows)
-        return {**row, "undoable": self.undoable(row)}
+        return {**row, "undoable": self.undoable(row), "undo_blocked": self.undo_blocked(row)}
 
     # ------------------------------------------------------------------ 报告
     async def report(self) -> dict[str, Any]:

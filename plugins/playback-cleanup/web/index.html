@@ -547,16 +547,19 @@
           const st = node("td");
           if (it.undo_status === "applied") st.append(statusNode("undone", "已撤销"));
           else if (it.undo_status === "conflict") st.append(statusNode("conflict", "撤销冲突（之后又播过）"));
+          else if (it.undo_status === "mismatch") st.append(statusNode("mismatch", "撤销不了（条目身份不符，可能已删除重建）"));
           else if (it.undo_status) st.append(statusNode(it.undo_status));
           else st.append(statusNode("cleared"));
           tr.append(st);
           const act = node("td");
+          if (!it.undoable && it.undo_blocked) act.append(node("span", it.undo_blocked, "muted"));
           if (it.undoable) {
             act.append(button("撤销", "mini plain", async (ev) => {
               ev.target.disabled = true;
               try {
                 const res = await request("/undo", { id: it.id });
-                toast(res.undo_status === "applied" ? `已恢复到 ${position(it.prior_position_ms)}` : "撤销不了：这之后又播过", res.undo_status !== "applied");
+                toast(res.undo_status === "applied" ? `已恢复到 ${position(it.prior_position_ms)}`
+                  : res.undo_status === "mismatch" ? "撤销不了：条目身份不符（可能已删除重建）" : "撤销不了：这之后又播过", res.undo_status !== "applied");
               } catch (e) { toast(e.message, true); }
               await loadHistory();
               await loadReport();
