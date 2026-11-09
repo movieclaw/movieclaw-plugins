@@ -34,7 +34,7 @@ def test_manifest_matches_code():
     import playback_cleanup as entry
 
     assert MANIFEST["plugin"]["id"] == entry.PLUGIN_ID
-    assert MANIFEST["plugin"]["version"] == "0.1.2"
+    assert MANIFEST["plugin"]["version"] == "0.1.3"
     assert tuple(MANIFEST["permissions"]["operations"]) == entry.OPERATIONS
     assert MANIFEST["requires"] == entry.REQUIRES
     assert MANIFEST["permissions"]["events"] == ["playback.stopped", "playback.completed"]
