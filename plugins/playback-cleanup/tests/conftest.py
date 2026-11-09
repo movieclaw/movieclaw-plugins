@@ -64,6 +64,9 @@ class FakeHost:
         self.old_host = False
         #: 模拟 v0.46–0.48 的 sync 契约：没有 identity（下发 / 接收都没有）
         self.legacy = False
+        #: 模拟配套新宿主：catalog 带 continue_dismissed，sync.state 认 dismiss_continue。
+        #: 默认 False = 现有 0.49.1（#1203）：没有这一列，多送 dismiss_continue 整批 422
+        self.dismiss = False
         #: media_item_id -> external_id（宿主 catalog 以 media.identity 下发）
         self.external: dict[int, str] = {}
 
@@ -124,7 +127,10 @@ class FakeHost:
         return state
 
     def progress(self, member: int, mid: int, season: int = 0, episode: int = 0, pos: int = 1):
-        return self.set_state(member, mid, season, episode, position_ms=pos)
+        """一次真实播放上报：宿主同时清掉 continue_dismissed（再播放卡片回来）。"""
+        return self.set_state(
+            member, mid, season, episode, position_ms=pos, continue_dismissed=False
+        )
 
     def state_calls(self) -> list[dict]:
         return [p for name, p in self.calls if name == "playback.sync.state"]
@@ -198,6 +204,8 @@ class FakeHost:
                     "watches": [],
                 }
             )
+            if self.dismiss:
+                items[-1]["continue_dismissed"] = bool(st and st.get("continue_dismissed"))
         return {"items": items, "next_cursor": ":".join(map(str, page[-1])) if more and page else None}
 
     def op_playback_sync_state(self, p):
@@ -206,6 +214,8 @@ class FakeHost:
                    "expected_updated_at", "played", "position_ms", "is_favorite", "last_played_at"}
         if not self.legacy:
             allowed.add("identity")
+        if self.dismiss:
+            allowed.add("dismiss_continue")
         for c in p["changes"]:
             extra = set(c) - allowed
             if extra:  # pydantic extra=forbid：整批 422，一条也不写
@@ -232,20 +242,24 @@ class FakeHost:
                 (c.get("season") or 0) if tv else 0,
                 (c.get("episode") or 0) if tv else 0,
             )
-            st = self.states.get(key)
+            st = self.states.get(key) or {}
             current = (
                 datetime.fromisoformat(st["updated_at"]).replace(tzinfo=UTC) if st else None
             )
+            old = {"continue_dismissed": False, **st} if self.dismiss else st
             want = datetime.fromisoformat(expected) if expected else None
             if current != want:
                 outcomes.append({"status": "conflict"})
                 continue
-            new = dict(st)
+            new = dict(old)
             if c.get("played") is not None:
                 new["played"] = c["played"]
             if c.get("position_ms") is not None:
                 new["position_ms"] = c["position_ms"]
-            if new == st:
+            if c.get("dismiss_continue") is not None:
+                assert isinstance(c["dismiss_continue"], bool)
+                new["continue_dismissed"] = c["dismiss_continue"]
+            if new == old:
                 outcomes.append({"status": "unchanged", "state_version": st["updated_at"]})
                 continue
             new["updated_at"] = self.stamp()
