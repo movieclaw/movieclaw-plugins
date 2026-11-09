@@ -169,9 +169,10 @@ async def test_local_movie_without_external_ids_is_cleared(runtime, host, store)
     (call,) = host.state_calls()
     change = call["changes"][0]
     assert change["kind"] == "movie" and "tmdb_id" not in change and "imdb_id" not in change
-    # 撤销同样不带编号
+    assert change["identity"] == "local-movie-10"  # #1203：回传 catalog 下发的令牌
+    # 撤销同样不带编号，回放记录里的令牌
     entry = store.data[HISTORY_KEY][0]
-    assert entry["tmdb_id"] is None
+    assert entry["tmdb_id"] is None and entry["identity"] == "local-movie-10"
     done = await runtime.undo(entry["id"])
     assert done["undo_status"] == "applied"
     assert host.states[(0, 10, 0, 0)]["position_ms"] == 5000
@@ -215,17 +216,13 @@ async def test_old_host_local_null_write_is_mismatch(runtime, host, store):
     """旧宿主对无编号条目的写回回 mismatch：照实显示，不当成清掉了。"""
     host.add_media(10, 1, tmdb_id=None)
     host.progress(0, 10, pos=5000)
-    # 0.46.0 的 same_identity：必须声明吻合的 TMDB / IMDb 编号
-    host.same_identity = lambda media, c: bool(
-        media and media["kind"] == c["kind"] and (
-            (c.get("tmdb_id") and c["tmdb_id"] == media.get("tmdb_id"))
-            or (c.get("imdb_id") and c["imdb_id"] == media.get("imdb_id"))
-        )
-    )
+    # v0.46–0.48：catalog 不给 identity、写回只认吻合的 TMDB / IMDb 编号、多送 identity 整批 422
+    host.legacy = True
     await configure(store)
     result = await runtime.sweep(reason="manual", dry_run=False)
     assert result["items"][0]["status"] == "mismatch"
     assert result["counts"]["skipped"] == 1 and HISTORY_KEY not in store.data
+    assert "identity" not in host.state_calls()[0]["changes"][0]
 
 
 async def test_item_with_tmdb_still_sends_it(runtime, host, store):

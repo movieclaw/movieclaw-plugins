@@ -1,6 +1,10 @@
-"""测试替身：内存插件数据、假宿主操作（按 v0.46.0 + local-null 补丁的 catalog / sync.state 语义：
-游标翻页、``kinds`` 过滤（默认 movie + tv）、compare-and-set、身份校验（无外部编号的本地条目
-只凭 id + kind）、省略字段不改）。全程不联网、不需要真宿主。"""
+"""测试替身：内存插件数据、假宿主操作（按 MovieClaw v0.49.0 / #1203 的 catalog / sync.state 语义：
+游标翻页、``kinds`` 过滤（默认 movie + tv）、compare-and-set、``media.identity``（= external_id）、
+身份校验（无外部编号的本地条目必须回传当时的 identity 令牌、不得声明编号）、省略字段不改）。
+
+``legacy = True`` 模拟 v0.46–0.48：catalog 不下发 ``identity``，``SyncChangeIn`` 是
+``extra=forbid``——请求里多一个 ``identity`` 整批 422；同一性只认吻合的外部编号。
+全程不联网、不需要真宿主。"""
 
 from __future__ import annotations
 
@@ -58,23 +62,47 @@ class FakeHost:
         self.before_state: list = []
         #: 模拟 0.46.0：catalog 的操作目录里没有 kinds，带上就 INVALID_ARGUMENTS
         self.old_host = False
+        #: 模拟 v0.46–0.48 的 sync 契约：没有 identity（下发 / 接收都没有）
+        self.legacy = False
+        #: media_item_id -> external_id（宿主 catalog 以 media.identity 下发）
+        self.external: dict[int, str] = {}
 
     # ---- 造数据
     def add_media(self, mid: int, library_id: int, kind: str = "movie", title: str = "", **ids):
         """默认带 TMDB 编号；``kind="video"`` 默认没有编号（「其他」库的本地条目）。"""
+        external_id = ids.pop("external_id", None)
         ids.setdefault("tmdb_id", None if kind == "video" else 1000 + mid)
         self.media[mid] = (
             library_id,
             {"id": mid, "kind": kind, "title": title or f"片{mid}", "imdb_id": None, **ids},
         )
+        self.external[mid] = external_id or (
+            f"tmdb:{ids['tmdb_id']}" if ids.get("tmdb_id") else f"local-{kind}-{mid}"
+        )
 
-    @staticmethod
-    def same_identity(media: dict | None, c: dict) -> bool:
-        """与宿主 ``same_identity`` 同构。"""
+    def replace_media(self, mid: int, external_id: str, **kw) -> None:
+        """删除条目 A（连同其播放状态），再以同一数字 id 建条目 B（SQLite 复用主键）。"""
+        library_id = self.media[mid][0]
+        self.states = {k: v for k, v in self.states.items() if k[1] != mid}
+        kw.setdefault("tmdb_id", None)
+        self.add_media(mid, library_id, external_id=external_id, **kw)
+
+    def same_identity(self, media: dict | None, c: dict) -> bool:
+        """与宿主 ``movieclaw_api.services.playback_sync.same_identity``（#1203）同构。"""
         if not media or media["kind"] != c["kind"]:
             return False
-        if not media.get("tmdb_id") and not media.get("imdb_id"):
-            return not c.get("tmdb_id") and not c.get("imdb_id")
+        if self.legacy:  # 0.46.0：只认吻合的外部编号，无编号条目一律 mismatch
+            return bool(
+                (c.get("tmdb_id") and c["tmdb_id"] == media.get("tmdb_id"))
+                or (c.get("imdb_id") and c["imdb_id"] == media.get("imdb_id"))
+            )
+        if media.get("tmdb_id") is None and media.get("imdb_id") is None:
+            return (
+                not c.get("tmdb_id")
+                and not c.get("imdb_id")
+                and bool(c.get("identity"))
+                and c["identity"] == self.external.get(media["id"])
+            )
         return bool(
             (c.get("tmdb_id") and c["tmdb_id"] == media.get("tmdb_id"))
             or (c.get("imdb_id") and c["imdb_id"] == media.get("imdb_id"))
@@ -154,9 +182,12 @@ class FakeHost:
         items = []
         for mid, s, e in page:
             st = self.states.get((member, mid, s, e))
+            media = dict(self.media[mid][1])
+            if not self.legacy:
+                media["identity"] = self.external[mid]  # #1203：必填
             items.append(
                 {
-                    "media": dict(self.media[mid][1]),
+                    "media": media,
                     "season": s,
                     "episode": e,
                     "played": st["played"] if st else False,
@@ -171,6 +202,16 @@ class FakeHost:
 
     def op_playback_sync_state(self, p):
         member = int(p.get("member_id") or 0)
+        allowed = {"media_item_id", "kind", "tmdb_id", "imdb_id", "season", "episode",
+                   "expected_updated_at", "played", "position_ms", "is_favorite", "last_played_at"}
+        if not self.legacy:
+            allowed.add("identity")
+        for c in p["changes"]:
+            extra = set(c) - allowed
+            if extra:  # pydantic extra=forbid：整批 422，一条也不写
+                raise OpsError(422, "INVALID_ARGUMENTS", f"Extra inputs are not permitted: {sorted(extra)}")
+            if "identity" in c:
+                assert isinstance(c["identity"], str) and c["identity"], "identity 须为非空字符串"
         for hook in list(self.before_state):
             hook()
         self.before_state.clear()
