@@ -354,3 +354,298 @@ def test_legacy_local_history_without_token_is_blocked_on_real_host(host):
     assert error and "令牌" in error
     assert rows[0]["undoable"] is False
     assert host.client.portal.call(_positions, 2)[mid] == 0
+
+
+# ====================================================================== 0.1.3：接下来继续隐藏
+# 真播放走宿主 /playback/progress（落 playback_state + playback_log），首页卡片读 /playback/up-next
+# （含 this_device），插件经真 HostOps 写回。宿主没有 continue_dismissed 时（如 #1203 基线 / 0.49.1）
+# 只跑「只清进度并提示」那一条。
+
+
+def _host_has_dismiss() -> bool:
+    from movieclaw_api.schemas.playback_sync import SyncChangeIn, SyncUnit
+
+    return "dismiss_continue" in SyncChangeIn.model_fields and "continue_dismissed" in SyncUnit.model_fields
+
+
+needs_dismiss = pytest.mark.skipif(not _host_has_dismiss(), reason="宿主没有 continue_dismissed")
+needs_old_host = pytest.mark.skipif(_host_has_dismiss(), reason="只在没有隐藏能力的宿主上跑")
+
+
+class Recorder:
+    """包一层真 OpsClient，记下插件发出的每个请求（看请求形状）。"""
+
+    def __init__(self, inner) -> None:
+        self.inner, self.calls = inner, []
+
+    async def call(self, name, params):
+        import copy
+
+        self.calls.append((name, copy.deepcopy(params)))
+        return await self.inner.call(name, params)
+
+    def changes(self):
+        return [c for n, p in self.calls if n == "playback.sync.state" for c in p["changes"]]
+
+
+async def _seed_player(tmp_path: Path) -> dict:
+    from movieclaw_db.engine import get_database
+    from movieclaw_db.models import (
+        FileSource,
+        FileState,
+        LibraryFile,
+        MediaItem,
+        Member,
+    )
+    from movieclaw_db.repositories.library_repo import LibraryRepository
+
+    async with get_database().session() as s:
+        lib = await LibraryRepository(s).create(
+            name="混合", kind="movie", root_paths=[str(tmp_path / "mixed")]
+        )
+        s.add(Member(id=3, username="three", password_hash="unused"))
+        movie = MediaItem(kind="movie", title="电影 P", original_title="P", tmdb_id=5151)
+        show = MediaItem(kind="tv", title="剧 P", original_title="S", tmdb_id=6161)
+        video = MediaItem(source="local", kind="video", external_id="local-e2e-pv",
+                          tmdb_id=None, imdb_id=None, title="视频 P", original_title="V")
+        s.add_all([movie, show, video])
+        await s.flush()
+        units = [(movie.id, 0, 0), (video.id, 0, 0)] + [(show.id, 1, e) for e in (1, 2, 3)]
+        for mid, season, ep in units:
+            s.add(LibraryFile(library_id=lib.id, media_item_id=mid, season_number=season,
+                              episode_number=ep, file_path=str(tmp_path / f"p{mid}-{season}-{ep}.mkv"),
+                              size_bytes=1, source=FileSource.SCANNED, state=FileState.IN_PLACE,
+                              duration_seconds=600))
+        await s.commit()
+        return {"lib": lib.id, "movie": movie.id, "tv": show.id, "video": video.id}
+
+
+@pytest.fixture
+def player(host, tmp_path):
+    from movieclaw_api.api.deps import require_login
+    from movieclaw_api.services.auth import DeviceRef, Principal
+    from movieclaw_db.engine import get_database
+    from movieclaw_db.models import Member
+
+    ids = host.client.portal.call(_seed_player, tmp_path)
+
+    async def member(mid):
+        async with get_database().session() as s:
+            return await s.get(Member, mid)
+
+    members = {m: host.client.portal.call(member, m) for m in (2, 3)}
+
+    def as_user(mid, device):
+        ref = DeviceRef(id=device, kind="ios", scope="full", name=f"d{device}")
+        return Principal(kind="member", name=members[mid].username, member_id=mid,
+                         is_admin=False, member=members[mid], device=ref)
+
+    def http(mid, device, method, path, **kw):
+        # 只在这一次请求里冒充播放器用户；插件的 HostOps 调用走真授权，不受影响
+        host.app.dependency_overrides[require_login] = lambda: as_user(mid, device)
+        try:
+            r = getattr(host.client, method)(path, **kw)
+        finally:
+            host.app.dependency_overrides.pop(require_login, None)
+        assert r.status_code == 200, r.text
+        return r.json()["data"]
+
+    def play(mid, item, season, episode, position, device=5):
+        body = {"media_item_id": item, "season_number": season, "episode_number": episode}
+        http(mid, device, "post", "/api/v1/playback/progress", json={**body, "event": "start"})
+        http(mid, device, "post", "/api/v1/playback/progress",
+             json={**body, "event": "stop", "position_ms": position})
+
+    def up_next(mid, device=None):
+        params = {"this_device": "true"} if device is not None else {}
+        data = http(mid, device or 1, "get", "/api/v1/playback/up-next", params=params)
+        return {(i["media_item_id"], i["season_number"], i["episode_number"]) for i in data["items"]}
+
+    def titles(mid, device=None):
+        return {k[0] for k in up_next(mid, device)}
+
+    def resume(mid, item, season=0, episode=0):
+        return http(mid, 1, "get", "/api/v1/playback/resume",
+                    params={"media_item_id": item, "season_number": season, "episode_number": episode})
+
+    store = FakeStore()
+
+    async def make():
+        rec = Recorder(await _plugin_ops(host.app))
+        await store.set(SETTINGS_KEY, {"library_id": ids["lib"], "member_ids": [2], "dry_run": False})
+        return rec, Runtime(ops=rec, store=store)
+
+    rec, runtime = host.client.portal.call(make)
+    return SimpleNamespace(ids=ids, play=play, up_next=up_next, titles=titles, resume=resume,
+                           runtime=runtime, rec=rec, store=store, portal=host.client.portal)
+
+
+async def _facts(member_id: int, items: list[int]):
+    """除了 position / updated_at / continue_dismissed 以外的全部观看事实，加播放日志。"""
+    from movieclaw_db.engine import get_database
+    from movieclaw_db.models import PlaybackLog, PlaybackState
+
+    async with get_database().session() as s:
+        states = (await s.execute(select(PlaybackState).where(
+            PlaybackState.member_id == member_id, PlaybackState.media_item_id.in_(items)
+        ).order_by(PlaybackState.id))).scalars().all()
+        logs = (await s.execute(select(PlaybackLog).where(
+            PlaybackLog.member_id == member_id, PlaybackLog.media_item_id.in_(items)
+        ).order_by(PlaybackLog.id))).scalars().all()
+        return (
+            [(r.media_item_id, r.season_number, r.episode_number, r.played, r.play_count,
+              r.is_favorite, r.favorited_at, r.last_played_at, r.audio_track) for r in states],
+            [(r.id, r.device_id, r.last_seen_at, r.end_position_ms, r.watched_ms, r.completed)
+             for r in logs],
+        )
+
+
+async def _versions(member_id: int):
+    from movieclaw_db.engine import get_database
+    from movieclaw_db.models import PlaybackState
+
+    async with get_database().session() as s:
+        rows = (await s.execute(select(PlaybackState).where(PlaybackState.member_id == member_id))).scalars()
+        return {(r.media_item_id, r.season_number, r.episode_number): r.updated_at for r in rows}
+
+
+def _sweep(p, dry_run=False):
+    return p.portal.call(lambda: p.runtime.sweep(reason="manual", dry_run=dry_run))
+
+
+@needs_dismiss
+def test_e2e_cleanup_hides_up_next_for_movie_tv_video_and_keeps_facts(player):
+    p, ids = player, player.ids
+    p.play(2, ids["tv"], 1, 1, None)  # E1 看完
+    p.play(2, ids["tv"], 1, 2, 120_000)
+    p.play(2, ids["movie"], 0, 0, 120_000)
+    p.play(2, ids["video"], 0, 0, 90_000)
+    p.play(3, ids["movie"], 0, 0, 60_000, device=9)  # 另一成员
+    mine = {ids["movie"], ids["tv"], ids["video"]}
+    assert mine <= p.titles(2) and mine <= p.titles(2, device=5)
+    assert (ids["tv"], 1, 2) in p.up_next(2)
+    items = sorted(mine)
+    before = p.portal.call(_facts, 2, items)
+    other_before = p.portal.call(_facts, 3, items)
+    counts = {k: p.resume(2, *k)["play_count"] for k in [(ids["movie"],), (ids["video"],)]}
+
+    # 只预览：一个都不写
+    versions = p.portal.call(_versions, 2)
+    preview = _sweep(p, dry_run=True)
+    assert preview["counts"]["previewed"] == 3 and not p.rec.changes()
+    assert p.portal.call(_versions, 2) == versions
+
+    run = _sweep(p)
+    assert run["counts"]["cleared"] == 3, run
+    assert all(c["dismiss_continue"] is True and c["position_ms"] == 0 for c in p.rec.changes())
+    # resume 位置 0；首页与本设备条都没有这三部（剧集不跳到 E3）
+    assert p.resume(2, ids["movie"])["position_ms"] == 0
+    assert p.resume(2, ids["video"])["position_ms"] == 0
+    assert p.resume(2, ids["tv"], 1, 2)["position_ms"] == 0
+    assert not (mine & p.titles(2)) and not (mine & p.titles(2, device=5))
+    # played / play_count / 收藏 / last_played_at / 播放日志都不变
+    assert p.portal.call(_facts, 2, items) == before
+    assert {k: p.resume(2, *k)["play_count"] for k in counts} == counts
+    # 成员隔离
+    assert ids["movie"] in p.titles(3) and p.portal.call(_facts, 3, items) == other_before
+
+    # 再播放：卡片回来，之后还能再清
+    p.play(2, ids["movie"], 0, 0, 200_000)
+    assert ids["movie"] in p.titles(2) and ids["movie"] in p.titles(2, device=5)
+    p.rec.calls.clear()
+    again = _sweep(p)
+    assert again["counts"]["cleared"] == 1
+    assert ids["movie"] not in p.titles(2)
+
+
+@needs_dismiss
+def test_e2e_undo_restores_position_and_dismiss_and_stale_undo_is_rejected(player):
+    p, ids = player, player.ids
+    p.play(2, ids["tv"], 1, 1, None)
+    p.play(2, ids["tv"], 1, 2, 120_000)
+    p.play(2, ids["movie"], 0, 0, 120_000)
+    _sweep(p)
+    history = {h["media_item_id"]: h for h in p.store.data["history"]}
+    assert history[ids["tv"]]["prior_dismissed"] is False
+
+    tv = p.portal.call(lambda: p.runtime.undo(history[ids["tv"]]["id"]))
+    assert tv["undo_status"] == "applied"
+    assert p.resume(2, ids["tv"], 1, 2)["position_ms"] == 120_000
+    assert (ids["tv"], 1, 2) in p.up_next(2)  # 回到 E2，不是 E3
+    # 撤销过、之后没再动：兜底扫描不再清
+    p.rec.calls.clear()
+    _sweep(p)
+    assert ids["tv"] not in {c["media_item_id"] for c in p.rec.changes()}
+
+    # 电影之后又播过：撤销冲突，什么都不写
+    p.play(2, ids["movie"], 0, 0, 300_000)
+    versions = p.portal.call(_versions, 2)
+    movie = p.portal.call(lambda: p.runtime.undo(history[ids["movie"]]["id"]))
+    assert movie["undo_status"] == "conflict"
+    assert p.portal.call(_versions, 2) == versions
+    assert p.resume(2, ids["movie"])["position_ms"] == 300_000
+
+
+@needs_dismiss
+def test_e2e_position_already_zero_is_still_dismissed(player):
+    """现场问题的复现：只清进度（0.1.2 的写法）后卡片还在；0.1.3 兜底补上隐藏。"""
+    p, ids = player, player.ids
+    p.play(2, ids["video"], 0, 0, 90_000)
+
+    async def old_style_clear():
+        row = await p.runtime.lookup((2, ids["video"], 0, 0))
+        from playback_cleanup.runtime import aware_iso, build_change
+
+        change = build_change(row, 0, aware_iso(row["updated_at"]))  # 0.1.2：不带 dismiss_continue
+        return await p.rec.inner.call("playback.sync.state", {"member_id": 2, "changes": [change]})
+
+    assert p.portal.call(old_style_clear)["outcomes"][0]["status"] == "applied"
+    assert p.resume(2, ids["video"])["position_ms"] == 0
+    assert ids["video"] in p.titles(2)  # 只清进度不够
+
+    run = _sweep(p)
+    assert run["counts"]["cleared"] == 1
+    (change,) = p.rec.changes()
+    assert change["dismiss_continue"] is True and change["identity"] == "local-e2e-pv"
+    assert ids["video"] not in p.titles(2) and ids["video"] not in p.titles(2, device=5)
+    # 撤销恢复未隐藏
+    entry = p.store.data["history"][0]
+    assert entry["prior_position_ms"] == 0
+    assert p.portal.call(lambda: p.runtime.undo(entry["id"]))["undo_status"] == "applied"
+    assert ids["video"] in p.titles(2)
+
+
+@needs_dismiss
+def test_e2e_event_path_and_request_shapes(player):
+    p, ids = player, player.ids
+    p.play(2, ids["movie"], 0, 0, 100_000)
+
+    async def fire():
+        return await p.runtime.fire((2, ids["movie"], 0, 0))
+
+    assert p.portal.call(fire)["status"] == "cleared"
+    assert ids["movie"] not in p.titles(2)
+    for name, params in p.rec.calls:
+        if name == "playback.sync.catalog":
+            assert set(params) <= {"member_id", "limit", "cursor", "kinds"}
+    (change,) = p.rec.changes()
+    assert set(change) == {"media_item_id", "kind", "expected_updated_at", "position_ms",
+                           "tmdb_id", "dismiss_continue"}
+
+
+@needs_old_host
+def test_e2e_host_without_dismiss_only_clears_position_and_warns(player):
+    """#1203 基线（= 0.49.1 的契约）：不发 dismiss_continue、不 422，照实提示卡片可能还在。"""
+    from playback_cleanup.runtime import NO_DISMISS_NOTE
+
+    p, ids = player, player.ids
+    p.play(2, ids["movie"], 0, 0, 120_000)
+    p.play(2, ids["video"], 0, 0, 90_000)
+    run = _sweep(p)
+    assert run["counts"]["cleared"] == 2 and NO_DISMISS_NOTE in run["notes"]
+    assert all(i["warning"] == NO_DISMISS_NOTE for i in run["items"])
+    assert all("dismiss_continue" not in c for c in p.rec.changes())
+    assert p.resume(2, ids["movie"])["position_ms"] == 0
+    # 旧宿主上卡片仍在——这正是现场问题，插件单装解决不了
+    assert {ids["movie"], ids["video"]} <= p.titles(2)
+    assert all("dismissed" not in h for h in p.store.data["history"])

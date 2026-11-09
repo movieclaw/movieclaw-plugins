@@ -2,11 +2,16 @@
 
 只经宿主操作 ``playback.sync.state`` 写 ``position_ms → 0``（带 compare-and-set 的
 ``expected_updated_at``），不碰已看 / 收藏 / 播放次数 / 最近播放时间 / 播放流水。
+
+宿主支持「接下来继续」隐藏时（catalog 行带 ``continue_dismissed``），同一次写回再带
+``dismiss_continue=true``：只清进度时没看完的片照样留在首页「接下来继续」。旧宿主不带
+这个字段（``SyncChangeIn`` 是 ``extra=forbid``，多送会整批 422），只清进度并照实提示。
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -36,6 +41,7 @@ SWEEP_TASK = "playback-cleanup.sweep"
 SWEEP_INTERVAL = 3600
 
 HISTORY_LIMIT = 120  # 插件数据单值上限 64KB
+STORE_BUDGET = 64 * 1024 - 1  # 宿主 plugin_data 单值上限（utf-8 JSON 字节）；条数上限之外的兜底
 RECENT_LIMIT = 60
 RUN_ITEMS_LIMIT = 40
 CATALOG_PAGE = 100
@@ -138,8 +144,38 @@ def write_token(media: dict) -> str | None:
     return identity_token(media)
 
 
-def build_change(row: dict, position_ms: int, expected: str | None) -> dict[str, Any]:
-    """一个单元的写回：只带身份字段、``expected_updated_at`` 和 ``position_ms``。
+NO_DISMISS_NOTE = "宿主不支持隐藏「接下来继续」（需要新版 MovieClaw）：只清了续播进度，首页卡片可能还在"
+
+
+def dismiss_supported(row: dict) -> bool:
+    """宿主 catalog 有没有 ``continue_dismissed``：有才认 ``dismiss_continue``。"""
+    return isinstance(row.get("continue_dismissed"), bool)
+
+
+def needs_work(row: dict) -> bool:
+    """这个单元还要不要处理。
+
+    - 有续播进度：要清（宿主支持时顺带隐藏）。
+    - 进度已是 0、但还会出现在「接下来继续」里：没看完（``played`` 为假）、播过
+      （``last_played_at`` 非空）、还没隐藏——比如 0.1.2 只清了进度的那些。只在宿主支持隐藏
+      时才算；旧宿主上没有能写的东西。
+    - 看完了的、从没播过的、已经隐藏的：不动（看完后的「下一集」卡片是正常的「接下来」）。
+    """
+    if int(row.get("position_ms") or 0) > 0:
+        return True
+    return (
+        dismiss_supported(row)
+        and not row["continue_dismissed"]
+        and not row.get("played")
+        and bool(row.get("last_played_at"))
+    )
+
+
+def build_change(
+    row: dict, position_ms: int, expected: str | None, *, dismiss: bool | None = None
+) -> dict[str, Any]:
+    """一个单元的写回：只带身份字段、``expected_updated_at``、``position_ms``，以及（给了时）
+    ``dismiss_continue``。``dismiss=None`` 就不带这个字段，请求形状与 0.1.2 逐字段一致。
 
     故意不带 ``played`` / ``is_favorite`` / ``last_played_at``：宿主对省略的字段一律不改。
     身份字段：有外部编号的带吻合的编号；没有的带 catalog 当时下发的 ``identity`` 令牌
@@ -162,6 +198,8 @@ def build_change(row: dict, position_ms: int, expected: str | None) -> dict[str,
     if media["kind"] == "tv":
         change["season"] = int(row.get("season") or 0)
         change["episode"] = int(row.get("episode") or 0)
+    if dismiss is not None:
+        change["dismiss_continue"] = bool(dismiss)
     return change
 
 
@@ -415,7 +453,7 @@ class Runtime:
         for row in rows:
             if not has_identity(row):
                 results.append(self._result(member_id, row, "no_identity"))
-            elif int(row.get("position_ms") or 0) <= 0:
+            elif not needs_work(row):
                 results.append(self._result(member_id, row, "already_zero"))
             else:
                 todo.append(row)
@@ -439,7 +477,7 @@ class Runtime:
                             member_id, row, "mismatch", error="重读后条目身份变了，没有写回"
                         )
                     )
-                elif int(again.get("position_ms") or 0) <= 0:
+                elif not needs_work(again):
                     results.append(self._result(member_id, again, "already_zero"))
                 else:
                     fresh.append(again)
@@ -451,7 +489,15 @@ class Runtime:
         out: list[tuple[str, dict, dict]] = []
         for start in range(0, len(rows), STATE_BATCH):
             chunk = rows[start : start + STATE_BATCH]
-            changes = [build_change(r, 0, aware_iso(r.get("updated_at"))) for r in chunk]
+            changes = [
+                build_change(
+                    r,
+                    0,
+                    aware_iso(r.get("updated_at")),
+                    dismiss=True if dismiss_supported(r) else None,
+                )
+                for r in chunk
+            ]
             try:
                 outcomes = await self._state(member_id, changes)
             except OpsError as exc:
@@ -465,6 +511,9 @@ class Runtime:
 
     def _result(self, member_id: int, row: dict, status: str, **extra: Any) -> dict:
         media = row.get("media") or {}
+        supported = dismiss_supported(row)
+        if not supported and status in ("cleared", "preview") and "warning" not in extra:
+            extra["warning"] = NO_DISMISS_NOTE
         return {
             "member_id": member_id,
             "media_item_id": media.get("id"),
@@ -474,6 +523,7 @@ class Runtime:
             "title": label(row),
             "position_ms": int(row.get("position_ms") or 0),
             "status": status,
+            "dismiss_supported": supported,
             **extra,
         }
 
@@ -504,6 +554,11 @@ class Runtime:
             "undo_status": None,
             "undo_version": None,
         }
+        if dismiss_supported(row):
+            # 这次一起写了 dismiss_continue=true，以及写之前的真实值（撤销按它恢复）。
+            # 旧宿主上不存这两个键（记录形状与 0.1.2 相同）；没有它们的记录撤销时不带新字段。
+            entry["dismissed"] = True
+            entry["prior_dismissed"] = bool(row["continue_dismissed"])
         await self._push(HISTORY_KEY, entry, HISTORY_LIMIT)
         return self._result(member_id, row, "cleared", history_id=entry["id"])
 
@@ -512,7 +567,11 @@ class Runtime:
             rows = await self.store.get(key, default=None)
             rows = rows if isinstance(rows, list) else []
             rows.insert(0, entry)
-            await self.store.set(key, rows[:limit])
+            rows = rows[:limit]
+            # 长令牌 + 长片名时条数上限不够保险：超过宿主单值上限就丢最旧的，免得整次写入失败
+            while len(rows) > 1 and len(json.dumps(rows, ensure_ascii=False).encode()) > STORE_BUDGET:
+                rows.pop()
+            await self.store.set(key, rows)
 
     async def _note(self, source: str, result: dict, dry_run: bool) -> None:
         await self._push(
@@ -601,8 +660,8 @@ class Runtime:
         except (OpsError, SkipItem) as exc:
             self.logger.warning("playback-cleanup：读取播放状态失败：%s", getattr(exc, "message", exc))
             return None
-        if row is None or int(row.get("position_ms") or 0) <= 0:
-            return None  # 已经是 0（看完了 / 别处清过）：什么都不做
+        if row is None or not needs_work(row):
+            return None  # 已经是 0 且不用隐藏（看完了 / 别处清过）：什么都不做
         if settings.dry_run:
             result = self._result(member_id, row, "preview")
         else:
@@ -678,7 +737,7 @@ class Runtime:
                     unit = catalog_unit(member_id, row)
                     if unit is None or unit[1] not in titles:
                         continue
-                    if int(row.get("position_ms") or 0) <= 0:
+                    if not needs_work(row):
                         continue
                     if any(same_time(row.get("updated_at"), v) for v in kept.get(unit, ())):
                         counts["skipped"] += 1  # 撤销过、之后没再动：别又清掉
@@ -689,6 +748,8 @@ class Runtime:
                 status = "partial"
                 continue
             counts["candidates"] += len(candidates)
+            if any(not dismiss_supported(r) for r in candidates) and NO_DISMISS_NOTE not in notes:
+                notes.append(NO_DISMISS_NOTE)
             if dry_run:
                 results = [self._result(member_id, r, "preview") for r in candidates]
             else:
@@ -784,12 +845,21 @@ class Runtime:
             return "旧记录没有保存条目身份令牌，无法安全撤销"
         return None
 
+    @staticmethod
+    def undo_dismiss(row: dict) -> bool | None:
+        """撤销时要写回的 ``dismiss_continue``：这次清理一起写了隐藏时，恢复写之前的真实值；
+        否则（旧宿主、0.1.2 及以前的记录）为 None，不带这个字段。"""
+        if row.get("dismissed") is True and isinstance(row.get("prior_dismissed"), bool):
+            return row["prior_dismissed"]
+        return None
+
     @classmethod
     def undoable(cls, row: dict) -> bool:
+        restores = int(row.get("prior_position_ms") or 0) > 0 or cls.undo_dismiss(row) is False
         return (
             not row.get("undo_status")
             and bool(row.get("state_version"))
-            and int(row.get("prior_position_ms") or 0) > 0
+            and restores
             and cls.undo_blocked(row) is None
         )
 
@@ -817,7 +887,12 @@ class Runtime:
                 "season": row["season"],
                 "episode": row["episode"],
             }
-            change = build_change(fake, int(row["prior_position_ms"]), row["state_version"])
+            change = build_change(
+                fake,
+                int(row["prior_position_ms"]),
+                row["state_version"],
+                dismiss=self.undo_dismiss(row),
+            )
             try:
                 outcomes = await self._state(int(row["member_id"]), [change])
             except OpsError as exc:
