@@ -649,3 +649,99 @@ def test_e2e_host_without_dismiss_only_clears_position_and_warns(player):
     # 旧宿主上卡片仍在——这正是现场问题，插件单装解决不了
     assert {ids["movie"], ids["video"]} <= p.titles(2)
     assert all("dismissed" not in h for h in p.store.data["history"])
+
+
+# ====================================================================== #1246：只对作品锚点隐藏
+# 宿主只接受落在作品当前锚点（last_played_at 最大）的 dismiss_continue=true，否则整条 conflict 回滚。
+# 多集剧 E1、E2、E3 都播过、E3 最近：旧集只清进度，E3 一并隐藏，不再每次扫描都冲突。
+
+
+def _host_has_anchor_rule() -> bool:
+    try:
+        from movieclaw_api.services import playback_up_next as up
+
+        return hasattr(up, "continue_anchor")
+    except ImportError:
+        return False
+
+
+needs_anchor = pytest.mark.skipif(
+    not (_host_has_dismiss() and _host_has_anchor_rule()), reason="宿主没有 #1246 的锚点规则"
+)
+
+
+def _tv_units(p):
+    return {k for k in p.up_next(2) if k[0] == p.ids["tv"]}
+
+
+@needs_anchor
+def test_e2e_multi_episode_only_anchor_is_dismissed_and_old_episodes_never_conflict(player):
+    p, tv = player, player.ids["tv"]
+    p.play(2, tv, 1, 1, 100_000)
+    p.play(2, tv, 1, 2, 200_000)
+    p.play(2, tv, 1, 3, 150_000)  # 当前集 = 最近播放
+    assert _tv_units(p) == {(tv, 1, 3)}
+    assert (tv, 1, 3) in p.up_next(2, device=5)
+    before = p.portal.call(_facts, 2, [tv])
+
+    run = _sweep(p)
+    print("\nNEW first sweep counts:", run["counts"])
+    print("NEW first sweep items:", [(i["episode"], i["status"], i.get("dismiss")) for i in run["items"]])
+    assert run["counts"]["conflicts"] == 0, run
+    assert run["counts"]["cleared"] == 3, run
+    sent = {c["episode"]: c for c in p.rec.changes()}
+    assert sent[3]["dismiss_continue"] is True
+    assert "dismiss_continue" not in sent[1] and "dismiss_continue" not in sent[2]
+    for ep in (1, 2, 3):
+        assert p.resume(2, tv, 1, ep)["position_ms"] == 0
+    assert tv not in p.titles(2) and tv not in p.titles(2, device=5)
+    assert p.portal.call(_facts, 2, [tv]) == before  # played / play_count / last_played_at / 日志不变
+
+    # 再扫：作品已隐藏、旧集进度 0，不再写、不再冲突
+    p.rec.calls.clear()
+    again = _sweep(p)
+    print("NEW second sweep counts:", again["counts"])
+    assert again["counts"]["candidates"] == 0 and again["counts"]["conflicts"] == 0
+    assert not p.rec.changes()
+
+    # 真实重新播放 E2（经宿主 /playback/progress）：卡片回来，锚点换成 E2
+    p.play(2, tv, 1, 2, 250_000)
+    assert _tv_units(p) == {(tv, 1, 2)} and tv in p.titles(2, device=5)
+    replayed = p.portal.call(_facts, 2, [tv])
+    p.rec.calls.clear()
+    third = _sweep(p)
+    print("NEW after replay counts:", third["counts"])
+    assert third["counts"]["conflicts"] == 0 and third["counts"]["cleared"] == 1
+    (change,) = p.rec.changes()
+    assert (change["episode"], change["dismiss_continue"]) == (2, True)
+    assert tv not in p.titles(2) and tv not in p.titles(2, device=5)
+    assert p.portal.call(_facts, 2, [tv]) == replayed
+
+
+@needs_anchor
+def test_e2e_anchor_moved_between_read_and_write(player):
+    """预览之后、写回之前，别的设备播了 E1：E3 的隐藏被宿主拒（锚点变了），插件重读重算，改为隐藏 E1。"""
+    p, tv = player, player.ids["tv"]
+    p.play(2, tv, 1, 2, 200_000)
+    p.play(2, tv, 1, 3, 150_000)
+
+    async def stale():
+        return await p.runtime.title_rows(2, tv)
+
+    rows = p.portal.call(stale)
+    e3 = next(r for r in rows if r["episode"] == 3)
+    p.play(2, tv, 1, 1, 60_000, device=9)  # 另一台设备
+
+    async def clear():
+        return await p.runtime.clear(2, [e3], source="manual", titles={tv: rows})
+
+    results = p.portal.call(clear)
+    print("\nNEW moved-anchor results:", [(r["episode"], r["status"], r.get("dismiss")) for r in results])
+    by_ep = {r["episode"]: r for r in results}
+    assert by_ep[1]["status"] == "cleared" and by_ep[1]["dismiss"] is True
+    assert by_ep[3]["status"] == "cleared" and by_ep[3]["dismiss"] is False
+    calls = [prm for n, prm in p.rec.calls if n == "playback.sync.state"]
+    assert len(calls) == 2  # 第一次被拒 + 重算后一次
+    assert p.resume(2, tv, 1, 3)["position_ms"] == 0
+    assert p.resume(2, tv, 1, 1)["position_ms"] == 0
+    assert tv not in p.titles(2) and tv not in p.titles(2, device=5) and tv not in p.titles(2, device=9)
