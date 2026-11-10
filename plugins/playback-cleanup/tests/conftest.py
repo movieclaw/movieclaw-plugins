@@ -69,6 +69,10 @@ class FakeHost:
         self.dismiss = False
         #: media_item_id -> external_id（宿主 catalog 以 media.identity 下发）
         self.external: dict[int, str] = {}
+        #: 状态行主键（宿主锚点平局按 id 倒序）：按创建先后递增
+        self.row_ids: dict[tuple[int, int, int, int], int] = {}
+        #: 被宿主锚点规则（MovieClaw#1246）拒掉的 dismiss_continue=true 写入
+        self.anchor_conflicts: list[dict] = []
 
     # ---- 造数据
     def add_media(self, mid: int, library_id: int, kind: str = "movie", title: str = "", **ids):
@@ -117,6 +121,7 @@ class FakeHost:
 
     def set_state(self, member: int, mid: int, season: int = 0, episode: int = 0, **values):
         key = (member, mid, season, episode)
+        self.row_ids.setdefault(key, len(self.row_ids) + 1)
         state = self.states.setdefault(
             key,
             {"played": False, "position_ms": 0, "is_favorite": False, "play_count": 0,
@@ -126,11 +131,49 @@ class FakeHost:
         state["updated_at"] = self.stamp()
         return state
 
-    def progress(self, member: int, mid: int, season: int = 0, episode: int = 0, pos: int = 1):
-        """一次真实播放上报：宿主同时清掉 continue_dismissed（再播放卡片回来）。"""
-        return self.set_state(
-            member, mid, season, episode, position_ms=pos, continue_dismissed=False
+    def progress(self, member: int, mid: int, season: int = 0, episode: int = 0, pos: int = 1,
+                 at: str | None = None):
+        """一次真实播放上报：（新宿主替身）刷新 last_played_at（默认现在），宿主清掉整部作品的 continue_dismissed
+        （#1246：比隐藏新的播放事实按作品恢复，再播放卡片回来）。"""
+        self.restore_title(member, mid)
+        state = self.set_state(member, mid, season, episode, position_ms=pos, continue_dismissed=False)
+        if at or self.dismiss:  # 旧宿主替身保持原来的固定时间（既有断言依赖它）
+            state["last_played_at"] = at or state["updated_at"]
+        return state
+
+    def restore_title(self, member: int, mid: int) -> None:
+        for (m, i, _s, _e), st in self.states.items():
+            if m == member and i == mid and st.get("continue_dismissed"):
+                st["continue_dismissed"] = False
+                st["updated_at"] = self.stamp()
+
+    def anchor(self, member: int, mid: int) -> tuple[int, int] | None:
+        """与宿主 ``playback_up_next._ranked_states`` 同一口径：last_played_at 倒序、id 倒序。"""
+        rows = [
+            (st["last_played_at"], self.row_ids.get(k, 0), (k[2], k[3]))
+            for k, st in self.states.items()
+            if k[0] == member and k[1] == mid and st.get("last_played_at") and k[2] >= 0 and k[3] >= 0
+        ]
+        return max(rows)[2] if rows else None
+
+    def hidden(self, member: int, mid: int) -> bool:
+        """首页按作品判定：任一行带标记即隐藏（#1246）。"""
+        return any(
+            st.get("continue_dismissed")
+            for k, st in self.states.items()
+            if k[0] == member and k[1] == mid
         )
+
+    def up_next(self, member: int) -> set[int]:
+        """简化的「接下来继续」：有锚点、锚点没看完、作品没隐藏的作品。"""
+        out = set()
+        for (m, mid, _s, _e) in self.states:
+            if m != member or mid in out:
+                continue
+            a = self.anchor(member, mid)
+            if a and not self.states[(member, mid, *a)]["played"] and not self.hidden(member, mid):
+                out.add(mid)
+        return out
 
     def state_calls(self) -> list[dict]:
         return [p for name, p in self.calls if name == "playback.sync.state"]
@@ -225,6 +268,7 @@ class FakeHost:
         for hook in list(self.before_state):
             hook()
         self.before_state.clear()
+        dismissing = {c["media_item_id"] for c in p["changes"] if c.get("dismiss_continue") is True}
         outcomes = []
         for c in p["changes"]:
             expected = c["expected_updated_at"]
@@ -262,8 +306,31 @@ class FakeHost:
             if new == old:
                 outcomes.append({"status": "unchanged", "state_version": st["updated_at"]})
                 continue
+            if c.get("dismiss_continue") is True:
+                # #1246：作品级意图，写完仍须是作品当前锚点，否则整条回滚（position_ms 也不写）
+                saved = self.states.get(key)
+                self.states[key] = new
+                self.row_ids.setdefault(key, len(self.row_ids) + 1)
+                anchor = self.anchor(member, key[1])
+                if anchor is not None and anchor != key[2:]:
+                    if saved is None:
+                        self.states.pop(key)
+                    else:
+                        self.states[key] = saved
+                    self.anchor_conflicts.append(dict(c))
+                    outcomes.append({"status": "conflict"})
+                    continue
+            elif (
+                self.dismiss
+                and (new.get("position_ms") or 0) > 0
+                and new.get("position_ms") != old.get("position_ms")
+                and key[1] not in dismissing
+            ):
+                self.restore_title(member, key[1])  # 进度往前走 = 播放事实：按作品恢复
+                new["continue_dismissed"] = False
             new["updated_at"] = self.stamp()
             self.states[key] = new
+            self.row_ids.setdefault(key, len(self.row_ids) + 1)
             outcomes.append({"status": "applied", "state_version": new["updated_at"]})
         return {"outcomes": outcomes}
 
