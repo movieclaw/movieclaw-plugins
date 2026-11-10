@@ -281,11 +281,13 @@
       span.classList.add(cls);
       return span;
     }
-    // 结果列：状态 + 旧宿主「不能隐藏接下来继续」的提示
+    // 结果列：状态 + 旧宿主「不能隐藏接下来继续」的提示 + 剧集非当前集只清进度 / 冲突原因
     function resultCell(it) {
       const td = node("td");
       td.append(statusNode(it.status));
       if (it.warning) td.append(node("div", it.warning, "hint warn"));
+      if (it.note) td.append(node("div", it.note, "hint"));
+      if (it.error) td.append(node("div", it.error, "hint warn"));
       return td;
     }
     function emptyRow(tbody, cols, text) {
@@ -558,6 +560,7 @@
           else if (it.undo_status) st.append(statusNode(it.undo_status));
           else st.append(statusNode("cleared"));
           if (it.dismissed === true) st.append(node("div", "已从「接下来继续」隐藏", "hint"));
+          else if (it.kind === "tv") st.append(node("div", "只清了进度（剧集里不是当时的当前集，隐藏落在当前集上；或旧宿主 / 旧版本记录）", "hint"));
           else st.append(node("div", "只清了进度，没有隐藏「接下来继续」（旧宿主或旧版本记录）", "hint warn"));
           tr.append(st);
           const act = node("td");
