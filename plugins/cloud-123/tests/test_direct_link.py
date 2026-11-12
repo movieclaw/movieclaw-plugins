@@ -117,7 +117,10 @@ class DirectLinkTest(UploadFixture):
                 return httpx.Response(200, json={'code': 0, 'data': {'DownloadUrl': url}})
         self.reply = reply
         result = await self.link()
-        self.assertEqual(dv.link_dict(result), {'url': url, 'expires_in': 60})
+        link = dv.link_dict(result)
+        # MovieClaw v0.50.0 adds an optional 'headers' field; it must stay empty here.
+        self.assertFalse(link.pop('headers', None))
+        self.assertEqual(link, {'url': url, 'expires_in': 60})
         self.assertEqual(len(self.requests), 2)
 
     async def test_calls_do_not_cache_details_or_share_user_agents(self):
