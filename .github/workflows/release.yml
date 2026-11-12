@@ -24,8 +24,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # MovieClaw v0.44.0. The same pin as ci.yml; trakt-sync needs events 1.1.
-  MOVIECLAW_REF: 2a6e6d2a58129a305e53f78639e7dafd82a1ec82
+  # MovieClaw v0.50.0. The same pin as ci.yml; trakt-sync needs events 1.1,
+  # trim-media needs library segments.
+  MOVIECLAW_REF: 4afc18515964c89de8e38f71cdc77c40515710ed
   CATALOG_TAG: catalog
 
 jobs:
