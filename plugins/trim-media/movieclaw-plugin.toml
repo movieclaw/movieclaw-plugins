@@ -2,7 +2,7 @@
 id = "trim-media"
 title = "飞牛影视"
 title_localized = { en = "fnOS Trim Media" }
-version = "0.1.0"
+version = "0.2.0"
 entry = "trim_media"
 runtime = "process"
 sdk = "^1.0"
@@ -29,11 +29,14 @@ operations = [
     "library.list",
     "library.create",
     "library.scan.start",
+    "library.items.list",
     "library.items.segments",
     "playback.sync.catalog",
     "playback.sync.state",
     "members.list",
 ]
+# 覆盖检查要数库根目录下的文件（只读，受批准路径约束）
+paths = [{ path = "library", mode = "read" }]
 # 播放进度/停止/看完属于敏感事件（谁在什么时候看了什么），要单独批准
 events = ["playback.progress", "playback.stopped", "playback.completed"]
 # 访问飞牛影视服务（内网 / 反代地址）

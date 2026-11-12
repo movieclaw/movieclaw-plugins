@@ -36,6 +36,9 @@ def map_remote_to_local(path: str, frm: str, to: str) -> str | None:
     base = (to or "").strip().rstrip("/")
     if not raw or not prefix or not base or not raw.startswith(prefix):
         return None
+    # 前缀必须落在目录边界上：/mnt/media 不能吃掉 /mnt/media2（否则整库路径都错位）
+    if len(raw) > len(prefix) and raw[len(prefix)] != "/" and not prefix.endswith("/"):
+        return None
     tail = raw[len(prefix):].strip("/")
     return f"{base}/{tail}" if tail else base
 
