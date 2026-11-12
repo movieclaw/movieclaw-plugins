@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-12T10:07:23Z",
+  "generated_at": "2026-11-12T10:09:01Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -1110,6 +1110,79 @@
               "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/douban-wish-v1.1.0/douban-wish-1.1.0.mcplugin",
               "sha256": "c61903dfd69f75c50eb2598666f4f5ef6a0680df37e5bc27bb61fe290f3af954",
               "size": 24223
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mc-memory",
+      "name": "记忆与上下文管家",
+      "summary": "跨会话记忆 + 会话自动压缩二合一：沉淀长期记忆，上下文到阈值自动折叠省 token。",
+      "description": "跨会话记忆 + 会话自动压缩，二合一（原 session-keeper 已并入）。每轮对话结束只读一次会话轨迹，同时驱动两件事：① 自动压缩——累计消息数或最近请求的输入 token 达到阈值就压缩上下文（只压不删，完整轨迹保留），把每次请求的输入 token 压回低位，动态节省 token；② 记忆提炼——按 Engramory 记忆协议自动沉淀值得长期记住的事实（用户偏好、纠正反馈、项目决策、资源指针），压缩发生的轮次强制提炼一次，赶在上下文折叠前存好长期记忆；活跃记忆进有界索引（软/硬双上限、写前拦截），冷记忆归档出索引不删内容；AI 开局只拿索引指针、按需取全文、关键词全文检索；自带体检（近似重复、超大笔记、失效链接、冷记忆建议归档）；提取后端支持多后端顺序故障切换（如 GLM 为主、DeepSeek 兜底，额度用尽自动切换）；左侧栏提供管理页（索引 / 检索 / 新增 / 编辑 / 置顶 / 归档 / 恢复 / 删除 / 体检 / 压缩管家看板与手动压缩）。",
+      "category": "tools",
+      "author": {
+        "name": "DongShu",
+        "url": "https://github.com/DongShull"
+      },
+      "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/mc-memory",
+      "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/mc-memory",
+      "license": "MIT",
+      "origin": "official",
+      "icon": {
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/mc-memory-icon-bcccb8e9f800b6a8.svg",
+        "sha256": "bcccb8e9f800b6a83a556159ae92f4d4a61ee83aecd3a99ea17e39fcacc604de",
+        "size": 359
+      },
+      "screenshots": [],
+      "deprecated": null,
+      "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=mc-memory",
+      "downloads": 0,
+      "latest": "0.4.7",
+      "latest_stable": "0.4.7",
+      "versions": [
+        {
+          "version": "0.4.7",
+          "prerelease": false,
+          "released_at": "2026-11-12T10:09:01Z",
+          "yanked": null,
+          "notes": "首个在本仓库发布的版本（此前为个人开发版，能力到此已定型）。\n\n- **记忆 + 压缩二合一**：同一轮只读一次会话轨迹，同时驱动上下文自动压缩与长期记忆提炼。\n- **记忆库**：五类笔记（iron / user / feedback / project / reference）、有界索引（软硬双上限、写前查重拦截）、按 id 取全文、关键词全文检索、`[[笔记名]]` 互链、体检（近似重复 / 超大笔记 / 失效链接 / 冷记忆）、归档与恢复（归档只移出索引，内容保留）。\n- **上下文压缩**：消息数或输入 token 达到阈值自动压缩，带冷却与「运行中会话跳过」；只压不删，完整轨迹保留；提供压缩历史看板、累计节省 token 统计与手动压缩。\n- **续接同步**：检测到新压缩摘要时先提炼一次，接住交接摘要里的进行中任务。\n- **多后端故障切换**：最多三个 OpenAI 兼容后端按槽位顺序组成「主力→兜底」链，额度用尽 / 鉴权失效自动切换，瞬时抖动只重试。\n- **管理页**：记忆管家整页——索引与卡片视图、检索、增删改、置顶、归档恢复、体检、压缩看板；操作按钮带图标。\n- **AI 提炼引导**：自动提炼单条 ≤600 字、单次最多 8 条、宁低勿高，写入前查重；人工写入不限字数（2 万字兜底）。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/mc-memory-v0.4.7",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/mc-memory-v0.4.7/plugins/mc-memory",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/mc-memory-v0.4.7/plugins/mc-memory/README.md",
+            "sha256": "54c6bce368f7625c86e2c5dcec3bc1264eb8b310a83e4e5e75b1114cba4ee4b6",
+            "size": 4248
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "agent.run.finished": "^1.2"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "session.get-transcript",
+              "session.compact-context"
+            ],
+            "paths": [],
+            "network": true,
+            "callbacks": [],
+            "events": [
+              "agent.run.finished"
+            ]
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "mc-memory-0.4.7.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/mc-memory-v0.4.7/mc-memory-0.4.7.mcplugin",
+              "sha256": "a6dce0322f56f415ebc993ddae3e028b6a5546911a45836395c125b746eef955",
+              "size": 46656
             }
           ]
         }
