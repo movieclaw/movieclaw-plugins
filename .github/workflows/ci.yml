@@ -28,13 +28,10 @@ permissions:
   contents: read
 
 env:
-  # MovieClaw v0.50.0: 在 v0.44.0 已有的 playback stopped/completed 1.1 之上，
-  # 又带上 trim-media 需要的 `library.items.segments` 操作与
-  # `library.segments.updated` 事件（片头片尾写回 / 识别结果订阅）。
-  # 本仓库 example/ 下的全部参考副本与 plugins/trim-media 都已对 v0.50.0 跑过
-  # check_plugin.py，全部通过。
+  # MovieClaw v0.44.0: includes playback stopped/completed contracts 1.1
+  # (movieclaw/MovieClaw#1063) required by trakt-sync 0.3.0.
   # Do not float this to a branch tip.
-  MOVIECLAW_REF: 4afc18515964c89de8e38f71cdc77c40515710ed
+  MOVIECLAW_REF: 2a6e6d2a58129a305e53f78639e7dafd82a1ec82
   # Shipped with every server release from the one after v0.39.0.
   HOST_CONSTRAINTS_URL: https://github.com/movieclaw/MovieClaw/releases/latest/download/host-constraints.txt
 
