@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-07T13:06:50Z",
+  "generated_at": "2026-11-12T10:07:23Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -27,7 +27,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=actor-avatar",
-      "downloads": 5,
+      "downloads": 8,
       "latest": "0.5.1",
       "latest_stable": "0.5.1",
       "versions": [
@@ -110,7 +110,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cast-cn",
-      "downloads": 16,
+      "downloads": 19,
       "latest": "0.3.5",
       "latest_stable": "0.3.5",
       "versions": [
@@ -305,7 +305,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-115",
-      "downloads": 63,
+      "downloads": 67,
       "latest": "0.1.0-beta.3",
       "latest_stable": null,
       "versions": [
@@ -638,7 +638,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-123",
-      "downloads": 4,
+      "downloads": 6,
       "latest": "0.1.0-beta.10",
       "latest_stable": null,
       "versions": [
@@ -881,7 +881,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-hot-subscribe",
-      "downloads": 8,
+      "downloads": 10,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -1062,7 +1062,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=douban-wish",
-      "downloads": 12,
+      "downloads": 14,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -1365,7 +1365,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=notifyhub",
-      "downloads": 17,
+      "downloads": 19,
       "latest": "2.3.0",
       "latest_stable": "2.3.0",
       "versions": [
@@ -1520,7 +1520,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=p115-import",
-      "downloads": 7,
+      "downloads": 8,
       "latest": "0.4.14",
       "latest_stable": "0.4.14",
       "versions": [
@@ -1674,7 +1674,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=p115-library",
-      "downloads": 9,
+      "downloads": 15,
       "latest": "2.8.3",
       "latest_stable": "2.8.3",
       "versions": [
@@ -1804,7 +1804,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=platform-discovery",
-      "downloads": 30,
+      "downloads": 31,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -2016,7 +2016,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=playback-cleanup",
-      "downloads": 3,
+      "downloads": 6,
       "latest": "0.1.1",
       "latest_stable": "0.1.1",
       "versions": [
@@ -2094,7 +2094,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 29,
+      "downloads": 44,
       "latest": "0.2.4",
       "latest_stable": "0.2.4",
       "versions": [
@@ -2263,7 +2263,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-site-pack",
-      "downloads": 46,
+      "downloads": 51,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -2509,7 +2509,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-hub",
-      "downloads": 7,
+      "downloads": 10,
       "latest": "1.0.0",
       "latest_stable": "1.0.0",
       "versions": [
@@ -2582,7 +2582,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-scheduler",
-      "downloads": 13,
+      "downloads": 16,
       "latest": "1.1.0",
       "latest_stable": "1.1.0",
       "versions": [
@@ -2649,6 +2649,75 @@
       ]
     },
     {
+      "id": "session-keeper",
+      "name": "会话管家（自动压缩）",
+      "summary": "会话上下文自动压缩：消息数或输入 token 到阈值就把历史折成摘要，持续省 token。",
+      "description": "AI 会话上下文自动压缩管家：每轮对话结束后检查累计消息数与最近一次请求的输入 token，达到阈值就自动压缩上下文，让后续请求始终保持小而快，动态节省 token 开销。阈值与冷却时间可在「设置」里调整；只压缩不删除，完整轨迹保留。",
+      "category": "tools",
+      "author": {
+        "name": "DongShu",
+        "url": "https://github.com/DongShull"
+      },
+      "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/session-keeper",
+      "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/session-keeper",
+      "license": "MIT",
+      "origin": "official",
+      "icon": null,
+      "screenshots": [],
+      "deprecated": null,
+      "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=session-keeper",
+      "downloads": 0,
+      "latest": "0.1.0",
+      "latest_stable": "0.1.0",
+      "versions": [
+        {
+          "version": "0.1.0",
+          "prerelease": false,
+          "released_at": "2026-11-12T10:07:23Z",
+          "yanked": null,
+          "notes": "首个发布版本。\n\n- 可靠订阅会话结束事件，每轮读一次轻量轨迹，统计自上次压缩以来的用户消息数与最近一次请求的输入 token。\n- 消息数（默认 16）或输入 token（默认 60000）达到阈值即调用宿主压缩上下文；只压不删，完整轨迹保留。\n- 同会话冷却（默认 10 分钟）、运行中会话跳过、按事件 id 去重，避免重复压缩。\n- 阈值、冷却与排除的会话均可在「设置」里调整。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/session-keeper-v0.1.0",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/session-keeper-v0.1.0/plugins/session-keeper",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/session-keeper-v0.1.0/plugins/session-keeper/README.md",
+            "sha256": "9b54c979f2a59c6f6c1d0aee6e6210698c23b0bec39cd97136d52c57614cacb4",
+            "size": 2399
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "agent.run.finished": "^1.2"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "session.get-transcript",
+              "session.compact-context"
+            ],
+            "paths": [],
+            "network": false,
+            "callbacks": [],
+            "events": [
+              "agent.run.finished"
+            ]
+          },
+          "web": false,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "session-keeper-0.1.0.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/session-keeper-v0.1.0/session-keeper-0.1.0.mcplugin",
+              "sha256": "392582a05bd41443a0577d9dcd49fb6f7bbb3b22082cbc4b84c3c32fac7211bf",
+              "size": 6181
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "strategy-linkage",
       "name": "策略联动",
       "summary": "按明确条件自动通知、移除种子或调整下载器全局设置",
@@ -2670,7 +2739,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=strategy-linkage",
-      "downloads": 6,
+      "downloads": 7,
       "latest": "1.0.0",
       "latest_stable": "1.0.0",
       "versions": [
@@ -3055,7 +3124,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=watch-friends",
-      "downloads": 24,
+      "downloads": 26,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
