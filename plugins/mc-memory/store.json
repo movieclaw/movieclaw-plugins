@@ -1,0 +1,10 @@
+{
+  "author": "DongShu",
+  "author_url": "https://github.com/DongShull",
+  "license": "MIT",
+  "origin": "official",
+  "icon": "icon.svg",
+  "screenshots": [],
+  "summary": "跨会话记忆 + 会话自动压缩二合一：沉淀长期记忆，上下文到阈值自动折叠省 token。",
+  "category": "tools"
+}
