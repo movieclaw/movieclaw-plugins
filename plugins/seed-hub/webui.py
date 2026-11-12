@@ -91,6 +91,15 @@ class QbittorrentWebUI:
             raise TransferError("qBittorrent torrents/info 返回结构异常")
         return {str(r.get("hash") or "").lower() for r in rows if r.get("hash")}
 
+    async def all_trackers(self) -> list[str]:
+        """所有任务的第一 tracker 地址（学习站点 passkey 用）。"""
+        resp = await self._client.get("/api/v2/torrents/info")
+        self._check(resp, "torrents/info")
+        rows = resp.json()
+        if not isinstance(rows, list):
+            raise TransferError("qBittorrent torrents/info 返回结构异常")
+        return [str(r.get("tracker") or "") for r in rows if r.get("tracker")]
+
     async def existing_hashes(self, hashes: list[str]) -> set[str]:
         """按 hash 批量探测目标下载器里已有的任务（分批防 URL 超长）。"""
         found: set[str] = set()
@@ -110,6 +119,26 @@ class QbittorrentWebUI:
             self._check(resp, "torrents/info")
             rows.extend(resp.json() or [])
         return {str(row.get("hash") or "").lower(): str(row.get("state") or "") for row in rows}
+
+    async def inspect(self, hashes: list[str]) -> dict[str, dict[str, Any]]:
+        """hash → {state, progress, error}（转种后置校验用；不存在的任务不出现在结果里）。"""
+        rows: list[dict[str, Any]] = []
+        for start in range(0, len(hashes), 200):
+            chunk = hashes[start : start + 200]
+            resp = await self._client.get("/api/v2/torrents/info", params={"hashes": "|".join(chunk)})
+            self._check(resp, "torrents/info")
+            rows.extend(resp.json() or [])
+        out: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            h = str(row.get("hash") or "").lower()
+            if not h:
+                continue
+            state = str(row.get("state") or "")
+            error = ""
+            if state in ("missingFiles", "error"):
+                error = "数据文件缺失" if state == "missingFiles" else "任务报错"
+            out[h] = {"state": state, "progress": float(row.get("progress") or 0), "error": error, "name": str(row.get("name") or "")}
+        return out
 
     async def trackers(self, info_hash: str) -> list[dict[str, Any]]:
         """该任务的 tracker 行（补 announce 用；伪条目由 qb_tracker_groups 滤掉）。"""
@@ -279,6 +308,17 @@ class TransmissionRPC:
             if t.get("hashString") and float(t.get("percentDone") or 0) >= 1.0
         ]
 
+    async def all_trackers(self) -> list[str]:
+        """所有任务的 tracker announce 地址（学习站点 passkey 用）。"""
+        args = await self._rpc("torrent-get", {"fields": ["hashString", "trackers"]})
+        out: list[str] = []
+        for t in args.get("torrents") or []:
+            for tr in t.get("trackers") or []:
+                url = str(tr.get("announce") or "")
+                if url:
+                    out.append(url)
+        return out
+
     async def all_hashes(self) -> set[str]:
         args = await self._rpc("torrent-get", {"fields": ["hashString"]})
         return {
@@ -298,6 +338,27 @@ class TransmissionRPC:
             for t in args.get("torrents") or []
             if t.get("hashString")
         }
+
+    async def inspect(self, hashes: list[str]) -> dict[str, dict[str, Any]]:
+        """hash → {state, progress, error}（转种后置校验用；不存在的任务不出现在结果里）。"""
+        fields = ["hashString", "name", "status", "percentDone", "error", "errorString", "uploadRatio", "secondsSeeding"]
+        out: dict[str, dict[str, Any]] = {}
+        for start in range(0, len(hashes), 200):
+            chunk = hashes[start : start + 200]
+            args = await self._rpc("torrent-get", {"fields": fields, "ids": chunk})
+            for t in args.get("torrents") or []:
+                h = str(t.get("hashString") or "").lower()
+                if not h:
+                    continue
+                err = int(t.get("error") or 0)
+                out[h] = {
+                    "name": str(t.get("name") or ""),
+                    "state": "error" if err else ("seeding" if int(t.get("status") or 0) == 6 else "checking"),
+                    "progress": float(t.get("percentDone") or 0),
+                    "error": str(t.get("errorString") or "") if err else "",
+                    "ratio": t.get("uploadRatio"),
+                }
+        return out
 
     async def add(
         self,

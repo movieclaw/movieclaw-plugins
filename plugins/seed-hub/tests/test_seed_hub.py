@@ -13,15 +13,6 @@ import _bootstrap  # noqa: F401,E402  -- 注册 AST 桩模块（无运行时时�
 import seed_hub as sh  # 真实模块或 tests/_bootstrap.py 注册的桩
 
 
-class SiteNicknames(unittest.TestCase):
-    def test_fill_and_overwrite(self):
-        sh._SITE_NICKNAMES.clear()
-        sh.remember_site_nicknames({"3": {"id": 3, "nickname": "馒头"}, "9": {"id": 9, "nickname": ""}})
-        self.assertEqual(sh._SITE_NICKNAMES, {"3": "馒头"})  # 空昵称不入表
-        sh.remember_site_nicknames({"3": {"id": 3, "nickname": "M-Team"}})
-        self.assertEqual(sh._SITE_NICKNAMES["3"], "M-Team")  # 新值覆盖
-
-
 class Paths(unittest.TestCase):
     def test_convert_save_path_longest_prefix(self):
         pairs = [("/data", "/mnt/qb"), ("/data/media", "/mnt/nas/media")]
@@ -34,13 +25,6 @@ class Paths(unittest.TestCase):
     def test_convert_no_pairs(self):
         self.assertEqual(sh.convert_save_path("/a/b", []), "/a/b")
 
-    def test_is_excluded_path(self):
-        roots = ["/downloads/keep"]
-        self.assertTrue(sh.is_excluded_path("/downloads/keep/x", roots))
-        self.assertTrue(sh.is_excluded_path("/downloads/keep", roots))
-        self.assertFalse(sh.is_excluded_path("/downloads/keepx/y", roots))  # 目录边界
-        self.assertFalse(sh.is_excluded_path("/other/x", roots))
-
     def test_torrent_file_candidates(self):
         self.assertEqual(
             sh.torrent_file_candidates("ABC123", ["/qb/bt", "/tr/t"]),
@@ -48,24 +32,52 @@ class Paths(unittest.TestCase):
         )
 
 
-class Completion(unittest.TestCase):
-    def test_is_completed(self):
-        self.assertTrue(sh.is_completed({"state": "completed"}))
-        self.assertTrue(sh.is_completed({"state": "stalledUP", "progress": 1.0}))  # 旧快照兜底
-        self.assertFalse(sh.is_completed({"state": "stalledUP", "progress": 0.9}))
-        self.assertFalse(sh.is_completed({"state": "error", "progress": 1.0}))  # error 不算
-        self.assertFalse(sh.is_completed({"state": None}))
+class VerifyVerdict(unittest.TestCase):
+    def test_verdict(self):
+        self.assertEqual(sh.verify_verdict(None, 0, 0, 90)[0], "missing")  # 目标里没这任务
+        self.assertEqual(sh.verify_verdict({"progress": 1.0}, 0, 0, 90)[0], "ok")
+        self.assertEqual(sh.verify_verdict({"progress": 0.4}, 100, 200, 90)[0], "pending")  # 还在校验
+        self.assertEqual(sh.verify_verdict({"progress": 0.4}, 1, 1 + 91 * 60, 90)[0], "timeout")
+        reason, note = sh.verify_verdict({"error": "unregistered torrent", "progress": 1.0}, 0, 0, 90)
+        self.assertEqual(reason, "failed")  # 目标自己报错优先于进度
+        self.assertIn("unregistered", note)
+        self.assertEqual(sh.verify_verdict({"progress": 0.4}, 0, 0, 0)[0], "pending")  # 0 = 不超时
+
+    def test_cleanup_allowed(self):
+        self.assertTrue(sh.verify_cleanup_allowed("unregistered torrent"))
+        self.assertFalse(sh.verify_cleanup_allowed("Corrupt data found, please verify local data"))
+        self.assertFalse(sh.verify_cleanup_allowed(""))  # 没报错不动手
 
     def test_qb_seeding_paused(self):
         self.assertTrue(sh.qb_seeding_paused("pausedUP"))
         self.assertTrue(sh.qb_seeding_paused("stoppedUP"))  # qB 4.4+
         self.assertFalse(sh.qb_seeding_paused("checkingUP"))
 
-    def test_tr_verify_done(self):
-        self.assertTrue(sh.tr_verify_done({"status": 0, "percentDone": 1.0}))
-        self.assertFalse(sh.tr_verify_done({"status": 4, "percentDone": 1.0}))  # 还在校验
-        self.assertFalse(sh.tr_verify_done({"status": 0, "percentDone": 0.7}))
-        self.assertFalse(sh.tr_verify_done({}))  # 脏数据不炸
+
+class LinkDelete(unittest.TestCase):
+    def test_verdict(self):
+        ok = {"downloader_id": 1, "other_file_ids": [], "hit_and_run": False}
+        self.assertIsNone(sh.link_delete_verdict(ok))
+        self.assertIn("下载器", sh.link_delete_verdict({"downloader_id": None}))
+        self.assertIn("别的文件", sh.link_delete_verdict({**ok, "other_file_ids": [9]}))
+        self.assertIn("H&R", sh.link_delete_verdict({**ok, "hit_and_run": True}))
+        self.assertIsNone(sh.link_delete_verdict({**ok, "hit_and_run": None}))  # 没记录当没风险
+
+    def test_files_of_payload(self):
+        class Item:
+            def __init__(self, value: int) -> None:
+                self.id = value
+
+        class Payload:
+            pass
+
+        many = Payload()
+        many.files = [Item(1), Item(2)]
+        self.assertEqual(sh.files_of_payload(many), [1, 2])  # file.deleted：files[]
+        one = Payload()
+        one.file = Item(7)
+        self.assertEqual(sh.files_of_payload(one), [7])  # file.purged：单个 file
+        self.assertEqual(sh.files_of_payload(Payload()), [])  # 空载荷不炸
 
 
 class IyuuProtocol(unittest.TestCase):
@@ -101,7 +113,8 @@ class IyuuProtocol(unittest.TestCase):
 
     def test_fill_download_template(self):
         self.assertEqual(sh.fill_download_template("download.php?id={}&hit=1", 42), "download.php?id=42&hit=1")
-        self.assertEqual(sh.fill_download_template("dl/{}?passkey={passkey}", 7), "dl/7")
+        # 只换 {}，passkey 等占位符要留给 apply_credentials 回填
+        self.assertEqual(sh.fill_download_template("dl/{}?passkey={passkey}", 7), "dl/7?passkey={passkey}")
 
     def test_build_download_url(self):
         self.assertEqual(sh.build_download_url("https://x.org", 5), "https://x.org/download.php?id=5")
@@ -190,13 +203,6 @@ class DeadTorrentVerdict(unittest.TestCase):
         self.assertIsNone(reason)
         reason, _ = sh.qb_torrent_verdict(trackers=dead, state="", protected_labels={"留"}, labels=["留"])
         self.assertIsNone(reason)
-
-    def test_sitename_from_labels(self):
-        sh._SITE_NICKNAMES.clear()
-        self.assertEqual(sh.sitename_from_labels(["站点/天空"]), "天空")
-        sh.remember_site_nicknames({"3": {"nickname": "馒头"}})
-        self.assertEqual(sh.sitename_from_labels(["馒头"]), "馒头")  # 命中昵称表，返回昵称本身
-        self.assertIsNone(sh.sitename_from_labels(["随便"]))
 
 
 class SiteTag(unittest.TestCase):

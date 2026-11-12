@@ -11,8 +11,8 @@
   <div class="topbar">
     <h1>保种管家</h1>
     <span class="pill" id="state-pill">加载中…</span>
-    <span class="muted small" id="updated"></span>
-    <span style="flex:1"></span>
+    <span class="muted small updated" id="updated"></span>
+    <span class="spacer"></span>
     <a class="small" href="/settings/plugins" target="_top">插件设置</a>
   </div>
 
@@ -25,36 +25,39 @@
   <!-- ==================== 概览 ==================== -->
   <div class="tabpane" id="pane-overview">
     <div class="grid">
+
+      <!-- 转种 -->
       <section class="card">
         <div class="card-head">
           <h2>转种</h2>
           <span class="pill" id="transfer-flow">—</span>
         </div>
         <div id="transfer-rows"><div class="empty">加载中…</div></div>
-        <div class="small muted" id="transfer-next" style="margin-top:8px"></div>
+        <div class="small muted footnote" id="transfer-next"></div>
         <div class="actions">
           <button id="btn-transfer-run">立即执行</button>
           <button class="ghost" id="btn-transfer-scan">种子明细</button>
           <button class="ghost" id="btn-transfer-log">实时日志</button>
         </div>
-        <div id="transfer-live-log" hidden style="margin-top:12px">
+
+        <div id="transfer-live-log" class="logbox" hidden>
           <ul class="loglist" id="transfer-loglist"><li class="muted">展开后实时滚动本模块日志</li></ul>
         </div>
+
         <div id="transfer-scan" hidden style="margin-top:12px">
-          <div class="toolbar" style="margin:0 0 10px">
-            <button class="ghost" id="ts-all">全部 <span class="muted" id="tsc-all"></span></button>
-            <button class="ghost" id="ts-transfer">待转移 <span class="muted" id="tsc-transfer"></span></button>
-            <button class="ghost" id="ts-exists">目标已有 <span class="muted" id="tsc-exists"></span></button>
-            <button class="ghost" id="ts-excluded">排除标签 <span class="muted" id="tsc-excluded"></span></button>
-            <button class="ghost" id="ts-missing">数据不在 <span class="muted" id="tsc-missing"></span></button>
-            <button class="ghost" id="ts-small">体积不足 <span class="muted" id="tsc-small"></span></button>
-            <span class="spacer"></span>
-            <button class="ghost" id="btn-transfer-scan-close">收起</button>
+          <div class="toolbar filterbar" style="margin:0 0 10px">
+            <button class="ghost chipbtn" id="ts-all">全部 <span class="muted" id="tsc-all"></span></button>
+            <button class="ghost chipbtn" id="ts-transfer">待转移 <span class="muted" id="tsc-transfer"></span></button>
+            <button class="ghost chipbtn" id="ts-exists">目标已有 <span class="muted" id="tsc-exists"></span></button>
+            <button class="ghost chipbtn" id="ts-excluded">排除标签 <span class="muted" id="tsc-excluded"></span></button>
+            <button class="ghost chipbtn" id="ts-missing">数据不在 <span class="muted" id="tsc-missing"></span></button>
+            <button class="ghost chipbtn" id="ts-small">体积不足 <span class="muted" id="tsc-small"></span></button>
+            <button class="ghost chipbtn grow" id="btn-transfer-scan-close">收起</button>
           </div>
           <div class="tablewrap" style="max-height:46vh">
-            <table>
+            <table class="responsive-table">
               <thead>
-                <tr><th style="width:52%">种子</th><th style="width:12%">体积</th><th>结论</th></tr>
+                <tr><th>种子</th><th class="nowrap">体积</th><th>结论</th></tr>
               </thead>
               <tbody id="transfer-scan-rows"><tr><td colspan="3" class="empty">点「种子明细」扫描源下载器</td></tr></tbody>
             </table>
@@ -63,23 +66,28 @@
         </div>
       </section>
 
+      <!-- 辅种 -->
       <section class="card">
         <div class="card-head">
           <h2>IYUU 辅种</h2>
           <span class="pill" id="reseed-state">—</span>
         </div>
         <div id="reseed-rows"><div class="empty">加载中…</div></div>
-        <div class="small muted" id="reseed-next" style="margin-top:8px"></div>
+        <div class="small muted footnote" id="reseed-next"></div>
         <div class="actions">
           <button id="btn-reseed-run">立即执行</button>
           <button class="ghost" id="btn-ledger-toggle">辅种台账</button>
           <button class="ghost" id="btn-reseed-log">实时日志</button>
         </div>
-        <div id="reseed-live-log" hidden style="margin-top:12px">
+
+        <div id="reseed-live-log" class="logbox" hidden>
           <ul class="loglist" id="reseed-loglist"><li class="muted">展开后实时滚动本模块日志</li></ul>
         </div>
+
         <div id="ledger-panel" hidden style="margin-top:12px">
-          <div class="small muted" style="margin-bottom:8px">种子名下面是辅过的站点按钮：<b>点一下 = 删除该站的辅种</b>（不删文件，之后不会再自动加回）；空心 = 任务已不在下载器里</div>
+          <div class="small muted" style="margin-bottom:8px">
+            种子名下面是辅过的站点按钮：<b>点一下 = 删除该站的辅种</b>（不删文件，之后不会再自动加回）；空心 = 任务已不在下载器里
+          </div>
           <div id="ledger-rows"><div class="empty">点「辅种台账」展开加载</div></div>
           <div class="actions">
             <button class="ghost" id="btn-ledger-refresh">刷新台账</button>
@@ -87,26 +95,31 @@
         </div>
       </section>
 
-      <section class="card wide">
+      <!-- 守护 -->
+      <section class="card">
         <div class="card-head">
           <h2>保活守护</h2>
           <span class="pill" id="sweep-mode">—</span>
         </div>
         <div id="sweep-rows"><div class="empty">加载中…</div></div>
-        <div class="small muted" id="sweep-rules" style="margin-top:8px"></div>
+        <div class="small muted footnote" id="sweep-rules"></div>
         <div class="actions">
           <button class="ghost" id="btn-sweep-scan">重新扫描</button>
           <button class="danger" id="btn-sweep-clean">立即清理</button>
-          <a class="small" href="#sweep" id="link-sweep-full" style="align-self:center">查看完整清单 →</a>
+          <button class="ghost" id="link-sweep-full">完整清单 →</button>
         </div>
       </section>
 
-      <section class="card wide">
+      <!-- 最近日志 -->
+      <section class="card">
         <div class="card-head">
           <h2>最近日志</h2>
-          <a class="small" href="#logs" id="link-logs-full">全部 →</a>
+          <button class="ghost chipbtn" id="link-logs-full">全部 →</button>
         </div>
-        <ul class="loglist" id="loglist"><li class="muted">加载中…</li></ul>
+        <ul class="loglist loglist-fixed" id="loglist"><li class="muted">加载中…</li></ul>
+        <div class="actions">
+          <button class="ghost chipbtn grow" id="link-logs-full2">进入完整日志 →</button>
+        </div>
       </section>
     </div>
   </div>
@@ -114,30 +127,33 @@
   <!-- ==================== 待清理 ==================== -->
   <div class="tabpane" id="pane-sweep" hidden>
     <div class="toolbar">
-      <button class="ghost" id="f-all">全部 <span class="muted" id="c-all"></span></button>
-      <button class="ghost" id="f-nodata">数据丢失 <span class="muted" id="c-nodata"></span></button>
-      <button class="ghost" id="f-dead">站点删种 <span class="muted" id="c-dead"></span></button>
-      <button class="ghost" id="f-warn">告警 <span class="muted" id="c-warn"></span></button>
+      <button class="ghost chipbtn" id="f-all">全部 <span class="muted" id="c-all"></span></button>
+      <button class="ghost chipbtn" id="f-nodata">数据丢失 <span class="muted" id="c-nodata"></span></button>
+      <button class="ghost chipbtn" id="f-dead">站点删种 <span class="muted" id="c-dead"></span></button>
+      <button class="ghost chipbtn" id="f-warn">告警 <span class="muted" id="c-warn"></span></button>
       <span class="spacer"></span>
       <span class="pill" id="mode-pill">—</span>
       <span class="muted small" id="scanned-at"></span>
+    </div>
+    <div class="toolbar">
       <button id="btn-scan">重新扫描</button>
       <button class="danger" id="btn-clean">立即清理…</button>
     </div>
 
     <div class="tablewrap">
-      <table>
+      <table class="responsive-table">
         <thead>
-          <tr><th style="width:34%">种子</th><th style="width:20%">下载器</th><th>原因</th></tr>
+          <tr><th>种子</th><th class="nowrap">下载器</th><th class="reason-cell">原因</th></tr>
         </thead>
         <tbody id="rows"><tr><td colspan="3" class="empty">切到本标签时加载</td></tr></tbody>
       </table>
     </div>
 
-    <p class="small muted" style="margin-top:14px">
+    <p class="hintbox small">
       这些种已经被判定为「无意义」：站点侧已删种，或本地数据丢失且校验不过。
-      清理只从下载器移除<b>任务条目</b>，<b>绝不删除磁盘文件</b>；
-      MovieClaw 主种（movieclaw-* 标签）与保护标签的种永远不会出现在这里。
+      清理只从下载器移除<b>任务条目</b>，<b>绝不删除磁盘文件</b>；带保护标签的种永远不会出现在这里。
+      带「主种空壳」标记的是 MovieClaw 自己投递的种：它在删之前已经问过内核
+      「删了会不会让订阅重下」，会重下的自动归到告警、不会真删。
     </p>
   </div>
 
@@ -166,7 +182,7 @@
       <button class="ghost" id="btn-clear">清空日志</button>
     </div>
 
-    <div class="card" style="padding:12px 16px">
+    <div class="card logbox" style="max-height:none; margin-top:0">
       <ul class="loglist" id="loglist-full"><li class="muted">切到本标签时加载</li></ul>
     </div>
   </div>
@@ -196,12 +212,10 @@
       document.querySelectorAll("#tabs .tab").forEach(function (b) {
         b.addEventListener("click", function () { showTab(b.getAttribute("data-tab")); });
       });
-      document.getElementById("link-sweep-full").addEventListener("click", function (e) {
-        e.preventDefault(); showTab("sweep");
-      });
-      document.getElementById("link-logs-full").addEventListener("click", function (e) {
-        e.preventDefault(); showTab("logs");
-      });
+      document.getElementById("link-sweep-full").addEventListener("click", function () { showTab("sweep"); });
+      document.getElementById("link-logs-full").addEventListener("click", function () { showTab("logs"); });
+      var logsFull2 = document.getElementById("link-logs-full2");
+      if (logsFull2) logsFull2.addEventListener("click", function () { showTab("logs"); });
 
       /* ---------------- 概览 ---------------- */
       function runOf(kind) {
@@ -253,7 +267,8 @@
         else if (tRun.running) { S.setPill(flow, "执行中…", "warn"); }
         else if (t.from && t.to && t.from !== "（未配置）") { S.setPill(flow, t.from + " → " + t.to, "ok"); }
         else { S.setPill(flow, "未配置", "warn"); }
-        S.renderRows(document.getElementById("transfer-rows"), L.transferRows(t.last_report));
+        S.renderRows(document.getElementById("transfer-rows"), L.transferRows(
+          t.last_report, (st.verify || {}).last_report, (st.verify || {}).pending));
         var tLine = taskLine("seed-hub.transfer");
         if (tRun.error) tLine += " · 上次手动执行失败：" + tRun.error;
         document.getElementById("transfer-next").textContent = tLine;
@@ -279,9 +294,15 @@
         else if (w.dry_run) S.setPill(mode, "只报告（不删）", "warn");
         else S.setPill(mode, "真删模式", "ok");
         S.renderRows(document.getElementById("sweep-rows"), L.sweepRows(w.last_report));
+        var ld = st.link_delete || {};
+        var ldLine = ld.enabled === false
+          ? "删片自动停种：已关。"
+          : "删片自动停种：已开" + (ld.last_report && ld.last_report.removed
+              ? "（最近移除 " + ld.last_report.removed + " 个任务）" : "") + "。";
         document.getElementById("sweep-rules").textContent =
-          "永不清理：MovieClaw 主种（movieclaw-*）与保护标签「" +
-          ((w.protected_labels || []).join("、") || "—") + "」；只删任务，不删文件。 " + taskLine("seed-hub.sweep");
+          "带保护标签「" + ((w.protected_labels || []).join("、") || "—") +
+          "」的种永不清理；主种（movieclaw-*）里的空壳先用内核预演，会被订阅重下的一律保留；只删任务，不删文件。 " +
+          ldLine + " " + taskLine("seed-hub.sweep");
         busyButtons("sweep", ["btn-sweep-scan", "btn-sweep-clean"]);
       }
 
@@ -295,19 +316,20 @@
       function renderLogs(logs) {
         var el = document.getElementById("loglist");
         if (!logs.length) { el.innerHTML = '<li class="muted">还没有日志</li>'; return; }
-        el.innerHTML = logs.map(function (l) {
-          return '<li><span class="ts">' + L.htmlEscape(l.ts) + '</span>' +
-                 '<span class="lv ' + L.levelClass(l.level) + '">' + L.levelLabel(l.level) + '</span>' +
-                 '<span class="msg">' + L.htmlEscape(l.message) + '</span></li>';
-        }).join("");
+        el.innerHTML = logs.map(logLine).join("");
       }
 
-      /* ---------------- 模块实时日志：展开后 3 秒拉一次，只滚本模块相关行 ---------------- */
+      function logLine(l) {
+        return '<li><span class="ts">' + L.htmlEscape(l.ts) + '</span>' +
+               '<span class="lv ' + L.levelClass(l.level) + '">' + L.levelLabel(l.level) + '</span>' +
+               '<span class="msg">' + L.htmlEscape(l.message) + '</span></li>';
+      }
+
+      /* ---------------- 模块实时日志 ---------------- */
       var liveLogTimers = {};
 
       function logMatchesModule(message, kind) {
-        if (kind === "transfer")
-          return message.indexOf("转种") >= 0;
+        if (kind === "transfer") return message.indexOf("转种") >= 0;
         if (kind === "reseed")
           return message.indexOf("辅种") >= 0 || message.indexOf("IYUU") >= 0 || message.indexOf("凭据库") >= 0;
         return false;
@@ -318,18 +340,14 @@
         if (!el) return;
         var rows = (logs || []).filter(function (l) { return logMatchesModule(l.message || "", kind); });
         if (!rows.length) { el.innerHTML = '<li class="muted">暂无本模块日志</li>'; return; }
-        el.innerHTML = rows.map(function (l) {
-          return '<li><span class="ts">' + L.htmlEscape(l.ts) + '</span>' +
-                 '<span class="lv ' + L.levelClass(l.level) + '">' + L.levelLabel(l.level) + '</span>' +
-                 '<span class="msg">' + L.htmlEscape(l.message) + '</span></li>';
-        }).join("");
+        el.innerHTML = rows.map(logLine).join("");
       }
 
       async function pullLiveLog(kind) {
         try {
           var res = await S.pluginGet("/logs?level=info&limit=60");
           renderLiveLog(kind, res.logs || []);
-        } catch (e) { /* 静默：不打扰概览 */ }
+        } catch (e) { /* 静默 */ }
       }
 
       function toggleLiveLog(kind, btn) {
@@ -371,6 +389,11 @@
         if (logBtn && document.getElementById("transfer-live-log").hidden) logBtn.click();
         startRun("transfer", false, this);
       });
+      document.getElementById("btn-reseed-run").addEventListener("click", function () {
+        var logBtn = document.getElementById("btn-reseed-log");
+        if (logBtn && document.getElementById("reseed-live-log").hidden) logBtn.click();
+        startRun("reseed", false, this);
+      });
 
       /* ---------------- 转种明细（懒加载） ---------------- */
       var scanData = { items: [], counts: {}, source: "", target: "", total: 0 };
@@ -394,9 +417,10 @@
         body.innerHTML = items.map(function (it) {
           return "<tr>" +
             '<td class="name">' + L.htmlEscape(it.name || it.hash) + "</td>" +
-            '<td class="small muted">' + (it.size_gb ? it.size_gb + " GB" : "—") + "</td>" +
-            '<td class="small"><span class="tag ' + (cls[it.verdict] || "") + '">' + L.verdictLabel(it.verdict) + "</span> " +
-            '<span class="muted">' + L.htmlEscape(it.reason || "") + "</span></td>" +
+            '<td class="small muted nowrap" data-th="体积">' + (it.size_gb ? it.size_gb + " GB" : "—") + "</td>" +
+            '<td class="small" data-th="结论"><span class="tag ' + (cls[it.verdict] || "") + '">' +
+            L.verdictLabel(it.verdict) + "</span>" +
+            (it.reason ? ' <span class="muted">' + L.htmlEscape(it.reason) + "</span>" : "") + "</td>" +
             "</tr>";
         }).join("");
       }
@@ -429,7 +453,7 @@
             scanData.source + " → " + scanData.target + " · 共 " + L.fmtNum(scanData.total) + " 个：待转移 " +
             L.fmtNum(c.transfer) + " · 目标已有 " + L.fmtNum(c.exists) + " · 排除标签 " + L.fmtNum(c.excluded) +
             " · 数据不在 " + L.fmtNum(c.missing) + " · 体积不足 " + L.fmtNum(c.small);
-          S.toast("扫描完成：待转移 " + L.fmtNum((scanData.counts || {}).transfer) + " 个");
+          S.toast("扫描完成：待转移 " + L.fmtNum(c.transfer) + " 个");
         } catch (e) {
           S.toast(e.message || "扫描失败", true);
           document.getElementById("transfer-scan-rows").innerHTML =
@@ -445,12 +469,8 @@
       document.getElementById("btn-transfer-scan-close").addEventListener("click", function () {
         document.getElementById("transfer-scan").hidden = true;
       });
-      document.getElementById("btn-reseed-run").addEventListener("click", function () {
-        var logBtn = document.getElementById("btn-reseed-log");
-        if (logBtn && document.getElementById("reseed-live-log").hidden) logBtn.click();
-        startRun("reseed", false, this);
-      });
 
+      /* ---------------- 守护操作 ---------------- */
       document.getElementById("btn-sweep-scan").addEventListener("click", function () {
         var btn = this;
         btn.disabled = true;
@@ -473,22 +493,21 @@
         startRun("sweep", false, this);
       });
 
-      /* ---------------- 辅种台账（默认收起，展开时懒加载） ---------------- */
+      /* ---------------- 辅种台账（懒加载） ---------------- */
       var ledgerLoaded = false;
 
       document.getElementById("btn-ledger-toggle").addEventListener("click", function () {
         var panel = document.getElementById("ledger-panel");
         panel.hidden = !panel.hidden;
-        this.textContent = panel.hidden ? "展开" : "收起";
+        this.textContent = panel.hidden ? "辅种台账" : "收起台账";
         if (!panel.hidden && !ledgerLoaded) { ledgerLoaded = true; loadLedger(); }
       });
 
       async function loadLedger() {
         var box = document.getElementById("ledger-rows");
-        var pill = document.getElementById("ledger-pill");
+        var pill = document.getElementById("reseed-state");
         try {
           var data = await S.pluginGet("/reseed/ledger");
-          S.setPill(pill, L.fmtNum(data.total) + " 条 · " + L.fmtNum(data.alive) + " 在做种", data.total ? "ok" : "");
           if (!data.groups || !data.groups.length) {
             box.innerHTML = '<div class="empty">还没有辅种记录：成功辅种后会记在这里</div>';
             return;
@@ -522,7 +541,6 @@
             });
           });
         } catch (e) {
-          S.setPill(pill, e.message || "加载失败", "bad");
           box.innerHTML = '<div class="empty">' + L.htmlEscape(e.message || "加载失败") + "</div>";
         }
       }
@@ -571,10 +589,11 @@
                   : kind === "nodata" ? '<span class="tag warn">数据丢失</span>'
                   : kind === "warn" ? '<span class="tag warn">告警</span>'
                   : '<span class="tag">其他</span>';
+          if (it.managed) tag += ' <span class="tag">主种空壳</span>';
           return "<tr>" +
             '<td class="name">' + L.htmlEscape(it.name || "(未命名)") + "</td>" +
-            '<td class="small muted">' + L.htmlEscape(it.downloader || "") + "</td>" +
-            '<td class="small">' + tag + " " + L.htmlEscape(it.reason || "") + "</td>" +
+            '<td class="small muted nowrap" data-th="下载器">' + L.htmlEscape(it.downloader || "") + "</td>" +
+            '<td class="small reason-cell" data-th="原因">' + tag + " " + L.htmlEscape(it.reason || "") + "</td>" +
             "</tr>";
         }).join("");
       }
@@ -666,11 +685,7 @@
           document.getElementById("tab-log-count").textContent = logs.length ? "（" + logs.length + "）" : "";
           var el = document.getElementById("loglist-full");
           if (!logs.length) { el.innerHTML = '<li class="muted">没有日志</li>'; return; }
-          el.innerHTML = logs.map(function (l) {
-            return '<li><span class="ts">' + L.htmlEscape(l.ts) + '</span>' +
-                   '<span class="lv ' + L.levelClass(l.level) + '">' + L.levelLabel(l.level) + '</span>' +
-                   '<span class="msg">' + L.htmlEscape(l.message) + '</span></li>';
-          }).join("");
+          el.innerHTML = logs.map(logLine).join("");
         } catch (e) {
           document.getElementById("count-pill").textContent = "加载失败";
           document.getElementById("loglist-full").innerHTML = '<li class="lv-error">' + L.htmlEscape(e.message || "加载失败") + "</li>";
