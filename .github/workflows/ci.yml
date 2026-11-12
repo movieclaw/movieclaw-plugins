@@ -28,10 +28,11 @@ permissions:
   contents: read
 
 env:
-  # MovieClaw v0.44.0: includes playback stopped/completed contracts 1.1
+  # MovieClaw v0.50.0: adds library.items.segments / library.segments.updated
+  # (needed by trim-media) and keeps playback stopped/completed contracts 1.1
   # (movieclaw/MovieClaw#1063) required by trakt-sync 0.3.0.
   # Do not float this to a branch tip.
-  MOVIECLAW_REF: 2a6e6d2a58129a305e53f78639e7dafd82a1ec82
+  MOVIECLAW_REF: 4afc18515964c89de8e38f71cdc77c40515710ed
   # Shipped with every server release from the one after v0.39.0.
   HOST_CONSTRAINTS_URL: https://github.com/movieclaw/MovieClaw/releases/latest/download/host-constraints.txt
 
