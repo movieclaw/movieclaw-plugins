@@ -1,0 +1,15 @@
+[plugin]
+id = "session-keeper"
+title = "会话管家（自动压缩）"
+version = "0.1.0"
+entry = "session_keeper"
+runtime = "process"
+sdk = "^1.0"
+description = "AI 会话上下文自动压缩管家：每轮对话结束后检查累计消息数与最近一次请求的输入 token，达到阈值就自动压缩上下文，让后续请求始终保持小而快，动态节省 token 开销。阈值与冷却时间可在「设置」里调整；只压缩不删除，完整轨迹保留。"
+
+[requires]
+"agent.run.finished" = "^1.2"
+
+[permissions]
+operations = ["session.get-transcript", "session.compact-context"]
+events = ["agent.run.finished"]           # 涉及对话内容：需单独批准
