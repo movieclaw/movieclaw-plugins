@@ -1,0 +1,8 @@
+{
+  "author": "DongShu",
+  "author_url": "https://github.com/DongShull",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "会话上下文自动压缩：消息数或输入 token 到阈值就把历史折成摘要，持续省 token。",
+  "category": "tools"
+}
