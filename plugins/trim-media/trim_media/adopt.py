@@ -59,6 +59,14 @@ def pick_roots(local_dirs: list[str]) -> list[str]:
     return keep
 
 
+def roots_cover(have: list[str], want: list[str]) -> bool:
+    """``have`` 这些根是否把 ``want`` 全部收进来了（相等，或 ``want`` 在某个根之下）。"""
+    roots = [str(h).rstrip("/") for h in have if h]
+    return bool(roots) and all(
+        any(w == r or w.startswith(r + "/") for r in roots) for w in want
+    )
+
+
 def roots_conflict(roots: list[str], occupied: list[tuple[str, str]]) -> tuple[str, str] | None:
     """库根与已占用根是否相同或嵌套（平台的硬约束）；冲突时返回（库名, 根）。"""
     for root in roots:
@@ -100,6 +108,8 @@ def plan_adopt(
 
     - ``action="adopt"``：可接入（roots 非空、不与已有库重叠）；
     - ``action="mapped"``：已经接过（按飞牛 library_guid 认）；
+    - ``action="claim"``：本机已有库的根与它**完全相同**（比如从上一版插件沿用下来的库）——
+      直接把那个库认领过来，不重复建、不重新扫描，条目与观看记录原样保留；
     - ``action="skip"``：不支持 / 换算不出本机路径 / 根重叠，``detail`` 说明原因。
 
     顺序按根路径长度升序（覆盖大的父目录先占位），后面的被完全覆盖时点名说明。
@@ -144,6 +154,32 @@ def plan_adopt(
             if local and dir_exists(local):
                 local_dirs.append(local)
         roots = pick_roots(local_dirs)
+        if roots:
+            # 本机已经有一个库把这些目录都收进来了（根相同，或它的根更大）：认领它，
+            # 别重建——重建等于丢掉条目与观看记录，还要重新识别几千个文件。
+            want = [str(r).rstrip("/") for r in roots]
+            same = next(
+                (
+                    row
+                    for row in existing
+                    if not (row.get("source_config") or {}).get("library_guid")
+                    and roots_cover(row.get("root_paths") or [], want)
+                ),
+                None,
+            )
+            if same is not None:
+                have = {str(h).rstrip("/") for h in (same.get("root_paths") or []) if h}
+                extra = "（它的目录更大，直接沿用）" if have - set(want) else ""
+                pending.append({
+                    "guid": lib.guid, "name": lib.name,
+                    "kind": "movie" if lib.category == CATEGORY_MOVIE else "tv",
+                    "action": "claim", "roots": roots, "local_dirs": local_dirs,
+                    "library_id": int(same["id"]),
+                    "library_name": str(same.get("name") or ""),
+                    "detail": f"认领已有的库「{same.get('name')}」{extra}"
+                              "（条目与观看记录保持不变）",
+                })
+                continue
         if not roots:
             if lib.dir_list:
                 pending.append({

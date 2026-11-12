@@ -133,7 +133,7 @@ async def trim_media(ctx: Context[Config]) -> None:
         result: dict = {"adopted": [], "scanned": 0, "errors": []}
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             result = await adopt_store.run_sync(ops, store, config, trim=trim, progress=progress)
             result["at"] = _stamp()
             await store.set("last_sync_result", result)
@@ -195,7 +195,7 @@ async def trim_media(ctx: Context[Config]) -> None:
         note_activity()
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             await handle_playback_event(
                 payload=payload,
                 trim=trim,
@@ -226,7 +226,7 @@ async def trim_media(ctx: Context[Config]) -> None:
             return  # 成员映射没解析出来：宁缺毋滥，别把进度记错人
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             target = EXPECTED_MEMBER.get("id")
             member = 0 if target is None else int(target)
             await pull_tick(trim=trim, ops=ops, log=log, member_id=member)
@@ -266,7 +266,7 @@ async def trim_media(ctx: Context[Config]) -> None:
             return False
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             await trim.set_play_config(season_guid, int(opening), int(ending))
         except TrimError as exc:
             log.warning("写飞牛片头片尾失败（%s）：%s", label, exc)
@@ -302,7 +302,7 @@ async def trim_media(ctx: Context[Config]) -> None:
             return
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             for lib in libraries:
                 if str(lib.get("kind") or "") != "tv" or not lib.get("fn_guid"):
                     continue

@@ -2,7 +2,7 @@
 id = "trim-media"
 title = "飞牛影视"
 title_localized = { en = "fnOS Trim Media" }
-version = "0.2.0"
+version = "0.2.3"
 entry = "trim_media"
 runtime = "process"
 sdk = "^1.0"

@@ -113,7 +113,7 @@ async def build_plans(
 
     trim = client_of(config)
     try:
-        await trim.connect()
+        await trim.ensure_login()
         remote = await trim.libraries()
     finally:
         await trim.close()
@@ -138,6 +138,19 @@ async def adopt_one(
     scan: bool = True,
 ) -> dict[str, Any]:
     """按一条计划建库并记账；返回 ``{id, name}``。失败抛 ``OpsError``。"""
+    if plan.get("action") == "claim":
+        # 认领：本机已有这个库（通常来自上一版插件），只记账，不建库、不重扫
+        ledger = await load_ledger(store)
+        ledger[str(plan["guid"])] = {
+            "id": int(plan["library_id"]),
+            "name": str(plan.get("name") or ""),
+            "kind": str(plan.get("kind") or ""),
+            "at": _stamp(),
+            "claimed": True,
+        }
+        await save_ledger(store, ledger)
+        return {"id": int(plan["library_id"]), "name": str(plan.get("library_name") or "")}
+
     body = adopt_source_config(plan, server_url=server_url, server_guid=server_guid)
     # 库就是普通本地库：source_config 主线不收（来源未登记会 400），认领关系记插件台账
     body.pop("source_config", None)
@@ -169,7 +182,7 @@ async def run_sync(
 
     飞牛上删了库，本地库与文件不动——兜底库的意义就在这里。
     """
-    result: dict[str, Any] = {"adopted": [], "scanned": 0, "errors": []}
+    result: dict[str, Any] = {"adopted": [], "claimed": [], "scanned": 0, "errors": []}
     if not config.auto_adopt:
         result["skipped"] = "自动接入已关闭"
         return result
@@ -186,6 +199,23 @@ async def run_sync(
     if versions:
         await store.set("trim_versions", versions)
     for plan in plans:
+        if plan["action"] == "claim":
+            try:
+                claimed = await adopt_one(
+                    ops,
+                    store,
+                    plan,
+                    server_url=config.base_url.rstrip("/"),
+                    server_guid=str(await store.get("server_guid") or "trim"),
+                    scan=False,
+                )
+            except Exception as exc:  # noqa: BLE001
+                result["errors"].append(f"认领「{plan['name']}」失败：{exc}")
+                continue
+            result["claimed"].append(
+                {"guid": plan["guid"], "name": claimed["name"], "id": claimed["id"]}
+            )
+            continue
         if plan["action"] != "adopt":
             continue
         try:

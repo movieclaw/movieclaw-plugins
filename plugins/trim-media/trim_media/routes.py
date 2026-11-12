@@ -105,7 +105,7 @@ async def _marker_overview(deps: Deps, *, refresh: bool) -> dict[str, Any]:
     libraries = await _claimed_libraries(deps)
     trim = client_of(config)
     try:
-        await trim.connect()
+        await trim.ensure_login()
         payload = await mk.overview(
             trim,
             deps.ops,
@@ -138,7 +138,7 @@ async def _season_guid_of(deps: Deps, library_id: int, tmdb_id: int, season: int
         raise HTTPException(status_code=409, detail="这个库没有对应的飞牛库")
     trim = client_of(deps.config)
     try:
-        await trim.connect()
+        await trim.ensure_login()
         index = await mk.season_index(trim, guid, log=deps.log)
     except TrimError as exc:
         raise HTTPException(status_code=502, detail=f"连不上飞牛：{exc}") from exc
@@ -307,7 +307,7 @@ def build_router(deps: Deps) -> APIRouter:
     async def libraries() -> list[dict]:
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             remote = await trim.libraries()
         except TrimError as exc:
             raise HTTPException(status_code=502, detail=f"连不上飞牛：{exc}") from exc
@@ -335,7 +335,8 @@ def build_router(deps: Deps) -> APIRouter:
                     "kind": plan.get("kind") or "",
                     "supported": plan["action"] != "skip",
                     "overlap": overlap,
-                    "imported": plan["action"] == "mapped",
+                    "claimable": plan["action"] == "claim",
+                    "imported": plan["action"] in ("mapped", "claim"),
                     "local_roots": plan.get("roots") or [],
                     "detail": plan.get("detail") or "",
                 }
@@ -365,7 +366,7 @@ def build_router(deps: Deps) -> APIRouter:
             raise HTTPException(status_code=400, detail="需要 library_guid")
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             remote = await trim.libraries()
         except TrimError as exc:
             raise HTTPException(status_code=502, detail=f"连不上飞牛：{exc}") from exc
@@ -384,7 +385,7 @@ def build_router(deps: Deps) -> APIRouter:
             raise HTTPException(status_code=404, detail="飞牛上没有这个库")
         if plan["action"] == "mapped":
             raise HTTPException(status_code=409, detail=plan.get("detail") or "已经接入过")
-        if plan["action"] != "adopt":
+        if plan["action"] not in ("adopt", "claim"):
             raise HTTPException(status_code=400, detail=plan.get("detail") or "这个库不能接入")
 
         # 手动接入可以指定显示名与本机路径（本机路径必须真实存在）
@@ -395,6 +396,26 @@ def build_router(deps: Deps) -> APIRouter:
                 raise HTTPException(status_code=400, detail=f"本机路径不存在：{local_root}")
             plan = {**plan, "roots": [local_root]}
         existing = await adopt_store.existing_with_ledger(ops, store)
+        if plan["action"] == "claim":
+            # 认领已有库：不改名、不改根，直接记进台账
+            try:
+                claimed = await adopt_store.adopt_one(
+                    ops,
+                    store,
+                    plan,
+                    server_url=config.base_url.rstrip("/"),
+                    server_guid=str(await store.get("server_guid") or "trim"),
+                    scan=False,
+                )
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            log.info("认领已有库「%s」为飞牛库 %s", claimed["name"], plan["name"])
+            return {
+                "library_id": claimed["id"],
+                "name": claimed["name"],
+                "claimed": True,
+                "created": False,
+            }
         if any(str(row.get("name")) == name for row in existing):
             raise HTTPException(status_code=409, detail=f"库名「{name}」已被占用")
         conflict = roots_conflict(
@@ -488,7 +509,7 @@ def build_router(deps: Deps) -> APIRouter:
             state = {}
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             result = await push_markers(trim, rows=targets, state=state, log=log)
         except TrimError as exc:
             raise HTTPException(status_code=502, detail=f"连不上飞牛：{exc}") from exc
@@ -510,7 +531,7 @@ def build_router(deps: Deps) -> APIRouter:
         season_guid = await _season_guid_of(deps, library_id, tmdb_id, season)
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             return await mk.read_season(trim, season_guid)
         except TrimError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -532,7 +553,7 @@ def build_router(deps: Deps) -> APIRouter:
         season_guid = await _season_guid_of(deps, library_id, tmdb_id, season)
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             current = await mk.read_season(trim, season_guid)
             if body.get("reset"):
                 # 飞牛把 0 当「未设置」保留旧值，写 1 秒顶掉旧配置（实际等于不跳）
@@ -566,7 +587,7 @@ def build_router(deps: Deps) -> APIRouter:
                 return cached
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             data = await account_snapshot(trim)
         except TrimError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -584,7 +605,7 @@ def build_router(deps: Deps) -> APIRouter:
     async def account_library_access(body: dict) -> dict:
         trim = client_of(config)
         try:
-            await trim.connect()
+            await trim.ensure_login()
             result = await set_library_access(trim, body)
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -627,7 +648,7 @@ def build_router(deps: Deps) -> APIRouter:
         trim = client_of(config)
         report: list[dict[str, Any]] = []
         try:
-            await trim.connect()
+            await trim.ensure_login()
             for lib in libs:
                 guid = str(lib.get("fn_guid") or "")
                 if not guid:

@@ -387,6 +387,9 @@
       return;
     }
     const chips = [];
+    for (const row of result.claimed || []) {
+      chips.push(`<span class="tag ok">${escapeHtml(row.name || "")}：认领已有库（记录不动）</span>`);
+    }
     for (const row of result.adopted || []) {
       chips.push(`<span class="tag ok">${escapeHtml(row.name || "")}：已接入，正在扫描</span>`);
     }
@@ -534,7 +537,7 @@
     if (typeof dlg.showModal === "function") dlg.showModal();
     try {
       const libs = await api("/libraries");
-      const usable = (libs || []).filter((l) => l.supported !== false && !l.overlap);
+      const usable = (libs || []).filter((l) => l.supported !== false && !l.overlap && !l.imported);
       sel.innerHTML = "";
       if (!usable.length) {
         sel.innerHTML = `<option value="">没有可接入的库</option>`;
