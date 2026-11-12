@@ -133,16 +133,23 @@
     },
 
     /** 转种报告 → 页面展示行 */
-    transferRows: function (r) {
+    transferRows: function (r, verify, pending) {
       if (!r) return [{ k: "状态", v: "还没有运行过" }];
-      return [
+      var rows = [
         { k: "扫描（完成的种）", v: LOGIC.num(r.scanned) },
         { k: "计划转移", v: LOGIC.num(r.planned) },
         { k: "实际转移", v: LOGIC.num(r.transferred) },
         { k: "失败", v: LOGIC.num(r.failed) },
-        { k: "删除源任务", v: LOGIC.num(r.deleted_source) },
-        { k: "上次运行", v: r.finished_at ? LOGIC.fmtWhen(r.finished_at) : "—" }
+        { k: "删除源任务", v: LOGIC.num(r.deleted_source) }
       ];
+      if (pending) rows.push({ k: "等目标校验", v: LOGIC.num(pending) });
+      if (verify) {
+        var text = "通过 " + LOGIC.num(verify.ok) + " / 失败 " + LOGIC.num(verify.failed);
+        if (verify.cleaned) text += "（已清 " + LOGIC.num(verify.cleaned) + "）";
+        rows.push({ k: "转种后校验", v: text });
+      }
+      rows.push({ k: "上次运行", v: r.finished_at ? LOGIC.fmtWhen(r.finished_at) : "—" });
+      return rows;
     },
 
     reseedRows: function (r) {
@@ -159,12 +166,14 @@
 
     sweepRows: function (r) {
       if (!r) return [{ k: "状态", v: "还没有扫描过" }];
-      return [
+      var rows = [
         { k: "可清理", v: LOGIC.num(r.scanned_deletable) },
-        { k: "告警", v: LOGIC.num(r.warned) },
-        { k: "模式", v: r.dry_run ? "只报告" : "已真删" },
-        { k: "上次扫描", v: r.finished_at ? LOGIC.fmtWhen(r.finished_at) : "—" }
+        { k: "告警", v: LOGIC.num(r.warned) }
       ];
+      if (r.managed_dead) rows.push({ k: "其中主种空壳", v: LOGIC.num(r.managed_dead) });
+      rows.push({ k: "模式", v: r.dry_run ? "只报告" : "已真删" });
+      rows.push({ k: "上次扫描", v: r.finished_at ? LOGIC.fmtWhen(r.finished_at) : "—" });
+      return rows;
     },
 
     /** 数字带千分位 */

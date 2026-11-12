@@ -20,13 +20,17 @@
 可调可暂停；配置不齐自动跳过并记日志，绝不半配置硬跑。
 """
 
+from __future__ import annotations
+
 import asyncio
 import hashlib
+import html as html_lib
 import json
 import re
 import time
 import traceback
 from collections import deque
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
@@ -34,12 +38,27 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
-from movieclaw_api.plugins.keys import HOST_OPS, PLUGIN_DATA, PLUGIN_FILES, PLUGIN_ROUTES
+from movieclaw_api.plugins.keys import (
+    HOST_OPS,
+    PLUGIN_DATA,
+    PLUGIN_FILES,
+    PLUGIN_HEALTH,
+    PLUGIN_ROUTES,
+)
 from movieclaw_api.services.host_ops import OpsError
+from movieclaw_kernel import DURABLE_EVENTS
 from movieclaw_scheduler import SCHEDULED_TASKS, TaskDefinition, TriggerType
 from movieclaw_sdk import Context, net, plugin
+from movieclaw_sdk.events import (
+    DOWNLOAD_COMPLETED,
+    LIBRARY_FILE_DELETED,
+    LIBRARY_FILE_PURGED,
+    LIBRARY_INGEST_COMPLETED,
+    PLUGIN_EVENTS,
+    plugin_event,
+)
 
 from bencode import bdecode, bencode
 from webui import (
@@ -100,28 +119,93 @@ _BOOL_DEFAULTS = {
     "autostart": True,
     "delete_source": False,
     "delete_duplicate": False,
+    "delete_source_managed": False,
+    "verify_after_transfer": True,
+    "verify_fail_cleanup": True,
     "sweep_enabled": True,
     "sweep_dead": True,
     "sweep_no_data": True,
+    "sweep_managed_dead": True,
     "sweep_dry_run": True,
+    "link_delete_enabled": True,
+    "link_delete_files": False,
 }
 #: 主种识别：MovieClaw 自己投递的任务标签（订阅 / 手动 / 刷流）——正在给媒体库供数据的种
 _MC_OWNED_LABELS = ("movieclaw-sub", "movieclaw-manual", "movieclaw-boost")
 
+
 # ---------------------------------------------------------------------------
-# IYUU 站点昵称缓存（sid → 中文昵称）：每次拉 /reseed/sites/index（免令牌）时刷新，
-# 让报告能显示站点昵称；拉不到时用站点 slug / sid 兜底。
+# 插件自己的事件（别的插件 / Webhook 能订；清单 [[events]] 里声明）
 # ---------------------------------------------------------------------------
 
-_SITE_NICKNAMES: dict[str, str] = {}
+
+class TransferEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    planned: int = 0
+    transferred: int = 0
+    failed: int = 0
+    deleted_source: int = 0
+    dry_run: bool = False
 
 
-def remember_site_nicknames(sites: dict[str, dict[str, Any]] | None) -> None:
-    """IYUU 站点目录 → 填充 sid → 昵称缓存（新值覆盖旧值）。"""
-    for sid, site in (sites or {}).items():
-        nick = str((site or {}).get("nickname") or "")
-        if nick:
-            _SITE_NICKNAMES[str(sid)] = nick
+class ReseedEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    planned: int = 0
+    ok: int = 0
+    exists: int = 0
+    failed: int = 0
+    dry_run: bool = False
+
+
+class SweepEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    deleted: int = 0
+    warned: int = 0
+    dry_run: bool = False
+
+
+TRANSFER_COMPLETED = plugin_event(
+    "seed-hub.transfer.completed", TransferEvent, title="转种完成",
+    doc="一轮转种跑完：计划 / 成功 / 失败 / 删源的数量。",
+)
+RESEED_COMPLETED = plugin_event(
+    "seed-hub.reseed.completed", ReseedEvent, title="辅种完成",
+    doc="一轮 IYUU 辅种跑完：计划 / 成功 / 已存在 / 失败的数量。",
+)
+SWEEP_COMPLETED = plugin_event(
+    "seed-hub.sweep.completed", SweepEvent, title="保活守护完成",
+    doc="一轮保活守护跑完：清掉 / 告警的失效任务数量（只删任务，不删文件）。",
+)
+
+# ---------------------------------------------------------------------------
+# IYUU 站点目录快照（sid, slug, 昵称）——2026-10-11 实测 /reseed/sites/index（免令牌）。
+# 烤进来让报告能显示站点昵称；权威目录以 GET /sites（运行时拉取）为准。
+# ---------------------------------------------------------------------------
+
+_SITE_NICKNAMES: dict[str, str] = {
+    "1": "朋友", "2": "铂金家", "3": "馒头", "4": "天空", "5": "北洋", "6": "猫站",
+    "7": "家园", "8": "学校", "9": "我堡", "11": "他吹吹风", "14": "听听歌", "15": "南洋",
+    "17": "城市", "18": "老师", "19": "52pt", "22": "吐鲁番", "23": "春天", "24": "聆音",
+    "25": "彩虹岛", "27": "烧包", "29": "好大", "30": "时光", "31": "1ptba", "32": "兽",
+    "33": "皇后", "36": "开心", "37": "幼儿园", "38": "好多油", "39": "奥申", "40": "蝶粉",
+    "45": "北邮人", "51": "海豚", "52": "天雪", "53": "葡萄", "54": "路", "56": "海胆",
+    "57": "红豆饭", "58": "龙之家", "59": "百川", "64": "海豹", "65": "普斯特", "67": "蝴蝶",
+    "68": "观众", "69": "猪猪", "70": "冬樱", "72": "憨憨", "74": "高清视频", "75": "自由农场",
+    "79": "铂金学院", "80": "朱雀", "81": "织梦", "82": "肉丝", "83": "莫妮卡", "84": "大青虫",
+    "86": "优堡", "88": "熊猫", "89": "车站", "91": "影", "93": "末日", "94": "象岛",
+    "95": "青蛙", "96": "杏坛", "97": "麒麟", "98": "爱萝莉", "99": "GTK", "101": "okpt",
+    "102": "蟹黄堡", "105": "杜比", "106": "龟站", "107": "咖啡", "109": "YemaPT",
+    "110": "劳改所", "111": "柠檬", "112": "雨", "113": "浦园", "114": "PTzone",
+    "115": "hdclone", "116": "库非", "117": "AFun", "119": "星陨阁", "120": "财神",
+    "121": "唐门", "123": "海棠", "124": "下水道", "125": "RailgunPT", "126": "GGPT",
+    "127": "我的PT(CC)", "128": "LongPT", "129": "hdbao", "130": "13city", "131": "March",
+    "132": "LuckPT", "133": "PTSKIT", "134": "PlayletPT", "135": "NovaHD", "136": "垃圾堆",
+    "137": "好学", "138": "天枢", "139": "躺平PT", "140": "慕雪阁", "141": "自然", "142": "思齐",
+    "143": "包子PT", "144": "藏宝阁",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -141,23 +225,31 @@ class Settings(BaseModel):
     skip_verify: bool = Field(False, title="跳过校验（仅目标 qB）", description="信任目标下载器里的已有数据、直接做种——快，但数据不完整时坏档不会被发现。目标为 Transmission 时无效（TR 添加后自动校验）")
     autostart: bool = Field(True, title="校验完成后自动开始做种", description="后台每分钟看一次校验进度，完成即开始做种；跳过校验时添加后直接开始")
     delete_source: bool = Field(False, title="转移成功后删除源任务", description="只删源下载器里的任务条目，绝不删数据文件。删源走内核通道（过 H&R 保护、订阅状态正确联动）。开启前请确认目标侧做种正常")
+    delete_source_managed: bool = Field(False, title="删源时也删 MovieClaw 投递的种（不推荐）", description="movieclaw-sub / movieclaw-manual 标签的种是订阅或手动下载的任务，删掉后订阅会认为缺资源、可能重新下载。默认跳过它们")
     delete_duplicate: bool = Field(False, title="目标已有同种时删除源任务", description="同一 info_hash 已在目标下载器里时，把源任务清掉（不删文件），避免两边重复做种")
     add_tags: str = Field("转移做种,MovieClaw", title="转种标签（可留空）", description="逗号分隔；目标 qB 写 tags，目标 TR 写 labels（需 TR ≥ 3.0）")
     transfer_tag_source: bool = Field(True, title="转种时打站点标签", description="MP 风格：按种子文件里的 tracker 域名识别站点，补一条「站点/名字」标签（如 站点/我堡）；以后一眼能看出种来自哪个站")
     reseed_tags: str = Field("辅种,MovieClaw", title="辅种标签（可留空）", description="逗号分隔：通过内核 dl.submit 投递时带上，与主种（movieclaw-sub / 手动）区分开")
     exclude_tags: str = Field("", title="转种排除标签（可留空）", description="源任务带有任一标签就不转，逗号分隔。比如给不想搬的种手动打个「留」")
     min_size_gb: float = Field(0.0, title="转种最小体积（GB）", description="小于该体积的已完成种不转；0 = 不过滤")
+    verify_after_transfer: bool = Field(True, title="转种后校验结果", description="加种后持续盯目标下载器：校验通过进入做种才算成功；本地报错（数据不完整 / 种子无效）自动清掉该死任务，不让它躺在那里占用清单")
+    verify_fail_cleanup: bool = Field(True, title="校验失败的任务自动清理", description="只删任务条目，不删数据文件。关掉后只在报告里告警")
+    verify_timeout_minutes: int = Field(90, title="转种校验超时（分钟）", description="加种后这么久还没校验完就不再等，记一条告警；0 = 不超时")
     # ---- 辅种 ----
     iyuu_token: SecretStr | None = Field(None, title="IYUU 令牌", description="iyuu.cn 用户中心的 token（站点目录免令牌，匹配接口需要）；加密存储、界面不回显。留空 = 不跑辅种")
     sid_list: list[str] = Field(default_factory=list, title="辅种站点 sid（可留空）", description="留空 = 匹配全部已知站点（推荐：没有本机映射的站会自动跳过）。只想辅种部分站点时填 sid，每行一个；GET /sites 可查目录", json_schema_extra={"multiline": True})
-    reseed_save_root: str = Field("", title="辅种保存根目录（兜底）", description="辅种优先沿用原种在目标下载器里的保存目录（IYUU v2.18 口径）；拿不到原路径时落到这里。留空 = 下载器默认目录")
+    reseed_save_root: str = Field("", title="辅种保存根目录（兑底）", description="辅种优先沿用原种在目标下载器里的保存目录（IYUU v2.18 口径）；拿不到原路径时落到这里。留空 = 下载器默认目录")
     reseed_max_submits: int = Field(50, title="每轮最多提交几个辅种", description="防止一次把下载器塞爆：每轮最多提交这么多条（成功或失败都算），剩下的下一轮继续。0 = 不限")
     # ---- 保活守护（智能清理）----
     sweep_enabled: bool = Field(True, title="启用保活守护（智能清理）", description="定时检查两台下载器：站点已删种、数据丢失等已无意义的种自动清理，不让下载器变成垃圾桶")
     sweep_dead: bool = Field(True, title="清理「站点已删种」", description="tracker 明确报 not registered / torrent banned 的种：站点侧已删，继续做种无意义")
     sweep_no_data: bool = Field(True, title="清理「数据丢失」", description="本地报 No data found 且校验未过的任务（数据不在了）；校验完好的不动（可能是保存路径变了）")
     sweep_protected_labels: str = Field("留,保留", title="保护标签（可留空）", description="逗号分隔：任务带有任一标签就不清理，比如手动打个「留」")
+    sweep_managed_dead: bool = Field(True, title="清理「主种」里已失效的任务", description="MovieClaw 自己投递的种（movieclaw-*）数据已不在原位的，先用内核删种预演判断：如果不牵动订阅重下（那几集已经入库），才清掉这个空壳任务；会把整季退回缺资源的则一律保留")
     sweep_dry_run: bool = Field(True, title="只报告不删除", description="开着时守护只出报告不动手（推荐先跑一两个周期看报告）；关掉才真删。只删任务不删文件")
+    # ---- 删片联动 ----
+    link_delete_enabled: bool = Field(True, title="删片后自动停种", description="在媒体库里删片或清空回收站时，立刻把对应的下载任务从下载器里移除，不用等守护下一轮（只删任务，不删文件）")
+    link_delete_files: bool = Field(False, title="删片停种时同时删数据文件", description="关闭时只移除任务、数据留在硬盘上（推荐）；开启后会连下载器里的数据一起删掉——数据若已不在媒体库里，不删就是占硬盘的孤岛文件")
 
     @field_validator(
         "from_downloader", "to_downloader", "source_torrent_dirs", "add_tags", "exclude_tags", "reseed_save_root", "sweep_protected_labels",
@@ -181,7 +273,7 @@ class Settings(BaseModel):
     def _fold_secret(cls, v: Any) -> Any:
         return None if v is None or v == "" else v
 
-    @field_validator("transfer_enabled", "skip_verify", "autostart", "delete_source", "delete_duplicate", "sweep_enabled", "sweep_dead", "sweep_no_data", "sweep_dry_run", mode="before")
+    @field_validator("transfer_enabled", "skip_verify", "autostart", "delete_source", "delete_duplicate", "delete_source_managed", "verify_after_transfer", "verify_fail_cleanup", "sweep_enabled", "sweep_dead", "sweep_no_data", "sweep_managed_dead", "sweep_dry_run", "link_delete_enabled", "link_delete_files", mode="before")
     @classmethod
     def _fold_bool(cls, v: Any, info: Any) -> Any:
         if v is None or v == "":
@@ -195,15 +287,16 @@ class Settings(BaseModel):
             return 0.0
         return v
 
-    @field_validator("reseed_max_submits", mode="before")
+    @field_validator("reseed_max_submits", "verify_timeout_minutes", mode="before")
     @classmethod
-    def _fold_int(cls, v: Any) -> Any:
+    def _fold_int(cls, v: Any, info: Any) -> Any:
+        fallback = 50 if str(info.field_name) == "reseed_max_submits" else 90
         if v is None or v == "":
-            return 50
+            return fallback
         try:
             return max(0, int(v))
         except (TypeError, ValueError):
-            return 50
+            return fallback
 
 
 # ---------------------------------------------------------------------------
@@ -255,16 +348,57 @@ def convert_save_path(save_path: str, pairs: list[tuple[str, str]]) -> str:
     return t + src[len(f):] if src != f else t
 
 
-def is_excluded_path(save_path: str, roots: list[str]) -> bool:
-    """源保存路径落在任一排除目录（含子目录）下。"""
-    src = _norm(save_path)
-    return any(src == (r := _norm(root)) or src.startswith(r + "/") for root in roots)
-
-
 def torrent_file_candidates(info_hash: str, dirs: list[str]) -> list[str]:
     """info_hash 在各源种子目录里的候选文件路径（qB/TR 都是 <hash>.torrent）。"""
     h = info_hash.lower()
     return [f"{d.rstrip('/')}/{h}.torrent" for d in dirs if d.strip()]
+
+
+def _bencode_end(data: bytes, i: int) -> int:
+    """从 data[i] 开始跳过一个 bencode 值，返回结束位置（不含）。"""
+    c = data[i : i + 1]
+    if c == b"i":
+        j = data.find(b"e", i)
+        if j < 0:
+            raise ValueError("整数没有结尾")
+        return j + 1
+    if c in (b"l", b"d"):
+        i += 1
+        while data[i : i + 1] != b"e":
+            i = _bencode_end(data, i)
+        return i + 1
+    colon = data.find(b":", i)
+    if colon < 0:
+        raise ValueError("字符串没有长度分隔符")
+    n = int(data[i:colon])
+    end = colon + 1 + n
+    if end > len(data):
+        raise ValueError("字符串长度越界")
+    return end
+
+
+def info_hash_of(metainfo: bytes) -> str | None:
+    """从 .torrent 原始字节算出 info_hash（v1，40 位小写 sha1）。
+
+    直接取 info 字典的**原始字节**算哈希——重新编码会打乱键序 / 改动无关键，
+    得到的 hash 就与站点 / 下载器对不上。取不到返回 None。
+    """
+    if not metainfo or metainfo[:1] != b"d":
+        return None
+    try:
+        i = 1
+        while i < len(metainfo) and metainfo[i : i + 1] != b"e":
+            colon = metainfo.index(b":", i)
+            n = int(metainfo[i:colon])
+            key = metainfo[colon + 1 : colon + 1 + n]
+            start = colon + 1 + n
+            end = _bencode_end(metainfo, start)
+            if key == b"info":
+                return hashlib.sha1(metainfo[start:end]).hexdigest()
+            i = end
+    except (ValueError, IndexError):
+        return None
+    return None
 
 
 def needs_trackers(metainfo: bytes) -> bool:
@@ -294,19 +428,8 @@ def patch_announce(metainfo: bytes, groups: list[list[str]]) -> bytes:
     return bencode(data)
 
 
-def info_hash_of(metainfo: bytes) -> str | None:
-    """.torrent 字节 → v1 infohash（对 info 段原始字节做 SHA-1）。"""
-    try:
-        data = bdecode(metainfo)
-    except Exception:
-        return None
-    if not isinstance(data, dict) or not isinstance(data.get(b"info"), dict):
-        return None
-    return hashlib.sha1(bencode(data[b"info"])).hexdigest()
-
-
 def _announce_urls(metainfo: bytes) -> list[str]:
-    """.torrent 字节 → announce + announce-list 里的全部 tracker 地址（站点标签用）。"""
+    """ .torrent 字节 → announce + announce-list 里的全部 tracker 地址（站点标签用）。"""
     try:
         data = bdecode(metainfo)
     except Exception:
@@ -326,34 +449,42 @@ def _announce_urls(metainfo: bytes) -> list[str]:
     return urls
 
 
-def is_completed(task: dict[str, Any]) -> bool:
-    """快照里的任务是否「下载完成、数据落盘齐全」——不完整绝不转。
-
-    口径（与内核任务中心一致）：适配器把 progress>=1.0 收敛成 state="completed"，
-    所以主判据是 state；progress==1 是旧快照的兜底。注意 state 只要是
-    "completed" 就转（含已暂停做种的），而 paused/queued/checking/error/stalled
-    都没下完，一律不能碰。
-    """
-    if task.get("state") == "completed":
-        return True
-    progress = task.get("progress")
-    return (
-        task.get("state") not in ("error", "missing", "unknown", None)
-        and progress is not None
-        and float(progress) >= 1.0
-    )
-
-
 def qb_seeding_paused(state: str) -> bool:
     return state in _QB_SEEDING_PAUSED_STATES
 
 
-def tr_verify_done(row: dict[str, Any]) -> bool:
-    """TR：已停止且校验到 100%（添加后 TR 自动校验，完事等一个开始指令）。"""
-    try:
-        return int(row.get("status")) == 0 and float(row.get("percentDone")) >= 1.0
-    except (TypeError, ValueError):
+def verify_cleanup_allowed(error: str) -> bool:
+    """转种校验失败的任务该不该自动清掉。
+
+    「数据不完整 / 种子无效 / 找不到数据」这类删了不可惜；
+    「分片损坏」可重新校验修复，删了就找不回来了——只告警，不代劳。
+    """
+    msg = (error or "").lower()
+    if not msg:
         return False
+    if "corrupt" in msg or "verify local data" in msg:
+        return False
+    return True
+
+
+def verify_verdict(
+    row: dict[str, Any] | None, added_at: int, now: int, timeout_minutes: int,
+) -> tuple[str, str]:
+    """转种后置校验的单条结论 → (ok / failed / missing / pending / timeout, 说明)。
+
+    「校验通过」以目标下载器自己的判断为准：没有本地错误 + 进度 100%。
+    刚加种、还在校验的阶段返回 pending，不打扰用户。
+    """
+    if row is None:
+        return "missing", "目标下载器里已找不到这个任务（可能被手动删除）"
+    error = str(row.get("error") or "").strip()
+    if error:
+        return "failed", error
+    if float(row.get("progress") or 0) >= 1.0:
+        return "ok", "校验通过，已进入做种"
+    if timeout_minutes and added_at and now - added_at > timeout_minutes * 60:
+        return "timeout", f"加种后超过 {timeout_minutes} 分钟仍未校验完"
+    return "pending", ""
 
 
 def compact_hash_json(info_hashes: list[str]) -> str:
@@ -413,13 +544,15 @@ def slug_of(site: dict[str, Any]) -> str:
 
 
 _DOWNLOAD_UNKNOWN_PARAMS = ("passkey", "uid", "hash", "sign", "torrent_key", "auth")
+#: tracker 域名里不当作站点标识的前缀段
+_TRACKER_HOST_NOISE = frozenset({"tracker", "trackers", "t", "pt", "www", "bt", "announce", "announce2"})
 
 
 def extract_credentials(url: str) -> dict[str, str]:
     """取种链接 → 站点凭据（passkey/sign 等），能提到就回字典。
 
     这些凭据同一站点全局通用（passkey 是用户级、sign 由 id+时间算但同批
-    请求可复用），拿到后入凭据库，IYUU 模板链接兜底时回填。
+    请求可复用），拿到后入凭据库，IYUU 模板链接兑底时回填。
     """
     out: dict[str, str] = {}
     m = re.search(r"[?&](passkey|sign|torrent_key|auth)=([A-Za-z0-9_.=-]{6,})", str(url or ""))
@@ -431,34 +564,45 @@ def extract_credentials(url: str) -> dict[str, str]:
 def apply_credentials(template_url: str, creds: dict[str, str]) -> str:
     """IYUU 模板链接 + 凭据库 → 回填 {passkey} 等占位符后的可用链接。
 
-    库里有对应凭据就换成真值；没有的占位符剔除（多数站只差 passkey 一项，
-    其余 {uid}/{hash} 剔掉不影响取种）。返回空串表示填完仍带占位符
-    （关键凭据缺失，链接必死，调用方直接跳过）。
+    支持两种写法：查询参数（`?passkey={passkey}`）与路径段（`/dl/{id}/{passkey}`）。
+    库里有值就换成真值；没有的占位符整段剔除（多数站只差 passkey，
+    其余 {uid}/{hash} 剔掉不影响取种）。
     """
     path = str(template_url or "")
     if not path:
         return ""
     for name in _DOWNLOAD_UNKNOWN_PARAMS:
-        pattern = re.compile(r"([?&])\b" + name + r"=\{[a-zA-Z_]+\}")
-        if pattern.search(path):
-            value = creds.get(name)
-            if value:
-                path = pattern.sub(lambda mm: mm.group(1) + name + "=" + value, path)
-            else:
-                path = pattern.sub("", path)
-    return path
+        value = creds.get(name)
+        if value:
+            # 查询参数形态
+            path = re.sub(
+                r"([?&])\b" + name + r"=\{[a-zA-Z_]+\}", lambda m: m.group(1) + name + "=" + value, path
+            )
+            # 路径段形态（TTG: /dl/{id}/{passkey}）与裸占位符
+            path = path.replace("{" + name + "}", value)
+        else:
+            path = re.sub(r"[?&]\b" + name + r"=\{[a-zA-Z_]+\}", "", path)
+            path = re.sub(r"/\{" + name + r"\}", "", path)
+            path = path.replace("{" + name + "}", "")
+    return path.replace("?&", "?")
 
 
 def fill_download_template(template: str, torrent_id: Any) -> str:
-    """IYUU 的 download_page 模板 → 可请求路径。
+    """IYUU 的 download_page 模板 → 可请求路径（保留 {passkey} 等占位符）。
 
-    `{}` 换成种子 id；插件拿不到的站点凭据占位符（passkey/uid/hash/sign…）
-    连同它的 `&xxx=` 一起去掉——宿主的站点客户端自带登录态，多数 NexusPHP
-    站点仍能取到种子；个别站点会回 404，那属于站点侧限制。
+    只把 `{}` 换成种子 id；凭据占位符留给凭据库回填（`apply_credentials`）——
+    在这里提前剥掉会让后面拿不到占位符、passkey 永远填不进去。
     """
-    path = (template or "").replace("{}", str(torrent_id))
+    return (template or "").replace("{}", str(torrent_id))
+
+
+def strip_placeholders(url: str) -> str:
+    """把填不出的占位符整段去掉（查询参数与路径段两种形态，最后的兜底）。"""
+    path = str(url or "")
     for name in _DOWNLOAD_UNKNOWN_PARAMS:
-        path = re.sub(rf"&?\b{name}=\{{[a-zA-Z_]+\}}", "", path)
+        path = re.sub(rf"[?&]\b{name}=\{{[a-zA-Z_]+\}}", "", path)
+        path = re.sub(rf"/\{{{name}\}}", "", path)
+        path = path.replace("{" + name + "}", "")
     path = path.replace("?&", "?")
     return path.strip("&?")
 
@@ -560,10 +704,6 @@ def _title_match(a: str, b: str) -> bool:
     for i in range(1, len(long_) - len(short)):
         if long_[i : i + len(short)] == short:
             return True
-    # 顺序不同不认（防「Dark.the.Light」误配「Light.the.Dark」）：双方词集相同、
-    # 仅次序不同 → 不是同一部片。放在二级裁剪之前，否则去头/去尾匹配会击穿这条防线
-    if sorted(pa) == sorted(pb) and pa != pb:
-        return False
     # 第二轮：完整序列上去头/去尾比对——覆盖「多译名头」（凡人修仙传 年番4
     # + 英文名 vs 纯英文名）与「组名尾巴不同」（UBWEB vs ADWeb，一方尾段
     # 是标题词一方是组名时盲目砍尾会砍错，所以在完整序列上双向裁）
@@ -579,10 +719,12 @@ def _title_match(a: str, b: str) -> bool:
             # 主体相等（各去尾段——多半是组名，UBWEB vs ADWeb）；去尾后必须还有词
             if len(body_a) > 1 and len(body_b) > 1 and body_a[:-1] == body_b[:-1]:
                 return True
-            # 一方是另一方的前缀（一方多个译名头）
-            if len(body_a) <= len(body_b) and body_b[: len(body_a)] == body_a:
+            # 一方是另一方的前缀（一方多个译名头）——短方至少两个词：
+            # 裁剪到只剩一个词时前缀比对等于丢掉词序约束，会把
+            # 「Dark the Light」错配成「Light the Dark」
+            if 2 <= len(body_a) <= len(body_b) and body_b[: len(body_a)] == body_a:
                 return True
-            if len(body_b) <= len(body_a) and body_a[: len(body_b)] == body_b:
+            if 2 <= len(body_b) <= len(body_a) and body_a[: len(body_b)] == body_b:
                 return True
             # 主体相等（短方去掉自己的尾段组名后是长方去尾段主体词的前缀）
             if len(body_a) > 1 and len(body_b) > 1 and body_b[:-1][: len(body_a) - 1] == body_a[:-1]:
@@ -600,6 +742,23 @@ def _title_match(a: str, b: str) -> bool:
     ):
         return False
     return False
+
+
+def extract_download_href(html: str) -> str | None:
+    """站点详情页 HTML → 真实取种链接（带 passkey/sign 的那种）。
+
+    NexusPHP 的详情页把下载入口写成 ``href="download.php?id=..&passkey=.."``，
+    部分站是 ``/dl/<id>/<key>``。取第一个匹配即可。
+    """
+    if not html:
+        return None
+    m = re.search(r"""href=["']([^"']*(?:download\.php|/dl/)[^"']*)["']""", html, re.I)
+    if not m:
+        return None
+    href = html_lib.unescape(m.group(1)).strip()
+    if href.startswith("//"):
+        href = "https:" + href
+    return href or None
 
 
 async def resolve_real_download_url(
@@ -684,6 +843,37 @@ def tracker_dead_reason(tracker_msg: str) -> str | None:
     return None
 
 
+def link_delete_verdict(torrent: dict[str, Any]) -> str | None:
+    """「片子被删了」→ 这个下载器任务能不能停；能停返回 None，不能停返回原因。
+
+    安全线（任一命中就保留任务）：
+    - 下载器配置已经没了，无从定位；
+    - 这个种还供着媒体库里别的文件（季包别的集、合集里别的条目、别的库）；
+    - 投递时记着有 H&R 考核风险（删了会违约）。
+    """
+    if torrent.get("downloader_id") is None:
+        return "下载器配置已删除，无从定位"
+    if torrent.get("other_file_ids"):
+        return "这个种还供着媒体库里别的文件"
+    if torrent.get("hit_and_run"):
+        return "投递时有 H&R 考核风险"
+    return None
+
+
+def files_of_payload(payload: Any) -> list[int]:
+    """删除类事件载荷 → 涉及的媒体库文件 id（file.deleted 是 files[]，purged 是单个 file）。"""
+    ids: list[int] = []
+    for item in getattr(payload, "files", None) or ():
+        value = getattr(item, "id", None)
+        if isinstance(value, int):
+            ids.append(value)
+    single = getattr(payload, "file", None)
+    value = getattr(single, "id", None)
+    if isinstance(value, int):
+        ids.append(value)
+    return ids
+
+
 def tr_torrent_verdict(
     *,
     error: int,
@@ -709,6 +899,8 @@ def tr_torrent_verdict(
             return "tracker_deleted", f"tracker 报告：{(ts.get('lastAnnounceResult') or '')[:80]}"
     if error == _TR_ERROR_LOCAL and _TR_NO_DATA_SNIPPET in (error_string or "").lower():
         return "no_data", f"本地错误：{(error_string or '')[:80]}"
+    if error == _TR_ERROR_LOCAL and any(k in (error_string or "").lower() for k in ("corrupt", "verify local data")):
+        return "corrupt", f"数据损坏：{(error_string or '')[:80]}（建议重新校验或重下，不自动删）"
     return None, ""
 
 
@@ -748,55 +940,39 @@ def qb_torrent_verdict(
     return None, ""
 
 
-def sitename_from_labels(labels: list[str]) -> str | None:
-    """从 MP 风格标签里找站点名（「站点/xxx」前缀优先，其次运行时学到的站点昵称）。"""
-    for l in labels or []:
-        if l.startswith("站点/"):
-            return l.removeprefix("站点/")
-    nick_to_slug = {v: k for k, v in _SITE_NICKNAMES.items()}
-    for l in labels or []:
-        if l in nick_to_slug:
-            return l
-    return None
-
-
-#: 已知 tracker 域名 → 站点标记（中文昵称优先）：覆盖国内主流站；认不出的取域名主体
+#: 常见 tracker 域名 → 站点中文标记（打标签用；认不出的取域名主体）
 _TRACKER_DOMAINS: tuple[tuple[str, str], ...] = (
     ("ourbits.club", "我堡"), ("hdsky.me", "天空"), ("m-team.io", "馒头"), ("m-team.cc", "馒头"),
-    ("kp.m-team.cc", "馒头"), ("ptkeepfrds.club", "朋友"), ("pthome.net", "铂金家"),
-    ("tjupt.org", "北洋"), ("pterclub.com", "猫站"), ("hdhome.org", "家园"),
-    ("btschool.net", "学校"), ("torrentccf.com", "他吹吹风"), ("ttgmedia.com", "听听歌"),
-    ("nanyangpt.com", "南洋"), ("hdcity.in", "城市"), ("nicept.net", "老师"),
-    ("52pt.site", "52pt"), ("eastgame.org", "吐鲁番"), ("springsunday.net", "春天"),
-    ("soulvoice.net", "聆音"), ("chdbits.co", "彩虹岛"), ("ptchdbits.co", "彩虹岛"),
-    ("ptsbao.club", "烧包"), ("hdarea.club", "好大"), ("hdtime.org", "时光"),
-    ("1ptba.com", "1ptba"), ("hd4fans.org", "兽"), ("opencd.cc", "皇后"),
-    ("joyhd.net", "开心"), ("dmhy.org", "幼儿园"), ("upxin.net", "好多油"),
-    ("discfan.net", "蝶粉"), ("byr.pt", "北邮人"), ("dicmusic.club", "海豚"),
-    ("skyeysnow.com", "天雪"), ("hdroute.org", "路"), ("haidan.video", "海胆"),
+    ("kp.m-team.cc", "馒头"), ("ptkeepfrds.com", "朋友"), ("ptkeepfrds.club", "朋友"),
+    ("pthome.net", "铂金家"), ("tjupt.org", "北洋"), ("pterclub.net", "猫站"), ("pterclub.com", "猫站"),
+    ("hdhome.org", "家园"), ("btschool.net", "学校"), ("torrentccf.com", "他吹吹风"),
+    ("totheglory.im", "听听歌"), ("ttgmedia.com", "听听歌"), ("nanyangpt.com", "南洋"),
+    ("hdcity.in", "城市"), ("nicept.net", "老师"), ("52pt.site", "52pt"), ("eastgame.org", "吐鲁番"),
+    ("springsunday.net", "春天"), ("soulvoice.net", "聆音"), ("chdbits.co", "彩虹岛"),
+    ("ptchdbits.co", "彩虹岛"), ("ptsbao.club", "烧包"), ("hdarea.club", "好大"), ("hdtime.org", "时光"),
+    ("1ptba.com", "1ptba"), ("hd4fans.org", "兽"), ("opencd.cc", "皇后"), ("joyhd.net", "开心"),
+    ("dmhy.org", "幼儿园"), ("upxin.net", "好多油"), ("discfan.net", "蝶粉"), ("byr.pt", "北邮人"),
+    ("dicmusic.club", "海豚"), ("skyeysnow.com", "天雪"), ("hdroute.org", "路"), ("haidan.video", "海胆"),
     ("hdfans.org", "红豆饭"), ("dragonhd.xyz", "龙之家"), ("hitpt.com", "百川"),
     ("greatposterwall.com", "海豹"), ("hdpost.top", "普斯特"), ("hudbt.pt", "蝴蝶"),
     ("audiences.me", "观众"), ("piggo.me", "猪猪"), ("wintersakura.com", "冬樱"),
-    ("hhanclub.top", "憨憨"), ("hdvideo.xyz", "高清视频"), ("pt0ff.cc", "自由农场"),
-    ("ptchina.org", "铂金学院"), ("zhuque.in", "朱雀"), ("zmpt.cc", "织梦"),
+    ("hhanclub.top", "憨憨"), ("hhanclub.net", "憨憨"), ("hdvideo.xyz", "高清视频"),
+    ("pt0ff.cc", "自由农场"), ("ptchina.org", "铂金学院"), ("zhuque.in", "朱雀"), ("zmpt.cc", "织梦"),
     ("rousi.one", "肉丝"), ("monikadesign.uk", "莫妮卡"), ("cyanbug.net", "大青虫"),
-    ("ubits.club", "优堡"), ("pandapt.net", "熊猫"), ("carpt.net", "车站"),
-    ("shadowflow.org", "影"), ("agsvpt.com", "末日"), ("ptvicomo.net", "象岛"),
-    ("qingwapt.com", "青蛙"), ("xingtan.one", "杏坛"), ("hdkyl.in", "麒麟"),
-    ("ilolicon.com", "爱萝莉"), ("gtkpw.com", "GTK"), ("okpt.net", "okpt"),
-    ("crabpt.vip", "蟹黄堡"), ("hddolby.com", "杜比"), ("kamept.com", "龟站"),
-    ("ptcafe.club", "咖啡"), ("yemapt.org", "YemaPT"), ("ptlgs.xyz", "劳改所"),
-    ("lemonhd.org", "柠檬"), ("raingfh.top", "雨"), ("njtupt.top", "浦园"),
-    ("ptzone.net", "PTzone"), ("hdclone.org", "hdclone"), ("kufei.org", "库非"),
-    ("ptlover.cc", "AFun"), ("xingyunge.fun", "星陨阁"), ("cspt.xyz", "财神"),
-    ("tmpt.cc", "唐门"), ("htpt.cc", "海棠"), ("sewerpt.com", "下水道"),
-    ("bilibili.com", "RailgunPT"), ("gamegamept.com", "GGPT"), ("myptcc.com", "我的PT(CC)"),
+    ("ubits.club", "优堡"), ("pandapt.net", "熊猫"), ("carpt.net", "车站"), ("shadowflow.org", "影"),
+    ("agsvpt.com", "末日"), ("agsvpt.trackers.work", "末日"), ("ptvicomo.net", "象岛"),
+    ("qingwapt.com", "青蛙"), ("xingtan.one", "杏坛"), ("hdkyl.in", "麒麟"), ("ilolicon.com", "爱萝莉"),
+    ("gtkpw.com", "GTK"), ("okpt.net", "okpt"), ("crabpt.vip", "蟹黄堡"), ("hddolby.com", "杜比"),
+    ("kamept.com", "龟站"), ("ptcafe.club", "咖啡"), ("yemapt.org", "YemaPT"), ("ptlgs.xyz", "劳改所"),
+    ("lemonhd.org", "柠檬"), ("raingfh.top", "雨"), ("njtupt.top", "浦园"), ("ptzone.net", "PTzone"),
+    ("hdclone.org", "hdclone"), ("kufei.org", "库非"), ("ptlover.cc", "AFun"),
+    ("xingyunge.fun", "星陨阁"), ("cspt.xyz", "财神"), ("tmpt.cc", "唐门"), ("htpt.cc", "海棠"),
+    ("sewerpt.com", "下水道"), ("gamegamept.com", "GGPT"), ("myptcc.com", "我的PT(CC)"),
     ("longpt.xyz", "LongPT"), ("hdbao.xyz", "hdbao"), ("13city.top", "13city"),
     ("duckboobee.com", "March"), ("luckpt.net", "LuckPT"), ("ptskit.com", "PTSKIT"),
     ("playletpt.com", "PlayletPT"), ("novahd.net", "NovaHD"), ("lajidui.xyz", "垃圾堆"),
-    ("hxpt.xyz", "好学"), ("dubhe.top", "天枢"), ("tangpt.com", "躺平PT"),
-    ("muxuege.fun", "慕雪阁"), ("zrpt.link", "自然"), ("siqi.dev", "思齐"),
-    ("baozi.pt", "包子PT"), ("cangbaoge.top", "藏宝阁"), ("totheglory.im", "听歌"),
+    ("hxpt.xyz", "好学"), ("dubhe.top", "天枢"), ("tangpt.com", "躺平PT"), ("muxuege.fun", "慕雪阁"),
+    ("zrpt.link", "自然"), ("siqi.dev", "思齐"), ("baozi.pt", "包子PT"), ("cangbaoge.top", "藏宝阁"),
 )
 
 
@@ -830,8 +1006,8 @@ def site_tag_from_trackers(announce_urls: list[str]) -> str | None:
 @plugin(
     PLUGIN_ID,
     title="保种管家",
-    inject=(HOST_OPS, PLUGIN_DATA, PLUGIN_FILES, PLUGIN_ROUTES),
-    permissions=("dl.tasks", "dl.submit", "dl.list", "dl.torrent.delete", "site.list", "site.show", "search.torrents"),
+    inject=(HOST_OPS, PLUGIN_DATA, PLUGIN_FILES, PLUGIN_ROUTES, PLUGIN_HEALTH, PLUGIN_EVENTS, DURABLE_EVENTS),
+    permissions=("dl.tasks", "dl.submit", "dl.list", "dl.file-sources.list", "dl.torrent.delete", "site.list", "site.show", "search.torrents", "site.proxy.request"),
     config=Settings,
 )
 async def apply(ctx: Context) -> None:
@@ -840,27 +1016,66 @@ async def apply(ctx: Context) -> None:
     routes = ctx.use(PLUGIN_ROUTES)
     ops = await ctx.use(HOST_OPS).client(ctx)
     logger = ctx.logger
+    health = ctx.use(PLUGIN_HEALTH).reporter(ctx)
+    events = await ctx.use(PLUGIN_EVENTS).register(
+        ctx, TRANSFER_COMPLETED, RESEED_COMPLETED, SWEEP_COMPLETED,
+    )
 
     # ------------------------------------------------------------------
     # 站点凭据库：passkey/sign 等能拿到就入库（cred:<site_id>），
-    # 新值覆盖旧值；IYUU 模板兜底时回填占位符，让兜底链接能用
+    # 新值覆盖旧值；IYUU 模板兑底时回填占位符，让兑底链接能用
     # ------------------------------------------------------------------
+
+    async def learn_passkeys_from_torrents() -> dict[str, str]:
+        """从本机已有种子的 tracker 地址里学各站 passkey（域名 → passkey）。
+
+        比「浏览站点列表」可靠得多：种子文件里的 announce 本来就是你自己的
+        passkey，IYUU 的 download_page 模板回填后即可正常取种。
+        """
+        found: dict[str, str] = {}
+        for dl in await _dl_rows():
+            if not dl.get("usable"):
+                continue
+            try:
+                async with _client_for(dl) as client:
+                    announces = await client.all_trackers()
+            except (TransferError, HTTPException):
+                continue
+            for ann in announces:
+                creds = extract_credentials(ann)
+                if not creds.get("passkey"):
+                    continue
+                host = domain_of(ann)
+                if not host:
+                    continue
+                labels = host.split(".")
+                keys = {host}
+                if len(labels) >= 2:
+                    keys.add(".".join(labels[-2:]))
+                # 前缀段（agsvpt.trackers.work → agsvpt / trackers）：站点 slug
+                # 常出现在 tracker 域名里，用它兜住「IYUU 域名与本机 tracker
+                # 域名不是同一后缀」的站（agsvpt.com ↔ agsvpt.trackers.work）
+                for label in labels[:-2]:
+                    if label and label not in _TRACKER_HOST_NOISE:
+                        keys.add(label)
+                for k in keys:
+                    found.setdefault(k, creds["passkey"])
+        return found
 
     async def creds_of(site_id: str) -> dict[str, str]:
         raw = await store.get(f"cred:{site_id}")
-        # store 对字符串值会再包一层 JSON 引号，可能要解两次
-        for _ in range(2):
-            if isinstance(raw, str) and raw.startswith("\""):
+        # 存储形态有三种：dict（本插件写入）、JSON 字符串（旧版）、被再包一层的
+        # JSON 字符串——统一还原成 dict，否则读回来永远是空、回填永远不生效
+        for _ in range(3):
+            if isinstance(raw, dict):
+                return {k: str(v) for k, v in raw.items() if k != "_updated"}
+            if isinstance(raw, str) and raw.strip()[:1] in ("{", '"'):
                 try:
                     raw = json.loads(raw)
+                    continue
                 except Exception:
                     break
-        if isinstance(raw, str) and raw.startswith("{"):
-            try:
-                data = json.loads(raw)
-                return {k: str(v) for k, v in data.items() if k != "_updated"}
-            except Exception:
-                return {}
+            break
         return {}
 
     async def creds_save(site_id: str, new_creds: dict[str, str], source: str) -> bool:
@@ -987,6 +1202,32 @@ async def apply(ctx: Context) -> None:
         getattr(logger, level if level != "success" else "info")(message)
         log_ring.write(level, message)
 
+    async def publish_event(event: Any, payload: Any) -> None:
+        """发一条插件事件（没人订就什么都不做）；失败不影响主流程。"""
+        try:
+            await events.publish(event, payload)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 -- 事件发不出去不该打断一轮任务
+            plog("warning", f"事件发布失败（{getattr(event, 'name', event)}）：{exc}")
+
+    async def health_ok(key: str) -> None:
+        try:
+            await health.ok(key)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 -- 健康上报失败不影响任务
+            pass
+
+    async def health_bad(key: str, message: str) -> None:
+        """报告降级：同一条消息只进一次系统通知，好转后调 health_ok 自动消退。"""
+        try:
+            await health.degraded(key, message, action_href="/settings/plugins")
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            pass
+
     # ------------------------------------------------------------------
     # 通用：下载器解析与直连客户端
     # ------------------------------------------------------------------
@@ -999,7 +1240,7 @@ async def apply(ctx: Context) -> None:
                 return None
             raise HTTPException(status_code=400, detail=f"还没填{which}下载器：到插件设置里选好再运行")
         try:
-            rows = await ops.call("dl.list")
+            rows = await _dl_rows()
         except OpsError as exc:
             raise HTTPException(status_code=502, detail=f"读取下载器列表失败（{exc.message}）") from exc
         row: dict[str, Any] | None = None
@@ -1069,17 +1310,37 @@ async def apply(ctx: Context) -> None:
         except OSError:
             return False
 
+    _dl_cache: dict[str, Any] = {"rows": None, "at": 0.0}
+
+    async def _dl_rows() -> list[dict[str, Any]]:
+        """dl.list 的短缓存（30 秒）：一轮流程里多处分头调用，没必要重复问宿主。"""
+        now = time.monotonic()
+        if _dl_cache["rows"] is not None and now - _dl_cache["at"] < 30:
+            return _dl_cache["rows"]
+        rows = await ops.call("dl.list")
+        _dl_cache.update(rows=rows, at=now)
+        return rows
+
+    @asynccontextmanager
+    async def _client_for(dl: dict[str, Any]):
+        """按下载器类型建客户端并保证关闭（qB 登录 / TR RPC 二选一）。"""
+        pwd = _password_for(dl)
+        url = str(dl.get("url") or "")
+        username = str(dl.get("username") or "")
+        if dl.get("client_type") == "qbittorrent":
+            client: Any = await QbittorrentWebUI.login(_transport(), url, username, pwd)
+        else:
+            client = await TransmissionRPC.connect(_transport(), url, username, pwd)
+        try:
+            yield client
+        finally:
+            await client.close()
+
     async def _completed_rows(row: dict[str, Any]) -> list[dict[str, Any]]:
         """直接问下载器要「已完成」的种（dl.tasks 会隐藏已完成的外部种，不能拿来当来源）。"""
-        pwd = _password_for(row)
-        url = str(row.get("url") or "")
-        username = str(row.get("username") or "")
         if row.get("client_type") == "qbittorrent":
-            client = await QbittorrentWebUI.login(_transport(), url, username, pwd)
-            try:
+            async with _client_for(row) as client:
                 rows = await client.completed()
-            finally:
-                await client.close()
             return [
                 {
                     "hash": str(r.get("hash") or "").lower(),
@@ -1092,11 +1353,8 @@ async def apply(ctx: Context) -> None:
                 for r in rows
                 if r.get("hash")
             ]
-        client = await TransmissionRPC.connect(_transport(), url, username, pwd)
-        try:
+        async with _client_for(row) as client:
             rows = await client.completed()
-        finally:
-            await client.close()
         return [
             {
                 "hash": str(r.get("hashString") or "").lower(),
@@ -1112,7 +1370,7 @@ async def apply(ctx: Context) -> None:
     async def _all_completed() -> list[dict[str, Any]]:
         """所有可用下载器里的已完成种（附下载器 id / 名称）。"""
         out: list[dict[str, Any]] = []
-        for dl in await ops.call("dl.list"):
+        for dl in await _dl_rows():
             if not dl.get("usable"):
                 continue
             try:
@@ -1131,25 +1389,12 @@ async def apply(ctx: Context) -> None:
     async def _all_hashes_all() -> set[str]:
         """所有下载器里的全部 info_hash（判重用）。"""
         hashes: set[str] = set()
-        for dl in await ops.call("dl.list"):
+        for dl in await _dl_rows():
             if not dl.get("usable"):
                 continue
             try:
-                pwd = _password_for(dl)
-                url = str(dl.get("url") or "")
-                username = str(dl.get("username") or "")
-                if dl.get("client_type") == "qbittorrent":
-                    client = await QbittorrentWebUI.login(_transport(), url, username, pwd)
-                    try:
-                        hashes |= await client.all_hashes()
-                    finally:
-                        await client.close()
-                else:
-                    client = await TransmissionRPC.connect(_transport(), url, username, pwd)
-                    try:
-                        hashes |= await client.all_hashes()
-                    finally:
-                        await client.close()
+                async with _client_for(dl) as client:
+                    hashes |= await client.all_hashes()
             except (TransferError, HTTPException):
                 continue
         return hashes
@@ -1206,7 +1451,7 @@ async def apply(ctx: Context) -> None:
         # 磁盘目录没配且源是 qB ≥ 4.5 时允许纯 WebUI 模式；TR 源必须有磁盘目录
         if not dirs and not src_qb:
             raise HTTPException(status_code=400, detail="Transmission 做源必须配置「源种子文件目录」（TR 的 torrents 目录）")
-        if src is not None and dirs and version_tuple(await src.version()) < QB_EXPORT_MIN_VERSION:
+        if src is not None and dirs and version_tuple(await src.version()) < QB_EXPORT_MIN_VERSION and True:
             pass  # 老版 qB：只能靠磁盘文件，export 兜底不可用——不报错，取不到的记失败
 
         # 路径换算前缀对：优先用内核里两台下载器已配的路径映射
@@ -1240,7 +1485,18 @@ async def apply(ctx: Context) -> None:
                 continue
             if await _data_missing(t):
                 missing_data += 1
-                plog("warning", f"转种跳过「{t.get('name')}」：源数据不在原位（可能已被整理或进回收站）")
+                # 限频：同一颗种 24 小时内只提示一次，避免每 6 小时刷一遍
+                miss_key = f"missblock:{info_hash}"
+                try:
+                    last_miss = int(await store.get(miss_key) or 0)
+                except Exception:
+                    last_miss = 0
+                if time.time() - last_miss > 86400:
+                    try:
+                        await store.set(miss_key, int(time.time()))
+                    except Exception:
+                        pass
+                    plog("warning", f"转种跳过「{t.get('name')}」：源数据不在原位（可能已被整理或进回收站，24 小时内不再提示）")
                 continue
             candidates.append({
                 "hash": info_hash,
@@ -1324,13 +1580,25 @@ async def apply(ctx: Context) -> None:
             if pending_watch := [c["hash"] for c in transferred if to_qb and cfg.autostart and not cfg.skip_verify]:
                 current = await _read_pending()
                 await _write_pending(current + pending_watch)
+            if cfg.verify_after_transfer and transferred:
+                await _verify_enqueue(
+                    [t["hash"] for t in transferred],
+                    {t["hash"]: str(t.get("name") or "") for t in transferred},
+                )
 
             # 4) 删源（走内核通道：过 H&R 保护、订阅状态正确联动；只删任务不删文件）
             deleted_source = deleted_duplicate = 0
+            managed_all = set() if cfg.delete_source_managed else _managed_hashes(
+                [d["hash"] for d in duplicates] + [t["hash"] for t in transferred], candidates,
+            )
+            if managed_all:
+                plog("info", f"删源跳过 {len(managed_all)} 个 MovieClaw 投递的种（避免订阅重新下载）")
             if cfg.delete_duplicate and duplicates:
-                deleted_duplicate = await _delete_via_kernel(from_row["id"], [d["hash"] for d in duplicates], failed)
+                keep = [d["hash"] for d in duplicates if d["hash"] not in managed_all]
+                deleted_duplicate = await _delete_via_kernel(from_row["id"], keep, failed) if keep else 0
             if cfg.delete_source and transferred:
-                deleted_source = await _delete_via_kernel(from_row["id"], [t["hash"] for t in transferred], failed)
+                keep = [t["hash"] for t in transferred if t["hash"] not in managed_all]
+                deleted_source = await _delete_via_kernel(from_row["id"], keep, failed) if keep else 0
 
             report = _report(
                 started, dry_run, kind="transfer",
@@ -1348,6 +1616,41 @@ async def apply(ctx: Context) -> None:
             if src is not None:
                 await src.close()
 
+    def _managed_hashes(hashes: list[str], items: list[dict[str, Any]]) -> set[str]:
+        """这批 hash 里属于 MovieClaw 投递的（订阅 / 手动），删源默认跳过它们。"""
+        managed: set[str] = set()
+        for t in items:
+            h = str(t.get("hash") or "").lower()
+            if not h:
+                continue
+            if set(_MC_OWNED_LABELS).intersection(t.get("tags") or []):
+                managed.add(h)
+        return managed.intersection({h.lower() for h in hashes})
+
+    async def _managed_delete_safe(downloader_id: int, info_hash: str) -> tuple[bool, str]:
+        """内核预演：删掉这个主种会不会牵动订阅重下？→（可安全删, 说明）。
+
+        用 ``dl.torrent.delete`` 的 dry_run：宿主会算出这个任务还牵动着哪些季集、
+        会取消哪些在跑的尝试。牵动任何一项就保留——宁可留个空壳，也不能让订阅
+        把已经入库的集重下一遍。
+        """
+        try:
+            plan = await ops.call(
+                "dl.torrent.delete",
+                {"downloader_id": downloader_id, "info_hash": info_hash, "dry_run": True},
+            )
+        except asyncio.CancelledError:
+            raise
+        except OpsError as exc:
+            return False, f"内核预演失败（{exc.message}），先保留"
+        requeued = plan.get("requeued_units") or []
+        cancelled = plan.get("cancelled_attempts") or 0
+        if requeued:
+            return False, f"删了会让订阅重下 {len(requeued)} 个季集，保留"
+        if cancelled:
+            return False, f"删了会取消 {cancelled} 个在跑的下载尝试，保留"
+        return True, "对应季集已入库，删任务不会触发重下"
+
     async def _delete_via_kernel(downloader_id: int, hashes: list[str], failed: list[dict[str, str]]) -> int:
         """内核删种通道：dl.torrent.delete 逐个删（不删文件）；订阅/H&R 保护由内核把关。"""
         ok = 0
@@ -1358,6 +1661,106 @@ async def apply(ctx: Context) -> None:
             except OpsError as exc:
                 failed.append({"hash": h, "name": "", "error": f"删源被拒（{exc.message}）"})
         return ok
+
+    # ------------------------------------------------------------------
+    # 删片联动：媒体库里删了片 / 清空回收站 → 对应的下载任务立刻停
+    #
+    # 事件只带媒体库的事实（删了哪些文件），种子归下载领域：用 dl.file-sources.list
+    # 按文件 id 反查（文件已经删了也能查）。三条安全线见 link_delete_verdict；
+    # 主种（MovieClaw 投递）再过一遍内核预演——会牵动订阅重下的一律保留。
+    # ------------------------------------------------------------------
+
+    async def _link_delete_handle(payload: Any, *, reason: str) -> None:
+        cfg = ctx.config
+        if not cfg.link_delete_enabled:
+            return
+        file_ids = files_of_payload(payload)
+        if not file_ids:
+            return
+        media = getattr(payload, "media", None)
+        title = (getattr(media, "title", "") or "") if media is not None else ""
+        label_title = f"《{title}》" if title else "未知条目"
+        try:
+            torrents = await ops.call(
+                "dl.file-sources.list", {"file_ids": ",".join(str(i) for i in file_ids)},
+            ) or []
+        except asyncio.CancelledError:
+            raise
+        except OpsError as exc:
+            plog("warning", f"删片停种{label_title}：按文件查种子来源失败（{exc.message}），守护下一轮会兼底")
+            return
+        removed: list[dict[str, Any]] = []
+        kept: list[dict[str, Any]] = []
+        failed: list[dict[str, Any]] = []
+        for torrent in torrents:
+            info_hash = str(torrent.get("info_hash") or "").lower()
+            if not info_hash:
+                continue
+            short = f"{info_hash[:12]}…"
+            why = link_delete_verdict(torrent)
+            if why is None and torrent.get("owned_by_movieclaw"):
+                safe, note = await _managed_delete_safe(int(torrent["downloader_id"]), info_hash)
+                if not safe:
+                    why = note
+            if why is not None:
+                kept.append({"hash": info_hash, "name": str(torrent.get("title") or short), "reason": why})
+                continue
+            try:
+                await ops.call(
+                    "dl.torrent.delete",
+                    {
+                        "downloader_id": int(torrent["downloader_id"]),
+                        "info_hash": info_hash,
+                        "delete_files": bool(cfg.link_delete_files),
+                    },
+                )
+            except asyncio.CancelledError:
+                raise
+            except OpsError as exc:
+                # 任务已经不在了（重复投递 / 早被守护清掉）按成功算
+                if info_hash in await _all_hashes_all():
+                    failed.append({"hash": info_hash, "error": exc.message})
+                    continue
+            removed.append({
+                "hash": info_hash,
+                "name": str(torrent.get("title") or short),
+                "downloader": str(torrent.get("downloader_name") or f"#{torrent['downloader_id']}"),
+            })
+        report = {
+            "at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds"),
+            "media": title or "未知条目",
+            "reason": reason,
+            "delete_files": bool(cfg.link_delete_files),
+            "removed": len(removed),
+            "items": removed[:20],
+            "kept": kept[:8],
+            "failed": failed[:8],
+        }
+        await store.set("last_link_delete", report)
+        if removed:
+            plog(
+                "success",
+                f"删片停种{label_title}：已移除 {len(removed)} 个下载任务（"
+                f"{'连数据文件一起删' if cfg.link_delete_files else '只删任务、保留数据'}）",
+            )
+        for item in kept:
+            plog("info", f"删片停种{label_title}：保留 {item['hash'][:12]}… —— {item['reason']}")
+        for item in failed:
+            plog("warning", f"删片停种{label_title}：删任务 {item['hash'][:12]}… 失败（{item['error']}）")
+
+    async def on_library_file_gone(payload: Any) -> None:
+        """可靠事件：文件从磁盘删除 / 回收站彻底清除。至少一次投递，按事件 id 去重。"""
+        delivery = ctx.delivery
+        if delivery is not None and delivery.origin.is_plugin(PLUGIN_ID):
+            return
+        event_id = delivery.event_id if delivery is not None else ""
+        if event_id:
+            seen = await store.get("link_seen", default=[])
+            seen = list(seen) if isinstance(seen, list) else []
+            if event_id in seen:
+                return
+            await store.set("link_seen", [event_id, *seen][:300])
+        await _link_delete_handle(payload, reason=str(getattr(payload, "reason", "") or "removed"))
 
     # ------------------------------------------------------------------
     # 引擎二：IYUU 辅种（跨站补种）
@@ -1371,7 +1774,6 @@ async def apply(ctx: Context) -> None:
 
         ``refresh_ts``：每次重试都刷新请求里的 timestamp——重试会等几十秒，
         沿用旧时间戳会被判「时间戳已过期」。
-        站点目录响应会刷新站点昵称缓存（_SITE_NICKNAMES）。
         """
         last_error = "IYUU 接口持续不可用"
         for attempt in range(_RETRY_ATTEMPTS):
@@ -1392,10 +1794,7 @@ async def apply(ctx: Context) -> None:
                 raise HTTPException(status_code=502, detail="IYUU 接口返回不是约定结构")
             if body.get("code") == 0:
                 data = body.get("data")
-                data = data if isinstance(data, dict) else {}
-                if path == "/reseed/sites/index" and isinstance(data.get("sites"), list):
-                    remember_site_nicknames(parse_sites(data))
-                return data
+                return data if isinstance(data, dict) else {}
             code, msg = body.get("code"), str(body.get("msg") or "")
             last_error = f"IYUU 接口报错（code={code}）：{msg}"
             if "频率过快" in msg or "限流" in msg or "时间戳" in msg:
@@ -1411,6 +1810,35 @@ async def apply(ctx: Context) -> None:
             headers={"token": token}, timeout=30.0,
         )
 
+    async def resolve_via_site_page(site_id: str, torrent_id: Any) -> str | None:
+        """借宿主已认证会话打开站点详情页，解析出真实取种链接。
+
+        IYUU 的模板链接过期/缺 sign 时用它兜底：宿主会话自带登录态，
+        解析出的 download.php?id=..&passkey=..&sign=.. 可以直接取种。
+        """
+        tid = str(torrent_id or "").strip()
+        if not tid or not site_id:
+            return None
+        for path in (f"details.php?id={tid}", f"detail/{tid}"):
+            try:
+                res = await ops.call(
+                    "site.proxy.request",
+                    {"site_id": site_id, "method": "GET", "path": path, "base": "web"},
+                    timeout=25,
+                )
+            except Exception as exc:  # noqa: BLE001 -- 站点代理失败就换下一条路
+                plog("info", f"辅种详情页解析失败（{site_id}）：{getattr(exc, 'message', None) or exc}")
+                return None
+            text = str((res or {}).get("text") or "")
+            if not text:
+                return None
+            if "没有该ID" in text or "not found" in text.lower() or "错误" in text[:2000]:
+                return None
+            href = extract_download_href(text)
+            if href:
+                return href
+        return None
+
     async def _site_map() -> dict[str, dict[str, Any]]:
         """sid → 本机站点（site_id + is_https + auth_type）；slug 直配 → 域名兜底，结果缓存。"""
         cached = await store.get("sid_map")
@@ -1418,6 +1846,7 @@ async def apply(ctx: Context) -> None:
             return cached
         async with await _http() as client:
             sites = parse_sites(await _iyuu_request(client, "GET", "/reseed/sites/index"))
+
         by_slug = {slug_of(s): s for s in sites.values()}
         by_domain = {domain_of(str(s.get("base_url") or "")): s for s in sites.values()}
         mapping: dict[str, dict[str, Any]] = {}
@@ -1517,6 +1946,34 @@ async def apply(ctx: Context) -> None:
         async with await _http() as client:
             sites = parse_sites(await _iyuu_request(client, "GET", "/reseed/sites/index"))
 
+        # 用本机种子的 tracker 学 passkey，按站点域名/别名入库（只补空缺）
+        try:
+            learned = await learn_passkeys_from_torrents()
+        except Exception:
+            learned = {}
+        cred_saved = 0
+        for sid, site_rec in sites.items():
+            local = site_map.get(str(sid))
+            if not local or not learned:
+                continue
+            host = domain_of(str(site_rec.get("base_url") or ""))
+            labels = host.split(".")
+            candidates_site = [host]
+            if len(labels) >= 2:
+                candidates_site.append(".".join(labels[-2:]))
+            candidates_site.append(slug_of(site_rec))
+            candidates_site.append(str(site_rec.get("site") or ""))
+            candidates_site.append(local["site_id"])
+            passkey = next((learned[k] for k in candidates_site if k and learned.get(k)), None)
+            if not passkey:
+                continue
+            existing = await creds_of(local["site_id"])
+            if not existing.get("passkey"):
+                await creds_save(local["site_id"], {"passkey": passkey}, "本机种子 tracker")
+                cred_saved += 1
+        if cred_saved:
+            plog("info", f"辅种：从本机种子学到 {cred_saved} 个站点的 passkey")
+
         plan: list[dict[str, Any]] = []
         skipped = {"not_selected": 0, "no_local_site": 0, "exists": 0, "site_cooldown": 0}
         now_ts = int(time.time())
@@ -1588,6 +2045,7 @@ async def apply(ctx: Context) -> None:
                     "sid": sid,
                     "site_name": site_nickname,
                     "site_id": local["site_id"],
+                    "auth_type": str(local.get("auth_type") or ""),
                     "torrent_id": seed.get("torrent_id"),
                     "download_url": build_download_url(
                         base_url, seed.get("torrent_id"), local.get("is_https", 1),
@@ -1596,12 +2054,31 @@ async def apply(ctx: Context) -> None:
                     ),
                 })
 
+        # 模板坏站（取种 404 过）排到最后：搜索很慢，先用好站跑满提交上限
+        broken_sites: set[str] = set()
+        now_ts2 = time.time()
+        for key in await store.items():
+            key_s = str(key)
+            if not key_s.startswith("tmplbad:"):
+                continue
+            try:
+                ts = int(await store.get(key_s) or 0)
+            except Exception:
+                ts = 0
+            if now_ts2 - ts < 86400:
+                broken_sites.add(key_s.removeprefix("tmplbad:"))
+        plan.sort(key=lambda i: 1 if i["site_id"] in broken_sites else 0)
+
         submitted = ok = exists = failed = 0
         failures: list[dict[str, str]] = []
         site_failures: dict[str, int] = {}      # 站点 → 连续取种失败次数
         blocked_sites: set[str] = set()         # 连续失败两次的站点本轮不再试
         submit_cap = max(int(cfg.reseed_max_submits or 0), 0)
         attempt = 0
+        # 搜索真实链接很慢（每次要打站点搜索接口）：每轮给 8 次预算，
+        # 用完就跳过高成本站点，保证模板可用的站点能跑满提交上限
+        search_budget = 25
+        filled_logged: set[str] = set()
         if not dry_run:
             for item in plan:
                 if time.monotonic() - started > 600:
@@ -1616,15 +2093,34 @@ async def apply(ctx: Context) -> None:
                     "site_id": item["site_id"],
                     "download_url": item["download_url"],
                 }
-                # 优先用站点页面搜出的真实链接：IYUU 模板链接缺 passkey 在
-                # TTG 等站必 404；搜到带登录态的链接才算稳。搜不到再回落模板
-                if item.get("source_name"):
+                # 取种链接三级策略（从便宜到贵）：
+                # ① 凭据库回填 IYUU 模板（学到的 passkey 直接拼活）——最快；
+                # ② 回填不干净时，按发布名搜站点拿带登录态的真实链接；
+                # ③ 最后才用剥离占位符的模板（个别站能过）
+                site_creds = await creds_of(item["site_id"])
+                filled = apply_credentials(args["download_url"], site_creds)
+                # 模板坏站（曾取种 404/坏包）：优先走「按名搜索真实链接」
+                template_broken = item["site_id"] in broken_sites
+                need_search = template_broken or (not filled) or ("{" in filled)
+                if need_search and template_broken and search_budget <= 0:
+                    skipped["search_budget"] = skipped.get("search_budget", 0) + 1
+                    continue
+                if filled and not need_search:
+                    if filled != args["download_url"] and item["site_id"] not in filled_logged:
+                        filled_logged.add(item["site_id"])
+                        plog("info", f"辅种模板链接已用凭据库回填（{item['site_id']}）")
+                    args["download_url"] = filled
+                elif (real_detail := await resolve_via_site_page(item["site_id"], item.get("torrent_id"))):
+                    args["download_url"] = real_detail
+                    plog("info", f"辅种改用详情页解析的真实链接（{item['site_id']}）")
+                elif item.get("source_name"):
                     search_hits: list[dict[str, str]] = []
 
                     async def _sink(creds: dict[str, str]) -> None:
                         if creds:
                             search_hits.append(creds)
 
+                    search_budget -= 1
                     real = await resolve_real_download_url(
                         ops.call, item["site_id"], item.get("torrent_id"), item["source_name"], plog, _sink,
                     )
@@ -1635,18 +2131,12 @@ async def apply(ctx: Context) -> None:
                         await creds_save(item["site_id"], merged, "辅种搜索")
                     if real:
                         args["download_url"] = real
-                else:
-                    # 回落模板前先刷一遍该站凭据（浏览模式，很轻），再回填占位符：
-                    # 模板里 {passkey} 能用库里的真值拼活，兜底从必死变可用
-                    site_creds = await creds_of(item["site_id"])
-                    if not site_creds:
-                        await harvest_credentials(item["site_id"])
-                        site_creds = await creds_of(item["site_id"])
-                    filled = apply_credentials(args["download_url"], site_creds)
-                    if filled:
-                        if filled != args["download_url"]:
-                            plog("info", f"辅种模板链接已用凭据库回填（{item['site_id']}）")
-                        args["download_url"] = filled
+                    else:
+                        args["download_url"] = strip_placeholders(
+                            args["download_url"] if "{" in str(filled or "") else (filled or args["download_url"])
+                        )
+                elif filled:
+                    args["download_url"] = filled if "{" not in filled else strip_placeholders(filled)
                 # 辅种沿用原种保存目录（IYUU v2.18 口径）：原种在哪台下载器、
                 # 什么目录，辅种就投到同一台的同名目录；拿不到再落兜底根目录
                 src_task = hash_to_task.get(item["source_hash"])
@@ -1671,6 +2161,13 @@ async def apply(ctx: Context) -> None:
                     result = await ops.call("dl.submit", args, timeout=25)
                     submitted += 1
                     site_failures.pop(item["sid"], None)
+                    # 成功一次就说明模板能用：清掉「模板坏」标记
+                    if item["site_id"] in broken_sites:
+                        broken_sites.discard(item["site_id"])
+                        try:
+                            await store.delete(f"tmplbad:{item['site_id']}")
+                        except Exception:
+                            pass
                     if result.get("already_exists"):
                         exists += 1
                     else:
@@ -1698,7 +2195,12 @@ async def apply(ctx: Context) -> None:
                     if isinstance(exc, TimeoutError) or "Timeout" in type(exc).__name__:
                         ttl = 3600          # 站点响应慢：冷却 1 小时，别整轮都耗在它身上
                     elif any(k in msg for k in ("bencode", "404", "400", "取回种子失败")):
-                        ttl = 86400         # 站点要求额外凭据 / 种子已删：冷却一天
+                        ttl = 6 * 3600      # 站点要求额外凭据 / 种子已删：冷却 6 小时
+                        if item.get("auth_type") != "apikey" and site_failures.get(item["sid"], 0) >= 3:
+                            try:
+                                await store.set(f"tmplbad:{item['site_id']}", int(time.time()))
+                            except Exception:
+                                pass
                     if ttl:
                         site_failures[item["sid"]] = site_failures.get(item["sid"], 0) + 1
                         if item["sid"] not in blocked_sites:
@@ -1787,33 +2289,41 @@ async def apply(ctx: Context) -> None:
 
     async def _classify_qb(
         target_qb: QbittorrentWebUI, protected: set[str], sweep_dead: bool,
-    ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
-        """qB 全量任务 →（删除名单, 告警名单），每项 (hash, name, 说明)。"""
+    ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]], list[tuple[str, str]]]:
+        """qB 全量任务 →（删除名单, 告警名单, 主种空壳名单），每项 (hash, name, 说明)。"""
         rows = await target_qb.completed()
         deletions: list[tuple[str, str, str]] = []
         warnings: list[tuple[str, str, str]] = []
+        managed: list[tuple[str, str]] = []
         for row in rows:
             info_hash = str(row.get("hash") or "").lower()
             if not info_hash:
                 continue
             labels = qb_tags(row)
-            if set(_MC_OWNED_LABELS).intersection(labels) or protected.intersection(labels):
+            state = str(row.get("state") or "")
+            if set(_MC_OWNED_LABELS).intersection(labels):
+                # 主种里的空壳（数据文件不在了）：交给内核预演判定能不能清
+                if not protected.intersection(labels) and state in ("missingFiles", "error"):
+                    managed.append((info_hash, str(row.get("name") or info_hash)))
+                continue
+            if protected.intersection(labels):
                 continue
             reason, note = qb_torrent_verdict(
                 trackers=await target_qb.trackers(info_hash),
-                state=str(row.get("state") or ""),
+                state=state,
                 protected_labels=protected,
                 labels=labels,
             )
             if reason == "tracker_deleted":
                 (deletions if sweep_dead else warnings).append((info_hash, str(row.get("name") or info_hash), note))
-        return deletions, warnings
+        return deletions, warnings, managed
 
     async def sweep_pass(dry_run: bool | None = None) -> dict[str, Any]:
         """一轮保活守护：全量扫描两台下载器，把已无意义的种清出去（默认只报告）。
 
-        永不碰的：MovieClaw 自己投递的种（主种，标签 movieclaw-*，正在给媒体库供数据）、
-        带保护标签的种、TR 里校验完好的 No data found（可能只是路径变了）。
+        永不碰的：带保护标签的种、TR 里校验完好的 No data found（可能只是路径变了）。
+        主种（movieclaw-*）里的空壳不直接删：先用内核删种预演判断——删了会不会让
+        订阅重下已入库的季集；会重下的一律保留。
         永不删文件：只从下载器移除任务条目。
         """
         started = time.monotonic()
@@ -1823,48 +2333,88 @@ async def apply(ctx: Context) -> None:
         protected = set(split_tags(cfg.sweep_protected_labels))
         deletions: dict[str, list[tuple[str, str, str]]] = {}
         warnings: dict[str, list[tuple[str, str, str]]] = {}
+        managed_rows: list[tuple[int, str, str, str]] = []  # (下载器 id, hash, 名字, 本地错误)
 
         # TR：trackerStats 一次全量拿回，不用逐种问
-        rows = await ops.call("dl.list")
-        for dl in rows:
+        dl_rows = await _dl_rows()
+        for dl in dl_rows:
             if not dl.get("usable"):
                 continue
             name = f"#{dl['id']} {dl['name']}"
             try:
-                if dl.get("client_type") == "transmission":
-                    client = await TransmissionRPC.connect(_transport(), str(dl.get("url") or ""), str(dl.get("username") or ""), _password_for(dl))
-                    try:
+                async with _client_for(dl) as client:
+                    if dl.get("client_type") == "transmission":
                         args = await client._rpc("torrent-get", {"fields": ["hashString", "name", "error", "errorString", "trackerStats", "labels"]})
                         d_list: list[tuple[str, str, str]] = []
                         w_list: list[tuple[str, str, str]] = []
                         for row in args.get("torrents") or []:
                             labels = [str(x) for x in (row.get("labels") or [])]
-                            if set(_MC_OWNED_LABELS).intersection(labels) or protected.intersection(labels):
+                            info_hash = str(row.get("hashString") or "").lower()
+                            if set(_MC_OWNED_LABELS).intersection(labels):
+                                # 主种里的死种（数据丢了 / 站点已删）：交给内核预演判定能不能清
+                                if info_hash and not protected.intersection(labels):
+                                    reason, note = tr_torrent_verdict(
+                                        error=int(row.get("error") or 0),
+                                        error_string=str(row.get("errorString") or ""),
+                                        tracker_stats=row.get("trackerStats") or [],
+                                        labels=labels,
+                                        protected_labels=protected,
+                                    )
+                                    if reason in ("tracker_deleted", "no_data"):
+                                        managed_rows.append((
+                                            int(dl["id"]), info_hash, str(row.get("name") or info_hash), note,
+                                        ))
+                                continue
+                            if protected.intersection(labels):
                                 continue
                             action, note = _classify_tr(row, protected, cfg.sweep_dead, cfg.sweep_no_data)
                             if action == "delete":
-                                d_list.append((str(row.get("hashString") or "").lower(), str(row.get("name") or ""), note))
+                                d_list.append((info_hash, str(row.get("name") or ""), note))
                             elif action == "warn":
-                                w_list.append((str(row.get("hashString") or "").lower(), str(row.get("name") or ""), note))
+                                w_list.append((info_hash, str(row.get("name") or ""), note))
                         if d_list:
                             deletions[name] = d_list
                         if w_list:
                             warnings[name] = w_list
-                    finally:
-                        await client.close()
-                elif dl.get("client_type") == "qbittorrent":
-                    client = await QbittorrentWebUI.login(_transport(), str(dl.get("url") or ""), str(dl.get("username") or ""), _password_for(dl))
-                    try:
-                        d_list, w_list = await _classify_qb(client, protected, cfg.sweep_dead)
+                    else:
+                        d_list, w_list, m_list = await _classify_qb(client, protected, cfg.sweep_dead)
                         if d_list:
                             deletions[name] = d_list
                         if w_list:
                             warnings[name] = w_list
-                    finally:
-                        await client.close()
+                        managed_rows.extend((int(dl["id"]), h, n, "数据文件缺失") for h, n in m_list)
             except (TransferError, HTTPException) as exc:
                 msg = exc.detail if isinstance(exc, HTTPException) else str(exc)
                 warnings.setdefault(name, []).append(("", f"连接失败：{msg}", ""))
+
+        # 主种空壳：内核预演判定能不能安全清（结果缓存 12 小时，别每轮都问）
+        managed_hashes: set[str] = set()
+        if managed_rows and cfg.sweep_managed_dead:
+            audit = await store.get("managed_audit")
+            audit = dict(audit) if isinstance(audit, dict) else {}
+            changed = False
+            for dl_id, info_hash, torrent_name, raw_note in managed_rows[:120]:
+                key = f"{dl_id}:{info_hash}"
+                cached = audit.get(key)
+                if isinstance(cached, dict) and time.time() - int(cached.get("at") or 0) < 43200:
+                    safe, verdict_note = bool(cached.get("safe")), str(cached.get("note") or "")
+                else:
+                    safe, verdict_note = await _managed_delete_safe(dl_id, info_hash)
+                    audit[key] = {"safe": safe, "note": verdict_note, "at": int(time.time())}
+                    changed = True
+                    await asyncio.sleep(0.05)
+                dl_name = next((f"#{d['id']} {d['name']}" for d in dl_rows if int(d['id']) == dl_id), f"#{dl_id}")
+                if safe:
+                    managed_hashes.add(info_hash)
+                    deletions.setdefault(dl_name, []).append((info_hash, torrent_name, f"主种空壳：{raw_note}；{verdict_note}"))
+                else:
+                    warnings.setdefault(dl_name, []).append((info_hash, torrent_name, f"主种空壳：{raw_note}；{verdict_note}"))
+            if changed:
+                # 只留最近 3000 条，防止越积越大
+                if len(audit) > 3000:
+                    ordered = sorted(audit.items(), key=lambda kv: int(kv[1].get("at") or 0), reverse=True)[:3000]
+                    audit = dict(ordered)
+                await store.set("managed_audit", audit)
 
         total_delete = sum(len(v) for v in deletions.values())
         total_warn = sum(len(v) for v in warnings.values())
@@ -1897,6 +2447,7 @@ async def apply(ctx: Context) -> None:
                 "name": name,
                 "reason": note,
                 "kind": "delete",
+                "managed": info_hash in managed_hashes,
             }
             for dl_name, items in deletions.items()
             for info_hash, name, note in items
@@ -1907,6 +2458,7 @@ async def apply(ctx: Context) -> None:
                 "name": name,
                 "reason": note,
                 "kind": "warn",
+                "managed": info_hash in managed_hashes,
             }
             for dl_name, items in warnings.items()
             for info_hash, name, note in items
@@ -1927,11 +2479,38 @@ async def apply(ctx: Context) -> None:
         report = _report(
             started, dry_run, kind="sweep",
             scanned_deletable=total_delete, warned=total_warn,
+            managed_dead=len(managed_hashes),
             detail={k: [{"name": n, "note": note} for _h, n, note in v[:_REPORT_DETAIL_LIMIT]] for k, v in {**deletions, **warnings}.items()} or None,
             note=("以上为扫描结果，未删除任何东西（设置里的「只报告不删除」开着）" if dry_run and total_delete else None),
         )
         await store.set("last_sweep_report", report)
         return report
+
+    async def _announce(kind: str, report: dict[str, Any]) -> None:
+        """一轮跑完：发插件事件（Webhook / 别的插件能订）+ 把健康状态抬回正常。"""
+        if kind == "transfer":
+            await publish_event(TRANSFER_COMPLETED, TransferEvent(
+                planned=int(report.get("planned") or 0),
+                transferred=int(report.get("transferred") or 0),
+                failed=int(report.get("failed") or 0),
+                deleted_source=int(report.get("deleted_source") or 0),
+                dry_run=bool(report.get("dry_run")),
+            ))
+        elif kind == "reseed":
+            await publish_event(RESEED_COMPLETED, ReseedEvent(
+                planned=int(report.get("planned") or 0),
+                ok=int(report.get("ok") or 0),
+                exists=int(report.get("exists") or 0),
+                failed=int(report.get("failed") or 0),
+                dry_run=bool(report.get("dry_run")),
+            ))
+        else:
+            await publish_event(SWEEP_COMPLETED, SweepEvent(
+                deleted=int(report.get("scanned_deletable") or 0),
+                warned=int(report.get("warned") or 0),
+                dry_run=bool(report.get("dry_run")),
+            ))
+        await health_ok(str(kind))
 
     async def scheduled_sweep() -> None:
         if not ctx.config.sweep_enabled:
@@ -1941,8 +2520,9 @@ async def apply(ctx: Context) -> None:
             return
         try:
             report = await sweep_pass()
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 -- 单轮失败不影响下一轮
             plog("error", "保活守护运行失败：" + traceback.format_exc(limit=3))
+            await health_bad("sweep", f"保活守护最近一轮失败（{type(exc).__name__}），详情见插件日志")
             return
         plog(
             "success" if not report.get("dry_run") else "info",
@@ -1951,7 +2531,145 @@ async def apply(ctx: Context) -> None:
                 "已删" if not report.get("dry_run") else "只报告",
             ),
         )
+        await _announce("sweep", report)
 
+
+    # ------------------------------------------------------------------
+    # 转种后置校验：加种只是开始，校验通过、进入做种才算成功
+    #
+    # 加种后目标下载器会自己校验；这里每轮盯着结果：
+    #   · 100% 且无本地错误 → 成功
+    #   · 报「数据不完整 / 种子无效」→ 失败，按设置把这个死任务清掉（不删文件）
+    #   · 任务不见了 / 超时还没校验完 → 告警，不再等
+    # ------------------------------------------------------------------
+
+    _verify: dict[str, Any] = {"items": None, "loaded": False}
+    _verify_warn_at = {"t": 0.0}
+
+    async def _read_verify(force: bool = False) -> list[dict[str, Any]]:
+        if _verify["loaded"] and not force:
+            return list(_verify["items"] or [])
+        try:
+            raw = await store.get("verify_pending")
+            _verify["items"] = [
+                x for x in (raw or [])
+                if isinstance(x, dict) and x.get("hash")
+            ]
+            _verify["loaded"] = True
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if _verify["items"] is None:
+                _verify["items"] = []
+        return list(_verify["items"] or [])
+
+    async def _write_verify(items: list[dict[str, Any]]) -> None:
+        _verify["items"] = list(items)
+        _verify["loaded"] = True
+        try:
+            await store.set("verify_pending", list(items))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            now = time.monotonic()
+            if now - _verify_warn_at["t"] > 600:
+                _verify_warn_at["t"] = now
+                plog("warning", "转种校验队列暂时无法持久化（不影响当前运行，稍后自动重试）")
+
+    async def _verify_enqueue(hashes: list[str], names: dict[str, str]) -> None:
+        """新加种的 hash 入校验队列（已在队列里的不重复加）。"""
+        if not hashes:
+            return
+        items = await _read_verify()
+        seen = {str(x.get("hash") or "").lower() for x in items}
+        now = int(time.time())
+        for h in hashes:
+            h = h.lower()
+            if h and h not in seen:
+                items.append({"hash": h, "name": names.get(h, ""), "at": now})
+                seen.add(h)
+        await _write_verify(items[-1000:])
+
+    async def _verify_round() -> None:
+        cfg = ctx.config
+        if not cfg.verify_after_transfer:
+            return
+        items = await _read_verify()
+        if not items:
+            return
+        to_row = await resolve_downloader(cfg.to_downloader, "目标")
+        if to_row is None:
+            return
+        hashes = [str(x.get("hash") or "").lower() for x in items if x.get("hash")]
+        target = await target_client(to_row)
+        try:
+            snap = await target.inspect(hashes)  # type: ignore[union-attr]
+        finally:
+            await target.close()  # type: ignore[attr-defined]
+
+        now = int(time.time())
+        keep: list[dict[str, Any]] = []
+        outcomes: list[tuple[str, str, str, str]] = []  # (state, hash, name, note)
+        cleaned = 0
+        for item in items:
+            h = str(item.get("hash") or "").lower()
+            if not h:
+                continue
+            state, note = verify_verdict(
+                snap.get(h), int(item.get("at") or 0), now, cfg.verify_timeout_minutes,
+            )
+            if state == "pending":
+                keep.append(item)
+                continue
+            name = str(item.get("name") or h)
+            outcomes.append((state, h, name, note))
+            if state == "failed" and cfg.verify_fail_cleanup and verify_cleanup_allowed(note):
+                try:
+                    await ops.call(
+                        "dl.torrent.delete",
+                        {"downloader_id": to_row["id"], "info_hash": h},
+                    )
+                    cleaned += 1
+                except asyncio.CancelledError:
+                    raise
+                except OpsError as exc:
+                    plog("warning", f"转种校验：清理失败任务被拒（{exc.message}）")
+
+        if len(keep) != len(items):
+            await _write_verify(keep)
+        if not outcomes:
+            return
+
+        summary = {
+            "ok": sum(1 for o in outcomes if o[0] == "ok"),
+            "failed": sum(1 for o in outcomes if o[0] == "failed"),
+            "missing": sum(1 for o in outcomes if o[0] == "missing"),
+            "timeout": sum(1 for o in outcomes if o[0] == "timeout"),
+        }
+        report = {
+            "checked_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds"),
+            **summary,
+            "cleaned": cleaned,
+            "pending": len(keep),
+            "items": [
+                {"hash": h, "name": name, "result": st, "note": note}
+                for st, h, name, note in outcomes[-_REPORT_DETAIL_LIMIT:]
+            ],
+        }
+        await store.set("last_verify_report", report)
+        if summary["ok"]:
+            plog("success", f"转种校验通过 {summary['ok']} 个（已在目标下载器做种）")
+        if summary["failed"]:
+            plog(
+                "warning",
+                "转种校验失败 {} 个{}".format(
+                    summary["failed"], f"，已清掉 {cleaned} 个空壳任务（未删文件）" if cleaned else "（未清理）",
+                ),
+            )
+        if summary["missing"]:
+            plog("warning", f"转种校验：{summary['missing']} 个加种后任务不在了")
+        if summary["timeout"]:
+            plog("warning", f"转种校验：{summary['timeout']} 个超时仍未校完（不再等）")
 
     # ------------------------------------------------------------------
     # watcher：校验完成自动开始做种（qB 目标 + 不跳校验时）
@@ -2015,18 +2733,27 @@ async def apply(ctx: Context) -> None:
         await _write_pending(remaining)
 
     async def _watcher() -> None:
+        streak = 0
         while True:
             try:
                 pending = await _read_pending()
                 if pending:
                     await _resume_ready(pending)
+                await _verify_round()
+                if streak >= 3:
+                    plog("success", "watcher 恢复：校验监视已正常工作")
+                streak = 0
+                await health_ok("watcher")
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                streak += 1
                 now = time.monotonic()
                 if now - _watch_warn_at["t"] > 600:
                     _watch_warn_at["t"] = now
                     plog("warning", f"watcher 本轮跳过（{type(exc).__name__}，稍后自动重试）")
+                if streak >= 3:
+                    await health_bad("watcher", f"转种后校验监视连续 {streak} 轮出错（{type(exc).__name__}），新加的种子可能不会被自动开始做种")
             await asyncio.sleep(_WATCH_INTERVAL_SECONDS)
 
     # ------------------------------------------------------------------
@@ -2067,12 +2794,14 @@ async def apply(ctx: Context) -> None:
             state["report"] = report
             state["summary"] = summary
             plog("success", f"{label}手动执行完成：{summary}")
+            await _announce(kind, report)
         except HTTPException as exc:
             state["error"] = str(exc.detail)
             plog("warning", f"{label}手动执行跳过：{exc.detail}")
         except Exception:
             state["error"] = "执行失败，详情见日志"
             plog("error", f"{label}手动执行失败：" + traceback.format_exc(limit=3))
+            await health_bad(kind, f"{label}手动执行失败，详情见插件日志")
         finally:
             state["running"] = False
             state["finished_at"] = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds")
@@ -2088,9 +2817,11 @@ async def apply(ctx: Context) -> None:
             report = await transfer_pass()
         except HTTPException as exc:
             plog("warning", f"转种定时运行跳过：{exc.detail}")
+            await health_bad("transfer", f"转种跑不起来：{exc.detail}")
             return
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
             plog("error", "转种定时运行失败：" + traceback.format_exc(limit=3))
+            await health_bad("transfer", f"转种最近一轮失败（{type(exc).__name__}），详情见插件日志")
             return
         plog(
             "success" if (report.get("transferred") or 0) > 0 else "info",
@@ -2099,6 +2830,7 @@ async def apply(ctx: Context) -> None:
                 report.get("failed", 0), report.get("deleted_source", 0),
             ),
         )
+        await _announce("transfer", report)
 
     async def scheduled_reseed() -> None:
         if not ctx.config.iyuu_token:
@@ -2110,9 +2842,11 @@ async def apply(ctx: Context) -> None:
             report = await reseed_pass()
         except HTTPException as exc:
             plog("warning", f"辅种定时运行跳过：{exc.detail}")
+            await health_bad("reseed", f"辅种跑不起来：{exc.detail}")
             return
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
             plog("error", "辅种定时运行失败：" + traceback.format_exc(limit=3))
+            await health_bad("reseed", f"辅种最近一轮失败（{type(exc).__name__}），详情见插件日志")
             return
         plog(
             "success" if (report.get("ok") or 0) > 0 else "info",
@@ -2122,6 +2856,37 @@ async def apply(ctx: Context) -> None:
                 report.get("failed", 0),
             ),
         )
+        await _announce("reseed", report)
+
+    # ------------------------------------------------------------------
+    # 事件驱动：下载完成 / 入库完成 → 去抖后立刻补跑一轮转种
+    # 定时任务仍是兜底（事件丢了、插件重启了都不影响）；这里只是把「等最多 6 小时」
+    # 变成「半分钟内」。
+    # ------------------------------------------------------------------
+    _kick: dict[str, Any] = {"at": 0.0, "task": None}
+
+    async def _kick_transfer(reason: str) -> None:
+        cfg = ctx.config
+        if not cfg.transfer_enabled or _runs["transfer"]["running"]:
+            return
+        now = time.monotonic()
+        if now - _kick["at"] < 120:          # 2 分钟内只踢一次，避免一批下载连踢
+            return
+        _kick["at"] = now
+        plog("info", f"收到「{reason}」，立即补跑一轮转种")
+        await scheduled_transfer()
+
+    async def on_download_completed(payload: Any) -> None:
+        await _kick_transfer("下载完成")
+
+    async def on_ingest_completed(payload: Any) -> None:
+        await _kick_transfer("入库完成")
+
+    ctx.on(DOWNLOAD_COMPLETED, on_download_completed)
+    ctx.on(LIBRARY_INGEST_COMPLETED, on_ingest_completed)
+    # 删片联动：文件从磁盘删掉 / 回收站彻底清除 → 对应的下载任务立刻停（可靠事件，至少一次投递）
+    ctx.on(LIBRARY_FILE_DELETED, on_library_file_gone, id="library-file-deleted", durable=True)
+    ctx.on(LIBRARY_FILE_PURGED, on_library_file_gone, id="library-file-purged", durable=True)
 
     ctx.contribute(SCHEDULED_TASKS, "transfer", TaskDefinition(
         key=f"{PLUGIN_ID}.transfer", title="自动转种",
@@ -2150,6 +2915,34 @@ async def apply(ctx: Context) -> None:
     # ------------------------------------------------------------------
 
     admin = APIRouter()
+
+    @admin.post("/verify/check", operation_id=f"plugins.{PLUGIN_ID}.verify.check", summary="立即检查转种后置校验：不带参数＝跑一轮队列；带 hashes＝查看这些种在目标下载器里的校验状态；enqueue=true 则把它们加入监管队列")
+    async def verify_check(hashes: str = "", enqueue: bool = False) -> dict:
+        if hashes.strip():
+            wanted = [h.strip().lower() for h in hashes.replace(",", " ").split() if h.strip()]
+            to_row = await resolve_downloader(ctx.config.to_downloader, "目标")
+            if to_row is None:
+                raise HTTPException(status_code=400, detail="先在插件设置里配好目标下载器")
+            target = await target_client(to_row)
+            try:
+                snap = await target.inspect(wanted)  # type: ignore[union-attr]
+            finally:
+                await target.close()  # type: ignore[attr-defined]
+            now = int(time.time())
+            if enqueue:
+                await _verify_enqueue(wanted, {h: str((snap.get(h) or {}).get("name") or "") for h in wanted})
+            return {
+                "target": f"#{to_row['id']} {to_row['name']}",
+                "enqueued": enqueue,
+                "items": [
+                    {"hash": h, "exists": h in snap,
+                     "verdict": verify_verdict(snap.get(h), 0, now, 0)[0],
+                     **(snap.get(h) or {})}
+                    for h in wanted
+                ],
+            }
+        await _verify_round()
+        return {"pending": len(await _read_verify()), "last_report": await store.get("last_verify_report")}
 
     @admin.get("/sweep/candidates", operation_id=f"plugins.{PLUGIN_ID}.sweep.candidates", summary="保活守护最近一次扫描的完整候选清单（只读；网页「待清理」用）")
     async def sweep_candidates(limit: int = 5000) -> dict:
@@ -2208,9 +3001,23 @@ async def apply(ctx: Context) -> None:
             },
             "sweep": {
                 "enabled": cfg.sweep_enabled, "dead": cfg.sweep_dead, "no_data": cfg.sweep_no_data,
+                "managed_dead": cfg.sweep_managed_dead,
                 "dry_run": cfg.sweep_dry_run, "protected_labels": split_tags(cfg.sweep_protected_labels),
-                "never_touch": "MovieClaw 主种（movieclaw-*）与保护标签的种永不清理；只删任务不删文件",
+                "never_touch": "带保护标签的种永不清理；主种（movieclaw-*）里的空壳先用内核预演判断，会被订阅重下的一律保留；只删任务不删文件",
                 "last_report": await store.get("last_sweep_report"),
+            },
+            "verify": {
+                "enabled": cfg.verify_after_transfer,
+                "fail_cleanup": cfg.verify_fail_cleanup,
+                "timeout_minutes": cfg.verify_timeout_minutes,
+                "pending": len(await _read_verify()),
+                "last_report": await store.get("last_verify_report"),
+            },
+            "link_delete": {
+                "enabled": cfg.link_delete_enabled,
+                "delete_files": cfg.link_delete_files,
+                "policy": "删片 / 清空回收站时按文件反查下载任务；还供着别的文件、有 H&R 风险、删了会让订阅重下的一律保留",
+                "last_report": await store.get("last_link_delete"),
             },
             "runs": {
                 k: {kk: vv for kk, vv in v.items() if kk != "report"} for k, v in _runs.items()
@@ -2283,6 +3090,21 @@ async def apply(ctx: Context) -> None:
             "total": len(items), "counts": counts, "items": items,
         }
 
+    @admin.post("/cooldown/clear", operation_id=f"plugins.{PLUGIN_ID}.cooldown-clear", summary="清除所有站点的取种冷却（被冷却的站点立即重试）")
+    async def cooldown_clear() -> dict:
+        cleared = 0
+        for key in await store.items():
+            key_s = str(key)
+            if not key_s.startswith("block:"):
+                continue
+            try:
+                await store.delete(key_s)
+                cleared += 1
+            except Exception:
+                continue
+        plog("info", f"已清除 {cleared} 个站点的取种冷却")
+        return {"cleared": cleared}
+
     @admin.get("/credentials", operation_id=f"plugins.{PLUGIN_ID}.credentials", summary="站点凭据库：各站已学到的 passkey/sign（打码显示）与更新时间")
     async def credentials_list() -> dict:
         import time as _t
@@ -2292,8 +3114,15 @@ async def apply(ctx: Context) -> None:
             if not key_s.startswith("cred:"):
                 continue
             try:
-                info = json.loads(raw) if isinstance(raw, str) else {}
+                if isinstance(raw, dict):
+                    info = raw
+                elif isinstance(raw, str):
+                    info = json.loads(raw)
+                else:
+                    info = {}
             except Exception:
+                continue
+            if not isinstance(info, dict):
                 continue
             site_id = key_s.removeprefix("cred:")
             masked = {
@@ -2410,10 +3239,13 @@ async def apply(ctx: Context) -> None:
             return {"started": True, "kind": kind, "dry_run": dry_run,
                     "message": f"{_KIND_LABEL[kind]}已开始后台执行"}
         if kind == "transfer":
-            return await transfer_pass(dry_run=dry_run)
-        if kind == "reseed":
-            return await reseed_pass(dry_run=dry_run)
-        return await sweep_pass(dry_run=dry_run)
+            report = await transfer_pass(dry_run=dry_run)
+        elif kind == "reseed":
+            report = await reseed_pass(dry_run=dry_run)
+        else:
+            report = await sweep_pass(dry_run=dry_run)
+        await _announce(kind, report)
+        return report
 
     @admin.get("/sites", operation_id=f"plugins.{PLUGIN_ID}.sites", summary="IYUU 站点目录（免令牌）与本机映射情况")
     async def sites() -> dict:

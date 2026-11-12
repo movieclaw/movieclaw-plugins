@@ -34,15 +34,15 @@ else:
 
     # 要抽出来的东西：纯函数 + 它们依赖的模块级常量。
     WANTED_FUNCS = {
-        "remember_site_nicknames", "_norm", "split_lines", "split_tags", "qb_tags",
-        "convert_save_path", "is_excluded_path", "torrent_file_candidates",
+        "_norm", "split_lines", "split_tags", "qb_tags",
+        "convert_save_path", "torrent_file_candidates",
         "needs_trackers", "patch_announce", "info_hash_of", "_announce_urls",
-        "is_completed", "qb_seeding_paused", "tr_verify_done", "compact_hash_json",
+        "qb_seeding_paused", "verify_cleanup_allowed", "verify_verdict", "compact_hash_json",
         "index_sha1", "parse_sites", "parse_matches", "domain_of", "slug_of",
         "extract_credentials", "apply_credentials", "fill_download_template",
-        "build_download_url", "_norm_title", "_title_match", "tracker_dead_reason",
-        "tr_torrent_verdict", "qb_torrent_verdict", "sitename_from_labels",
-        "site_tag_from_trackers",
+        "strip_placeholders", "build_download_url", "_norm_title", "_title_match",
+        "tracker_dead_reason", "link_delete_verdict", "files_of_payload",
+        "tr_torrent_verdict", "qb_torrent_verdict", "site_tag_from_trackers",
     }
     WANTED_ASSIGNS = {
         "_SITE_NICKNAMES", "_SLUG_ALIASES", "_DOWNLOAD_UNKNOWN_PARAMS",
