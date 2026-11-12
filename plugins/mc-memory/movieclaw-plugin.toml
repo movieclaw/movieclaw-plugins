@@ -1,0 +1,18 @@
+[plugin]
+id = "mc-memory"
+title = "记忆与上下文管家"
+version = "0.4.7"
+entry = "mc_memory"
+runtime = "process"
+sdk = "^1.0"
+description = "跨会话记忆 + 会话自动压缩，二合一（原 session-keeper 已并入）。每轮对话结束只读一次会话轨迹，同时驱动两件事：① 自动压缩——累计消息数或最近请求的输入 token 达到阈值就压缩上下文（只压不删，完整轨迹保留），把每次请求的输入 token 压回低位，动态节省 token；② 记忆提炼——按 Engramory 记忆协议自动沉淀值得长期记住的事实（用户偏好、纠正反馈、项目决策、资源指针），压缩发生的轮次强制提炼一次，赶在上下文折叠前存好长期记忆；活跃记忆进有界索引（软/硬双上限、写前拦截），冷记忆归档出索引不删内容；AI 开局只拿索引指针、按需取全文、关键词全文检索；自带体检（近似重复、超大笔记、失效链接、冷记忆建议归档）；提取后端支持多后端顺序故障切换（如 GLM 为主、DeepSeek 兜底，额度用尽自动切换）；左侧栏提供管理页（索引 / 检索 / 新增 / 编辑 / 置顶 / 归档 / 恢复 / 删除 / 体检 / 压缩管家看板与手动压缩）。"
+
+[requires]
+"agent.run.finished" = "^1.2"
+
+[permissions]
+operations = ["session.get-transcript", "session.compact-context"]
+# session.get-transcript：会话结束后读新对话用于提炼与压缩判断（涉及对话内容：需单独批准）
+# session.compact-context：达到阈值时压缩会话上下文（改动对话历史：需单独批准）
+events = ["agent.run.finished"]           # 涉及对话内容：需单独批准
+network = true                            # 调用提取模型（OpenAI 兼容接口）

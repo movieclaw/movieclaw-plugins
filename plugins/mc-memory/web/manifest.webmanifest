@@ -1,0 +1,6 @@
+{
+  "name": "记忆与上下文管家",
+  "short_name": "记忆管家",
+  "start_url": ".",
+  "icons": [{ "src": "icon.svg", "type": "image/svg+xml", "purpose": "monochrome" }]
+}
