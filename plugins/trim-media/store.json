@@ -1,0 +1,10 @@
+{
+  "author": "DongShull",
+  "author_url": "https://github.com/DongShull",
+  "license": "MIT",
+  "origin": "official",
+  "summary": "把飞牛影视接成 MovieClaw 的本地库，进度与片头片尾双向同步。",
+  "category": "library",
+  "icon": "icon.svg",
+  "homepage": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/trim-media"
+}
