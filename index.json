@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-13T02:08:07Z",
+  "generated_at": "2026-11-13T23:46:36Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -2070,7 +2070,7 @@
     {
       "id": "playback-cleanup",
       "name": "续播进度清理",
-      "summary": "播放结束后自动清掉选定库、选定成员的续播进度：只清续播位置，不动已看与收藏；默认只预览，可撤销。",
+      "summary": "播放结束后自动清掉选定库、选定成员的续播进度，并从「接下来继续」隐藏（需新版宿主）；不动已看与收藏；默认只预览，可撤销。",
       "description": "选中的成员在选中的媒体库里播放结束后，延迟几十秒自动清掉续播进度（只清 position_ms，不动已看 / 收藏 / 播放次数）；可选每小时兜底扫描，默认只预览，可撤销。",
       "category": "library",
       "author": {

@@ -1,11 +1,11 @@
 [plugin]
 id = "playback-cleanup"
 title = "续播进度清理"
-version = "0.1.1"
+version = "0.1.3"
 entry = "playback_cleanup"
 runtime = "process"
 sdk = "^1.0"
-description = "选中的成员在选中的媒体库里播放结束后，延迟几十秒自动清掉续播进度（只清 position_ms，不动已看 / 收藏 / 播放次数）；可选每小时兜底扫描，默认只预览，可撤销。"
+description = "选中的成员在选中的媒体库里播放结束后，延迟几十秒自动清掉续播进度并从「接下来继续」隐藏（隐藏需新版宿主；不动已看 / 收藏 / 播放次数）；可选每小时兜底扫描，默认只预览，可撤销。"
 
 [requires]
 "scheduled-tasks" = "^1.0"
