@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-12T10:09:01Z",
+  "generated_at": "2026-11-13T02:08:07Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -638,7 +638,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-123",
-      "downloads": 6,
+      "downloads": 7,
       "latest": "0.1.0-beta.10",
       "latest_stable": null,
       "versions": [
@@ -1137,7 +1137,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=mc-memory",
-      "downloads": 0,
+      "downloads": 1,
       "latest": "0.4.7",
       "latest_stable": "0.4.7",
       "versions": [
@@ -2167,7 +2167,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-keepalive",
-      "downloads": 44,
+      "downloads": 45,
       "latest": "0.2.4",
       "latest_stable": "0.2.4",
       "versions": [
@@ -2336,7 +2336,7 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=pt-site-pack",
-      "downloads": 51,
+      "downloads": 52,
       "latest": "0.2.1",
       "latest_stable": "0.2.1",
       "versions": [
@@ -2564,7 +2564,7 @@
       "id": "seed-hub",
       "name": "保种管家",
       "summary": "自动转种 + IYUU 辅种 + 死种清理，保种三件事一个插件全管。",
-      "description": "自动转种 + IYUU 自动辅种 + 保活守护，一个插件全管。转种：把源下载器已完成的种搬到目标下载器继续做种——读磁盘种子文件（<info_hash>.torrent），任意版本的 qBittorrent / Transmission 都能当源，qB ≥ 4.5 再加 WebUI 导出兜底；路径换算直接用内核里已配的下载器路径映射。辅种：已完成的种拿去 IYUU 匹配其他站点，经内核 dl.submit 带站点登录态取种（插件碰不到站点 Cookie），沿用原种保存路径；取种链接先用站点搜索核对真实地址，IYUU 模板链接用学到的站点凭据回填后兜底。守护：站点已删种 / 数据丢失的种自动清理（MovieClaw 主种与保护标签永不碰，只删任务不删文件）。左侧栏「保种管家」一页三标签：概览、待清理、运行日志；三个定时任务的周期在「设置 → 定时任务」可调。",
+      "description": "自动转种 + IYUU 自动辅种 + 保活守护，一个插件全管。转种：把源下载器（如 qB）已完成的种搬到目标下载器（如 TR）继续保种（读磁盘种子文件，任意版本 qB/TR 都能当源；WebUI 导出兜底），路径映射用内核已配的；加种后还会持续校验目标结果，校验失败的空壳任务自动清掉。辅种：已完成种拿去 IYUU 匹配其他站点，内核带站点登录态取种（插件碰不到 Cookie），沿用原种保存路径；站点标签能分清主种/辅种与来源。守护：站点已删种 / 数据丢失的种自动清理，MovieClaw 主种里的空壳会先用内核删种预演判断——会被订阅重下的一律保留，绝不删文件。删片联动：媒体库里删片或清空回收站，对应的下载任务立刻停（还供着别的文件、有 H&R 风险、会牵动订阅重下的一律保留）。左侧栏「保种管家」一页：概览、待清理、运行日志；周期在「定时任务」可调；每轮结果可作为事件被 Webhook / 别的插件订阅。",
       "category": "downloader",
       "author": {
         "name": "DongShu",
@@ -2582,10 +2582,68 @@
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=seed-hub",
-      "downloads": 10,
-      "latest": "1.0.0",
-      "latest_stable": "1.0.0",
+      "downloads": 11,
+      "latest": "1.1.0",
+      "latest_stable": "1.1.0",
       "versions": [
+        {
+          "version": "1.1.0",
+          "prerelease": false,
+          "released_at": "2026-11-13T02:08:07Z",
+          "yanked": null,
+          "notes": "在 1.0.0 的三个引擎上加「转完能收尾、删片能联动、跑完能被别的功能看见」。\n\n转种\n\n- 校验编排升级：加种后持续盯目标下载器，以目标自己的判断为准（本地报错 / 进度 100% /\n  超时）。本地报错且重下就能恢复的任务自动清掉，不再让空壳任务堆在清单里；\n  「分片损坏」这类删了就找不回来的只告警，不代劳。\n- 扫描改为直连下载器取「已完成」清单：内核的任务视图只显示未完成任务与入库收尾中的任务，\n  已完成的外部种会被隐藏，以前按它扫会永远扫不到东西。\n- 站点标签（MP 风格）：按种子文件里的 tracker 域名补一条「站点/名字」，配合转种 / 辅种标签，\n  一眼分清主种、辅种和来源站。\n- 删源安全线：MovieClaw 投递的种（订阅 / 手动下载）默认跳过，避免删掉后订阅判定缺资源又重下。\n\n辅种\n\n- IYUU 接口修复：sid_sha1 先报后用（报「站点哈希值」错时自动重报）、限流退避重试、\n  时间戳随重试刷新、info_hash 分批（每批 200）。\n- 取种链接三级策略：按发布名在目标站搜索精确命中 → 名称模糊命中 → IYUU 模板链接回填\n  站点凭据兜底（模板里的 `{passkey}` 保留到凭据库回填这一步，不再提前剥掉）。\n- 台账：成功辅过的按源种分组，逐条可删（顺带从下载器移除该任务，不会再自动加回）；\n  已在做种但台账没有的历史辅种自动补录。\n- 站点冷却：单站连续失败自动冷却（超时 1 小时、要凭据 / 种子已删 24 小时），不拖住整轮。\n\n保活守护\n\n- 判死口径收紧：全部真实 tracker 都报 `not registered` / `torrent banned` 才算站点已删种；\n  TR 本地 `No data found` 且校验未过才算数据丢失；「分片损坏」只告警、建议重新校验。\n- 主种空壳处理：MovieClaw 主种的数据已不在原位时，先用内核删种预演判断——会被订阅\n  重下的一律保留，只是空壳的才清掉。\n- 保护标签（默认「留」「保留」）与 MovieClaw 主种永不碰；只删任务不删文件；\n  默认「只报告不删除」。\n\n删片联动（新）\n\n- 监听媒体库的删片与清空回收站（可靠事件，按投递 id 幂等）：删片后立刻把对应的下载任务\n  从下载器里移除，不用等守护下一轮。\n- 按媒体库文件 id 反查来源任务，三道安全线任一命中就保留：下载器配置已删除、\n  这个种还供着库里别的文件、投递时有 H&R 考核风险；主种额外过一遍内核删种预演。\n- 两个开关：删片后自动停种（默认开）；停种时同时删数据文件（默认关，只留孤立文件）。\n\n与系统其它能力打通（新）\n\n- 三个插件事件：转种完成 / 辅种完成 / 保活守护完成，Webhook 和别的插件都能订阅。\n- 两条通知模板（转种完成、守护清理），默认关，想推到手机 / IM 去「设置 → 通知」打开。\n- 健康上报：常驻任务连续失败会显示成插件异常，恢复后自动转好，不用盯着日志找。\n\n界面\n\n- 左侧栏「保种管家」一页三标签：概览（转种 / 辅种 / 守护三张卡 + 配置自检 + 最近报告）、\n  待清理（完整候选表，比报告里的明细全）、运行日志（只显示本插件的日志，按级别过滤、\n  可清空、跨重启保留）。\n- PC 端三张卡同一行、高度对齐；手机端卡片式重排；配色跟随主题变量；按钮与文字不再留大空隙。\n- 新增 mclaw 命令：`status`、`run`、`logs`、`sweep-candidates`、`transfer-scan`、\n  `verify-check`、`reseed-ledger`、`reseed-ledger-delete`、`cooldown-clear`、\n  `credentials`、`credentials-refresh`、`sites`。\n\n权限与契约\n\n- 新增宿主操作：`dl.file-sources.list`（删片停种反查来源任务）、`site.proxy.request`\n  （危险：借宿主登录态打开站点详情页，解析真实取种链接，凭据不出宿主）。\n- 新增契约：`download.completed`、`library.ingest.completed`、`library.file.deleted`、\n  `library.file.purged`、`kernel/durable-events`、`plugin-events`、`plugin-health`。\n",
+          "changelog_url": "https://github.com/movieclaw/movieclaw-plugins/releases/tag/seed-hub-v1.1.0",
+          "source_url": "https://github.com/movieclaw/movieclaw-plugins/tree/seed-hub-v1.1.0/plugins/seed-hub",
+          "readme": {
+            "url": "https://raw.githubusercontent.com/movieclaw/movieclaw-plugins/seed-hub-v1.1.0/plugins/seed-hub/README.md",
+            "sha256": "6128a4a06af985d1b1fcf67cad18d0d23a7e297ee39d24998673fa6fb07eab18",
+            "size": 10156
+          },
+          "runtime": "process",
+          "sdk": "^1.0",
+          "requires": {
+            "scheduled-tasks": "^1.0",
+            "plugin-files": "^1.0",
+            "download.completed": "^2.0",
+            "library.ingest.completed": "^1.0",
+            "library.file.deleted": "^2.0",
+            "library.file.purged": "^2.0",
+            "kernel/durable-events": "^1.0",
+            "plugin-events": "^1.0",
+            "plugin-health": "^1.0"
+          },
+          "platforms": [
+            "any"
+          ],
+          "permissions": {
+            "operations": [
+              "dl.tasks",
+              "dl.submit",
+              "dl.list",
+              "dl.file-sources.list",
+              "dl.torrent.delete",
+              "site.list",
+              "site.show",
+              "search.torrents",
+              "site.proxy.request"
+            ],
+            "paths": [],
+            "network": true,
+            "callbacks": [],
+            "events": []
+          },
+          "web": true,
+          "dependencies": null,
+          "artifacts": [
+            {
+              "platform": "any",
+              "filename": "seed-hub-1.1.0.mcplugin",
+              "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/seed-hub-v1.1.0/seed-hub-1.1.0.mcplugin",
+              "sha256": "560155ee93193a697dbcfa2b676b1b21105320cc51402f0e13fd2b9bcf96b3d8",
+              "size": 90091
+            }
+          ]
+        },
         {
           "version": "1.0.0",
           "prerelease": false,
