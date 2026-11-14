@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-11-13T02:08:07Z",
+  "generated_at": "2026-11-14T07:57:17Z",
   "signed": true,
   "key_id": "catalog-1",
   "repository": "https://github.com/movieclaw/movieclaw-plugins",
@@ -634,7 +634,11 @@
       "repository": "https://github.com/movieclaw/movieclaw-plugins/tree/main/plugins/cloud-123",
       "license": "MIT",
       "origin": "official",
-      "icon": null,
+      "icon": {
+        "url": "https://github.com/movieclaw/movieclaw-plugins/releases/download/catalog/cloud-123-icon-2b200b82d15b4cc3.png",
+        "sha256": "2b200b82d15b4cc3a5535b71619be576e05478680acaa2d2bb307ad8076dcb10",
+        "size": 3971
+      },
       "screenshots": [],
       "deprecated": null,
       "feedback_url": "https://github.com/movieclaw/movieclaw-plugins/issues/new?template=plugin-feedback.yml&plugin=cloud-123",
