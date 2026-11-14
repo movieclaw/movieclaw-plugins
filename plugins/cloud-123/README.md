@@ -91,7 +91,7 @@ PYTHONPATH="$deps_dir" python3.12 -m unittest discover \
   -s plugins/cloud-123/tests -t plugins/cloud-123 -v
 
 python3.12 scripts/generate_index.py --lint
-python3.12 scripts/pack.py plugins/cloud-123 --output /tmp/cloud-123-0.1.0-beta.10.mcplugin
+python3.12 scripts/pack.py plugins/cloud-123 --output /tmp/cloud-123-1.0.0.mcplugin
 ```
 
 测试使用真实 SDK 类型和请求适配，通过模拟 transport 或本地回环 HTTP 服务验证，
@@ -104,6 +104,10 @@ Linux amd64/arm64 的 CI 依赖安装检查不等同于真实宿主运行及网�
 安装包、采样数据、私有证据和个人验收截图放在仓库外，不提交到 PR。
 
 ## 许可证
+
+市场图标 [`icon.png`](icon.png) 来自 [123 云盘官网](https://www.123pan.com/) 引用的
+[官方 favicon](https://statics.123957.com/static-by-custom/favicon.ico)（2026-11-05 核实）。
+仅将原始 64×64 ICO 无损转换为 PNG，保留原始像素与透明度；图标及商标归其权利人所有，不适用下述源码 MIT 许可。
 
 本插件自有源码以 **MIT** 许可发布，作者为 **zactony**，见 [LICENSE](LICENSE)。
 锁定的 `p123client==0.0.9.4` 的包元数据和随包 LICENSE 均为 MIT，未发现必须采用 cloud-115 的 GPL 许可证的依据。
