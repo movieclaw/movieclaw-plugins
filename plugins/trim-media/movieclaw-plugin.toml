@@ -1,0 +1,43 @@
+[plugin]
+id = "trim-media"
+title = "飞牛影视"
+title_localized = { en = "fnOS Trim Media" }
+version = "0.2.3"
+entry = "trim_media"
+runtime = "process"
+sdk = "^1.0"
+description = "把飞牛影视（fnOS Trim Media）当作 MovieClaw 的播放器与库伙伴：自动把飞牛上的库接成本地媒体库（飞牛挂了照常播）、观看进度双向同步、MovieClaw 识别的片头片尾写回飞牛。"
+[plugin.description_localized]
+en = "Treat fnOS Trim Media as a player and library companion for MovieClaw: auto-adopt fnOS libraries as local media libraries (keep playing even if fnOS is down), two-way watch-progress sync, and write MovieClaw-detected intro/outro markers back to fnOS."
+
+[requires]
+"plugin-data" = "^1.0"
+"plugin-files" = "^1.0"
+"plugin-routes" = "^1.0"
+"plugin-jobs" = "^1.0"
+"scheduled-tasks" = "^1.1"
+"host-ops" = "^1.0"
+"job-handlers" = "^1.2"
+"playback.progress" = "^1.0"
+"playback.stopped" = "^1.1"
+"playback.completed" = "^1.1"
+"library.segments.updated" = "^1.0"
+
+[permissions]
+# 建库/扫描/认领/进度写回/读片头片尾/查成员，全部走宿主操作（按 id 逐个列出）
+operations = [
+    "library.list",
+    "library.create",
+    "library.scan.start",
+    "library.items.list",
+    "library.items.segments",
+    "playback.sync.catalog",
+    "playback.sync.state",
+    "members.list",
+]
+# 覆盖检查要数库根目录下的文件（只读，受批准路径约束）
+paths = [{ path = "library", mode = "read" }]
+# 播放进度/停止/看完属于敏感事件（谁在什么时候看了什么），要单独批准
+events = ["playback.progress", "playback.stopped", "playback.completed"]
+# 访问飞牛影视服务（内网 / 反代地址）
+network = true
